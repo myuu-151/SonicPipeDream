@@ -128,7 +128,10 @@ CLUSTER_V_MARGIN = 5.0
 
 # A margin of empty texture, so clamping outside the patch gives transparency.
 CLUSTER_MARGIN = 0.04
-STAR_REPEAT = 4.0          # starfield tiles around the horizon
+# Two around, so one tile spans 180 degrees of azimuth -- the same 180 the
+# sphere spans vertically. A square tile, which is what lets the texture be
+# square without stretching the sprites.
+STAR_REPEAT = 2.0
 
 # One copy up the sphere, NOT two.
 #
@@ -180,7 +183,7 @@ STAR_FRAMES = 8
 # -- so a star drawn as a round shape in pixels comes out stretched 2:1 on the
 # dome. Sizing the texture to the tile's own proportions makes a pixel cover
 # the same angle either way, which is what keeps the sprite round.
-STAR_TEX_W = 512
+STAR_TEX_W = 1024
 STAR_TEX_H = 1024
 STAR_TEX = STAR_TEX_W                      # kept for the sprite's own maths
 
@@ -271,7 +274,7 @@ def write_texture(path, name, uuid, w, h, pixels, wrap, srgb=True, force_hq=Fals
 
 
 # ------------------------------------------------------------------ pixels
-def gen_gradient(w=16, h=256):
+def gen_gradient(w=256, h=256):
     """Row 0 is the lowest ring of the dome, row h-1 the zenith.
 
     The ramp is anchored to the horizon rather than to the bottom of the
@@ -310,8 +313,8 @@ def gen_gradient(w=16, h=256):
 # The pair also has to track the tile's area or the density moves under you:
 # dropping the vertical tiling doubled that area, and leaving the grid alone
 # halved the density.
-STAR_GRID_X = 26
-STAR_GRID_Y = 52
+STAR_GRID_X = 53
+STAR_GRID_Y = 53
 STAR_DROP = 0.08
 
 
@@ -392,6 +395,24 @@ def gen_stars_frame(field, frame, frames=STAR_FRAMES, w=STAR_TEX_W, h=STAR_TEX_H
     arms changing length, not the star changing brightness.
     """
     px = bytearray(w * h * 4)
+
+    # The sky gradient is painted in as the background, so this layer is opaque.
+    #
+    # It used to be its own texture on its own tev stage. That cost a stage and,
+    # worse, made this layer a cutout -- and cutouts cannot be trusted on this
+    # hardware, because gxtexconv's CMPR throws alpha away. Baking the two
+    # together makes the layer solid, which CMPR handles perfectly, and drops
+    # the material from three textures to two.
+    #
+    # They combine cleanly because the gradient varies only with elevation and
+    # this texture's v IS elevation; its horizontal tiling does not disturb it.
+    for y in range(h):
+        elev = ELEV_MIN + (y / float(h - 1)) * (ELEV_MAX - ELEV_MIN)
+        k = abs(elev) / GRADIENT_RAMP_DEG
+        c = SKY_DEEP if k >= 1.0 else mixc(SKY_LIFT, SKY_DEEP, smoothstep(0.0, 1.0, k))
+
+        row = bytes((c[0], c[1], c[2], 255)) * w
+        px[y * w * 4:(y + 1) * w * 4] = row
 
     def put(x, y, v, b=0):
         o = ((y % h) * w + (x % w)) * 4
@@ -581,13 +602,14 @@ def gen_material(path):
     d += u32(0)                     # Unlit
     d += u32(0)                     # Opaque
     d += u32(1)                     # VertexColorMode::Modulate
-    d += u32(3)                     # numTextures
-    # 0: gradient on uv1, Replace -- constant across u, so the repeat is moot
-    d += asset_ref(UUID_GRAD, "T_S2Sky_Gradient") + u8(1) + u8(0)
-    # 1: stars on uv1, Decal
-    d += asset_ref(UUID_STARS, "T_S2Sky_Stars_1") + u8(1) + u8(2)
-    # 2: diamonds on uv0, Decal -- last, so the cluster sits over the stars
-    d += asset_ref(UUID_DIAMONDS, "T_S2Sky_Diamonds_1") + u8(0) + u8(2)
+    d += u32(2)                     # numTextures
+    # 0: the sky -- gradient with the starfield painted into it, so it is
+    #    opaque and can stay compressed. Replace, being the base.
+    d += asset_ref(UUID_STARS, "T_S2Sky_Stars_1") + u8(0) + u8(0)
+    # 1: diamonds on uv1, Decal. This one genuinely needs alpha, so it cooks to
+    #    RGB5A3 rather than CMPR.
+    d += asset_ref(UUID_DIAMONDS, "T_S2Sky_Diamonds_1") + u8(1) + u8(2)
+    d += null_ref() + u8(0) + u8(1)
     d += null_ref() + u8(0) + u8(1)
     for _ in range(2):
         d += f32(0) + f32(0) + f32(1) + f32(1)
@@ -664,13 +686,18 @@ def gen_mesh(path):
             # would wrap vertically and draw the cluster again above and below
             # itself. Vertices outside the band all sit on 0 or 1, which are
             # the empty margin rows, so nothing is smeared by the clamp.
-            u0 = az * CLUSTER_COUNT
-            v0 = min(1.0, max(0.0, (elev - V_LO) / (V_HI - V_LO)))
+            # UV0 is the sky: the gradient and the starfield share it, which
+            # they can because the gradient is constant across u.
+            u0 = az * STAR_REPEAT
+            v0 = v
 
-            u1 = az * STAR_REPEAT
+            # UV1 is the diamond band, clamped so the texture's Repeat can only
+            # ever act across, never up.
+            u1 = az * CLUSTER_COUNT
+            v1 = min(1.0, max(0.0, (elev - V_LO) / (V_HI - V_LO)))
 
             verts.append((dx * RADIUS, dy * RADIUS, dz * RADIUS,
-                          u0, v0, u1, v * STAR_V_REPEAT, -dx, -dy, -dz))
+                          u0, v0, u1, v1, -dx, -dy, -dz))
 
     # A pole vertex per segment, not one shared by the whole fan.
     #
@@ -684,16 +711,16 @@ def gen_mesh(path):
     for seg in range(SEGMENTS):
         az = (seg + 0.5) / SEGMENTS
         verts.append((0.0, RADIUS, 0.0,
+                      az * STAR_REPEAT, 1.0,
                       az * CLUSTER_COUNT, 1.0,
-                      az * STAR_REPEAT, STAR_V_REPEAT,
                       0.0, -1.0, 0.0))
 
     south_first = len(verts)
     for seg in range(SEGMENTS):
         az = (seg + 0.5) / SEGMENTS
         verts.append((0.0, -RADIUS, 0.0,
-                      az * CLUSTER_COUNT, 0.0,
                       az * STAR_REPEAT, 0.0,
+                      az * CLUSTER_COUNT, 0.0,
                       0.0, 1.0, 0.0))
 
     idx = []
