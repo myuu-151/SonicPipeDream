@@ -9,7 +9,7 @@ of diamond clusters along the horizon.
 
 | | |
 | --- | --- |
-| `proj/` | the Octave project — open `SkyboxDay.octp` |
+| `proj/` | the Octave project — open `Sonic2Special3D.octp` |
 | `proj/Scripts/Sky.lua` | anchors the dome to the camera and runs the twinkle |
 | `native/gen_s2sky_assets.py` | generates every sky asset |
 | `native/day_backup/` | the original day sky, before it was replaced |
