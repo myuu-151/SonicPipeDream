@@ -41,6 +41,12 @@ UUID_MESH = 0x51C0FFEE00000004      # kept: the scene's dome
 UUID_STARS = 0x51C0FFEE00000020     # + frame index; kept clear of the diamonds
 UUID_DIAMONDS = 0x51C0FFEE00000030   # + frame index; clear of the star frames
 
+# The dome's elevation range. Declared up here because sizes elsewhere are
+# derived from it -- how many pixels a degree gets, and therefore how big a
+# star should be drawn.
+ELEV_MIN = -90.0
+ELEV_MAX = 90.0
+
 # --- sampled from the reference -------------------------------------------
 SKY_DEEP = (0, 62, 101)
 SKY_LIFT = (27, 94, 133)
@@ -119,6 +125,16 @@ CLUSTER_V_MARGIN = 5.0
 CLUSTER_MARGIN = 0.04
 STAR_REPEAT = 4.0          # starfield tiles around the horizon
 
+# And tiles vertically as well, rather than one copy stretched over the whole
+# 180 degrees of a closed sphere.
+#
+# This is what the stars' sharpness actually depends on: pixels per degree, not
+# texture size. One copy over 180 degrees at 1024 is 5.7 per degree; two copies
+# is 11.4, for the same memory. The drawing wraps in both axes, so the tiling
+# is seamless, and the repeat falls at the horizon where the lower copy is
+# mostly out of sight anyway.
+STAR_V_REPEAT = 2.0
+
 # The twinkle is frames of the star texture, swapped by Sky.lua.
 #
 # Stars stay at 256 while the diamonds are 512: a star is a pixel or two and
@@ -130,8 +146,18 @@ STAR_FRAMES = 4
 # which is not enough room for a core, a tapering arm and corners -- the detail
 # had nowhere to go. Four frames at 512 is 4MB rather than 1MB; that is the
 # cost of the twinkle being frames.
+# 1024 now that the sphere is closed: the texture spans 180 degrees of
+# elevation rather than 100, so at 512 it had dropped from 5.1 pixels per
+# degree to 2.8.
+# 512, with the texture tiled twice up the sphere.
+#
+# The sprite is hand-tuned at two pixels a step, and that is the look that was
+# signed off -- so the job is to give it the pixels per degree it was drawn
+# against, not the most possible. The hemisphere gave it 512 over 100 degrees,
+# 5.1 per degree; a closed sphere spans 180, so one copy at 512 would be 2.8
+# and the sprite would be drawn at half the density it expects. Two copies
+# bring it back to 5.7.
 STAR_TEX = 512
-STAR_SCALE = STAR_TEX // 256
 
 # 512, not 256. One diamond tile covers an eighth of the dome and one star tile
 # a third, so these are magnified a long way on screen and 256 read as soft.
@@ -225,14 +251,12 @@ def gen_gradient(w=16, h=256):
     for row in range(h):
         v = row / (h - 1.0)
 
-        if v <= HORIZON_V:
-            # Below the horizon. Nothing of the sky is meant to show here, but
-            # it must not be a different colour from the horizon either, or the
-            # join reads as a hard line.
-            c = SKY_LIFT
-        else:
-            k = (v - HORIZON_V) / 0.50
-            c = SKY_DEEP if k >= 1.0 else mixc(SKY_LIFT, SKY_DEEP, smoothstep(0.0, 1.0, k))
+        # The ramp is mirrored about the horizon: pale there, deepening toward
+        # both the zenith and the nadir. The sphere is closed now, so below the
+        # horizon is as visible as above it and holding one flat colour down
+        # there would read as a lid.
+        k = abs(v - HORIZON_V) / 0.50
+        c = SKY_DEEP if k >= 1.0 else mixc(SKY_LIFT, SKY_DEEP, smoothstep(0.0, 1.0, k))
 
         px += bytes((c[0], c[1], c[2], 255)) * w
 
@@ -241,8 +265,26 @@ def gen_gradient(w=16, h=256):
 
 # Stars per side of the jittered grid. 20 gives 400 cells, less the ones
 # dropped, so roughly 370 stars.
-STAR_GRID = 20
+# The tile covers nearly twice the sky it did, so the grid grows with it to
+# hold the density steady rather than spreading the same stars thinner.
+STAR_GRID = 26
 STAR_DROP = 0.08
+
+
+# Sprite size, worked out from how many pixels a degree gets rather than from
+# the texture's size.
+#
+# It used to be STAR_TEX // 256, which quietly meant "bigger texture, bigger
+# stars" -- fine while the texture always covered the same sky, wrong the
+# moment the span changed. Tied to pixels per degree, a star keeps its apparent
+# size whatever the resolution or the span.
+# Two pixels a step, fixed rather than derived.
+#
+# The sprite is built out of whole pixels -- a core, arm steps, corner dots --
+# and only holds its shape at the size it was tuned at. Deriving this from the
+# resolution is what gave it a fat square core and speckled corners at five.
+STAR_SCALE = 2
+STAR_PX_PER_DEG = STAR_TEX / ((ELEV_MAX - ELEV_MIN) / STAR_V_REPEAT)
 
 
 def star_field(seed=20992, size=STAR_TEX):
@@ -514,7 +556,14 @@ V_HI = CLUSTER_ELEV + CLUSTER_DEG_H * 0.5 + CLUSTER_V_MARGIN
 
 RADIUS = 900.0
 SEGMENTS = 64      # doubled: the diamonds show faceting at 32
-ELEVATIONS = [-10.0, 0.0, 4.0, 9.0, 15.0, 22.0, 30.0, 40.0, 52.0, 66.0, 80.0]
+# A full sphere, not a hemisphere with a short skirt.
+#
+# It used to stop at -10 degrees, so everything below that was simply not
+# drawn -- the black half. Rings now run from -80 up to 80 with a cap at each
+# pole, and the ring spacing is mirrored about the horizon so the bottom is as
+# finely divided as the top.
+ELEVATIONS = [-80.0, -66.0, -52.0, -40.0, -30.0, -22.0, -15.0, -9.0, -4.0,
+              0.0, 4.0, 9.0, 15.0, 22.0, 30.0, 40.0, 52.0, 66.0, 80.0]
 
 # The whole dome gets texture, skirt included.
 #
@@ -523,10 +572,6 @@ ELEVATIONS = [-10.0, 0.0, 4.0, 9.0, 15.0, 22.0, 30.0, 40.0, 52.0, 66.0, 80.0]
 # stretched down the entire skirt. Clearing that row only changed what was
 # smeared; the stretch was the mapping. Spanning the real elevation range
 # instead gives the skirt its own rows and there is nothing left to stretch.
-ELEV_MIN = ELEVATIONS[0]
-ELEV_MAX = 90.0
-
-
 def elev_to_v(elev):
     return (elev - ELEV_MIN) / (ELEV_MAX - ELEV_MIN)
 
@@ -563,10 +608,31 @@ def gen_mesh(path):
             u1 = az * STAR_REPEAT
 
             verts.append((dx * RADIUS, dy * RADIUS, dz * RADIUS,
-                          u0, v0, u1, v, -dx, -dy, -dz))
+                          u0, v0, u1, v * STAR_V_REPEAT, -dx, -dy, -dz))
 
-    pole_index = len(verts)
-    verts.append((0.0, RADIUS, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, -1.0, 0.0))
+    # A pole vertex per segment, not one shared by the whole fan.
+    #
+    # A single pole vertex has to carry one u, and the ring below it carries u
+    # running the whole way round -- so every triangle in the cap interpolated
+    # from that segment's u down to the pole's, sweeping the entire texture
+    # across itself. That is the smearing at the top and bottom of the sky.
+    # Giving each fan triangle its own pole vertex, holding the u of the
+    # segment it belongs to, keeps u constant across the triangle.
+    north_first = len(verts)
+    for seg in range(SEGMENTS):
+        az = (seg + 0.5) / SEGMENTS
+        verts.append((0.0, RADIUS, 0.0,
+                      az * CLUSTER_COUNT, 1.0,
+                      az * STAR_REPEAT, STAR_V_REPEAT,
+                      0.0, -1.0, 0.0))
+
+    south_first = len(verts)
+    for seg in range(SEGMENTS):
+        az = (seg + 0.5) / SEGMENTS
+        verts.append((0.0, -RADIUS, 0.0,
+                      az * CLUSTER_COUNT, 0.0,
+                      az * STAR_REPEAT, 0.0,
+                      0.0, 1.0, 0.0))
 
     idx = []
     cols = SEGMENTS + 1
@@ -580,7 +646,12 @@ def gen_mesh(path):
 
     top = (len(ELEVATIONS) - 1) * cols
     for seg_i in range(SEGMENTS):
-        idx += [top + seg_i, top + seg_i + 1, pole_index]
+        idx += [top + seg_i, top + seg_i + 1, north_first + seg_i]
+
+    # The cap under the lowest ring. The material culls nothing, so the winding
+    # here only decides which way the normals point, not whether it is drawn.
+    for seg_i in range(SEGMENTS):
+        idx += [seg_i + 1, seg_i, south_first + seg_i]
 
     d = header(TYPE_STATICMESH, UUID_MESH, "SM_SkyDome")
     d += u32(len(verts)) + u32(len(idx)) + u32(2)
