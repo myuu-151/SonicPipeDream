@@ -1,0 +1,13 @@
+# Build output
+proj/Packaged/
+proj/Intermediate/
+proj/Generated/
+proj/Build/
+
+# Editor scratch
+proj/Saves/
+
+__pycache__/
+
+# Blender's rolling backup of the previous save
+*.blend1
