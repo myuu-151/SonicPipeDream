@@ -51,7 +51,12 @@ ELEV_MAX = 90.0
 SKY_DEEP = (0, 62, 101)
 SKY_LIFT = (27, 94, 133)
 
-# How far from the horizon the sky takes to reach its deepest, in degrees.
+# How far from the horizon the sky takes to reach SKY_LIFT, in degrees.
+#
+# Deepest AT the horizon, lightening toward both poles. Measured in degrees
+# rather than as a fraction of the texture, so closing or opening the dome
+# cannot move it -- it was half the texture's height once, which silently went
+# from 50 degrees to 90 when the hemisphere became a sphere.
 GRADIENT_RAMP_DEG = 50.0
 
 # The diamonds are a vertical gradient: blue at the top of a cluster running
@@ -298,7 +303,7 @@ def gen_gradient(w=256, h=256):
         # pale where it used to be deep.
         elev = ELEV_MIN + v * (ELEV_MAX - ELEV_MIN)
         k = abs(elev) / GRADIENT_RAMP_DEG
-        c = SKY_DEEP if k >= 1.0 else mixc(SKY_LIFT, SKY_DEEP, smoothstep(0.0, 1.0, k))
+        c = SKY_LIFT if k >= 1.0 else mixc(SKY_DEEP, SKY_LIFT, smoothstep(0.0, 1.0, k))
 
         px += bytes((c[0], c[1], c[2], 255)) * w
 
@@ -409,7 +414,7 @@ def gen_stars_frame(field, frame, frames=STAR_FRAMES, w=STAR_TEX_W, h=STAR_TEX_H
     for y in range(h):
         elev = ELEV_MIN + (y / float(h - 1)) * (ELEV_MAX - ELEV_MIN)
         k = abs(elev) / GRADIENT_RAMP_DEG
-        c = SKY_DEEP if k >= 1.0 else mixc(SKY_LIFT, SKY_DEEP, smoothstep(0.0, 1.0, k))
+        c = SKY_LIFT if k >= 1.0 else mixc(SKY_DEEP, SKY_LIFT, smoothstep(0.0, 1.0, k))
 
         row = bytes((c[0], c[1], c[2], 255)) * w
         px[y * w * 4:(y + 1) * w * 4] = row
