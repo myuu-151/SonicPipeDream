@@ -1,0 +1,732 @@
+# Created By Carrara 5.0
+
+newmtl Sonic_11
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.188235 0.188235 0.972549
+ Ks 0 0 0
+ map_Kd Sonic_11.png
+
+newmtl Sonic_09
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.972549 0.815686 0.658824
+ Ks 0 0 0
+ map_Kd Sonic_09.png
+
+newmtl Texture_0_4
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.188235 0.188235 0.972549
+ Ks 0 0 0
+ map_Kd Sonic_11.png
+
+newmtl Texture_0_1
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.972549 0.815686 0.658824
+ Ks 0 0 0
+ map_Kd Sonic_09.png
+
+newmtl Texture_0
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.972549 0.815686 0.658824
+ Ks 0 0 0
+ map_Kd Sonic_09.png
+
+newmtl Sonic_14
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.972549 0.972549 0.972549
+ Ks 0 0 0
+ map_Kd Sonic_14.png
+
+newmtl Texture_0_2
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.972549 0.972549 0.972549
+ Ks 0 0 0
+ map_Kd Sonic_14.png
+
+newmtl Texture_0_3
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.972549 0.972549 0.972549
+ Ks 0 0 0
+ map_Kd Sonic_14.png
+
+newmtl Texture_0_5
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.972549 0.972549 0.972549
+ Ks 0 0 0
+ map_Kd Sonic_14.png
+
+newmtl Texture_0_6
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.972549 0.972549 0.972549
+ Ks 0 0 0
+ map_Kd Sonic_14.png
+
+newmtl Texture_0_7
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.188235 0.188235 0.972549
+ Ks 0 0 0
+ map_Kd Sonic_11.png
+
+newmtl Texture_0_8
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.188235 0.188235 0.972549
+ Ks 0 0 0
+ map_Kd Sonic_11.png
+
+newmtl Sonic_10
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.972549 0 0
+ Ks 0 0 0
+ map_Kd Sonic_10.png
+
+newmtl Sonic_06
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.972549 0 0
+ Ks 0 0 0
+ map_Kd Sonic_06.png
+
+newmtl Sonic_07
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.972549 0 0
+ Ks 0 0 0
+ map_Kd Sonic_07.png
+
+newmtl Sonic_12_1
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.313726 0 0
+ Ks 0 0 0
+ map_Kd Sonic_12_1.png
+
+newmtl Texture_0_9
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.188235 0.188235 0.972549
+ Ks 0 0 0
+ map_Kd Sonic_11.png
+
+newmtl Texture_0_10
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.188235 0.188235 0.972549
+ Ks 0 0 0
+ map_Kd Sonic_11.png
+
+newmtl attach_001C2274_material_0
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.188235 0.188235 0.972549
+ Ks 0 0 0
+ map_Kd Sonic_11.png
+
+newmtl attach_001C2274_material_1
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001C19C0_material_0
+ Ns 162
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.094118 0.094118 0.094118
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C19C0_material_0.png
+
+newmtl attach_001C1730_material_0
+ Ns 162
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.094118 0.094118 0.094118
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C19C0_material_0.png
+
+newmtl attach_001C153C_material_0
+ Ns 162
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.094118 0.094118 0.094118
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C19C0_material_0.png
+
+newmtl attach_001C153C_material_1
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.972549 0.815686 0.658824
+ Ks 0 0 0
+ map_Kd Sonic_09.png
+
+newmtl attach_001C153C_material_2
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.188235 0.188235 0.972549
+ Ks 0 0 0
+ map_Kd Sonic_11.png
+
+newmtl attach_001C153C_material_3
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.188235 0.188235 0.972549
+ Ks 0 0 0
+ map_Kd Sonic_11.png
+
+newmtl attach_001C153C_material_4
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.972549 0.815686 0.658824
+ Ks 0 0 0
+ map_Kd Sonic_09.png
+
+newmtl attach_001BF368_material_0
+ Ns 10
+ d 1
+ Ni 1.5
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0.972549 0.972549 0.972549
+ Ks 0 0 0
+ map_Kd Sonic_14.png
+
+newmtl attach_001BE9FC_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BE9FC_material_1
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BE9FC_material_2
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BE5B8_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BE5B8_material_1
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BE3AC_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BE138_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BE138_material_1
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BDDF8_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BDC70_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BD9CC_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BD9CC_material_1
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BD9CC_material_2
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BD594_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BD594_material_1
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BD388_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BD120_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BD120_material_1
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BCDE0_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BCC58_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BC9B4_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BC9B4_material_1
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BC9B4_material_2
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BC598_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BC598_material_1
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BC598_material_2
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BC598_material_3
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BC164_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BC164_material_1
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BBE94_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BBD0C_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BBA80_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BBA80_material_1
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BBA80_material_2
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BB648_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BB648_material_1
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BB648_material_2
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BB648_material_3
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BB214_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BB214_material_1
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BAF44_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BADBC_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001BAB98_material_0
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001C1730_material_0_1
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
+newmtl attach_001C19C0_material_0_1
+ Ns 163
+ d 1
+ Ni 0.001
+ illum 2
+ Ka 0.2 0.2 0.2
+ Kd 0 0 0
+ Ks 0.25 0.25 0.25
+ map_Kd attach_001C2274_material_1.png
+
