@@ -11,21 +11,27 @@
 
 Sky = {}
 
--- Texture slot 2 is the starfield. Lua indices here are 1-based: slot 1 is the
--- gradient, 2 the stars, 3 the diamonds.
+-- Lua indices here are 1-based: slot 1 is the gradient, 2 the stars, 3 the
+-- diamonds.
 local STAR_SLOT = 2
 local STAR_FRAMES = 4
 
+local DIAMOND_SLOT = 3
+local DIAMOND_FRAMES = 8
+
 function Sky:Create()
     self.twinklesPerSecond = 7.0
+    self.colourShiftsPerSecond = 2.0
     self.time = 0.0
     self.frame = -1
+    self.diamondFrame = -1
 end
 
 function Sky:GatherProperties()
     return
     {
         { name = "twinklesPerSecond", type = DatumType.Float },
+        { name = "colourShiftsPerSecond", type = DatumType.Float },
     }
 end
 
@@ -44,6 +50,11 @@ function Sky:UpdateSky(deltaTime)
             self.starFrames[i] = LoadAsset("T_S2Sky_Stars_" .. i)
         end
 
+        self.diamondFrames = {}
+        for i = 1, DIAMOND_FRAMES do
+            self.diamondFrames[i] = LoadAsset("T_S2Sky_Diamonds_" .. i)
+        end
+
         self:EnableCollision(false)
         self:EnableOverlaps(false)
     end
@@ -58,6 +69,17 @@ function Sky:UpdateSky(deltaTime)
         local tex = self.starFrames[frame + 1]
         if (tex ~= nil) then
             self.skyMat:SetTexture(STAR_SLOT, tex)
+        end
+    end
+
+    -- And the diamonds, slower than the stars: the colour shift is meant to
+    -- read as a wave moving through the clusters, not as flickering.
+    local dframe = math.floor(self.time * self.colourShiftsPerSecond) % DIAMOND_FRAMES
+    if (dframe ~= self.diamondFrame) then
+        self.diamondFrame = dframe
+        local dtex = self.diamondFrames[dframe + 1]
+        if (dtex ~= nil) then
+            self.skyMat:SetTexture(DIAMOND_SLOT, dtex)
         end
     end
 

@@ -39,18 +39,33 @@ UUID_GRAD = 0x51C0FFEE00000010
 UUID_MAT = 0x51C0FFEE00000003       # kept: the scene's material
 UUID_MESH = 0x51C0FFEE00000004      # kept: the scene's dome
 UUID_STARS = 0x51C0FFEE00000020     # + frame index; kept clear of the diamonds
-UUID_DIAMONDS = 0x51C0FFEE00000012
+UUID_DIAMONDS = 0x51C0FFEE00000030   # + frame index; clear of the star frames
 
 # --- sampled from the reference -------------------------------------------
 SKY_DEEP = (0, 62, 101)
 SKY_LIFT = (27, 94, 133)
 
-# By ring out from the centre: |i| + |j| of 0, 1, then 2.
-RINGS = [
-    (61, 128, 167),    # pale blue, the single centre diamond
-    (0, 166, 0),       # bright green, the four around it
-    (0, 145, 100),     # teal, the eight on the outside
-]
+# The diamonds are a vertical gradient: blue at the top of a cluster running
+# down into green at the bottom.
+DIAMOND_TOP = (0x1B, 0x5E, 0x85)
+DIAMOND_BOTTOM = (0x36, 0xCB, 0x00)
+
+# Each diamond is banded inside rather than filled with one colour, and the
+# bands travel downward through it.
+#
+# Filling a whole diamond with a single colour and changing it per frame only
+# makes the sky flicker: every diamond is one flat shape switching between
+# colours at once. Bands give the motion somewhere to happen inside the shape,
+# so what reads is movement rather than blinking.
+DIAMOND_BANDS = 8          # bands across one diamond's height
+
+# One frame per band, so each frame advances the pattern exactly one band and
+# the travel is even. Six frames against eight bands moved 1.3 bands a frame,
+# which stutters.
+#
+# Frames because there is no shader to palette-swap with: every variation costs
+# a whole texture. Fewer frames is a coarser flow, not a shorter one.
+DIAMOND_FRAMES = DIAMOND_BANDS
 
 SHADOW = (0, 38, 66)
 
@@ -181,38 +196,57 @@ def gen_gradient(w=16, h=256):
     return w, h, px
 
 
-def star_field(count=260, seed=20992, size=STAR_TEX):
+# Stars per side of the jittered grid. 20 gives 400 cells, less the ones
+# dropped, so roughly 370 stars.
+STAR_GRID = 20
+STAR_DROP = 0.08
+
+
+def star_field(seed=20992, size=STAR_TEX):
     """The star positions, chosen once so every frame twinkles the same stars.
 
-    Each carries a size and a phase, so they neither all look alike nor all
-    brighten together.
+    Placed one per cell of a grid, jittered inside it, rather than at uniformly
+    random points.
+
+    Uniform random positions clump: over a few hundred stars some patches come
+    out crowded and others empty, and since this tile repeats four times around
+    the dome every void repeats with it -- which showed up as one side of the
+    sky being noticeably barer than the other. A jittered grid keeps them
+    evenly spread and still looks scattered rather than laid out.
+
+    Cells are dropped at random so the grid never shows through as rows.
     """
     rng = random.Random(seed)
     field = []
 
-    # Keep stars out of the clamped bottom rows too: one down there would be
-    # drawn out into a vertical streak all the way down the skirt.
-    lowest = int(SKIRT_CLEAR_V * size) + 3
+    cell = size / float(STAR_GRID)
 
-    for _ in range(count):
-        roll = rng.random()
+    for gy in range(STAR_GRID):
+        for gx in range(STAR_GRID):
+            if rng.random() < STAR_DROP:
+                continue
 
-        # Mostly small. A sky of nothing but big sparkles reads as glitter.
-        if roll < 0.40:
-            arms = 0        # a plain point of light
-        elif roll < 0.74:
-            arms = 1
-        elif roll < 0.93:
-            arms = 2
-        else:
-            arms = 3        # the few big ones
+            x = int((gx + rng.random()) * cell) % size
+            y = int((gy + rng.random()) * cell) % size
 
-        field.append({
-            "x": rng.randrange(size),
-            "y": rng.randrange(lowest, size),
-            "arms": arms,
-            "phase": rng.random(),
-        })
+            roll = rng.random()
+
+            # Mostly small. A sky of nothing but big sparkles reads as glitter.
+            if roll < 0.40:
+                arms = 0        # a plain point of light
+            elif roll < 0.74:
+                arms = 1
+            elif roll < 0.93:
+                arms = 2
+            else:
+                arms = 3        # the few big ones
+
+            field.append({
+                "x": x,
+                "y": y,
+                "arms": arms,
+                "phase": rng.random(),
+            })
 
     return field
 
@@ -303,7 +337,7 @@ ROW_SPACING = 5            # cells between rows, if there is ever more than one
 ROW_OFFSET = 2             # cells that alternate rows are shifted by
 
 
-def gen_diamonds(size=TEX):
+def gen_diamonds(frame=0, size=TEX):
     """Diamond clusters over the dome: each a 1/3/5/3/1 diamond of small
     diamonds with a drop shadow, separated by sky, repeating across and up.
 
@@ -338,7 +372,6 @@ def gen_diamonds(size=TEX):
                 if abs(di) + abs(dj) > CLUSTER_RADIUS:
                     continue
 
-                c = RINGS[(abs(di) + abs(dj)) % len(RINGS)]
                 dcx = cx + di * step_x
                 dcy = cy + dj * step_y
 
@@ -349,8 +382,21 @@ def gen_diamonds(size=TEX):
 
                 for y in range(y0, y1 + 1):
                     for x in range(x0, x1 + 1):
-                        if abs(x - dcx) / hw + abs(y - dcy) / hh <= 1.0:
-                            colour[y][x % size] = c
+                        if abs(x - dcx) / hw + abs(y - dcy) / hh > 1.0:
+                            continue
+
+                        # Where the pixel sits up the diamond: 0 at its bottom
+                        # point, 1 at its top.
+                        ty = (y - dcy) / (2.0 * hh) + 0.5
+
+                        # Bands down the diamond, travelling toward its bottom
+                        # as the frame advances. y climbs toward the zenith, so
+                        # adding the phase sends them down the screen.
+                        band = (ty + frame / float(DIAMOND_FRAMES)) % 1.0
+                        step = int(band * DIAMOND_BANDS) / float(DIAMOND_BANDS - 1)
+
+                        colour[y][x % size] = mixc(DIAMOND_BOTTOM, DIAMOND_TOP,
+                                                   min(step, 1.0))
 
     # Nothing in the bottom band: the dome's skirt samples down there and would
     # draw whatever it found into a streak.
@@ -400,7 +446,7 @@ def gen_material(path):
     # 1: stars on uv1, Decal
     d += asset_ref(UUID_STARS, "T_S2Sky_Stars_1") + u8(1) + u8(2)
     # 2: diamonds on uv0, Decal -- last, so the cluster sits over the stars
-    d += asset_ref(UUID_DIAMONDS, "T_S2Sky_Diamonds") + u8(0) + u8(2)
+    d += asset_ref(UUID_DIAMONDS, "T_S2Sky_Diamonds_1") + u8(0) + u8(2)
     d += null_ref() + u8(0) + u8(1)
     for _ in range(2):
         d += f32(0) + f32(0) + f32(1) + f32(1)
@@ -520,9 +566,11 @@ def main():
         write_texture(os.path.join(tex, name + ".oct"), name,
                       UUID_STARS + f, w, h, px, wrap=1)
 
-    w, h, px = gen_diamonds()
-    write_texture(os.path.join(tex, "T_S2Sky_Diamonds.oct"), "T_S2Sky_Diamonds",
-                  UUID_DIAMONDS, w, h, px, wrap=1)
+    for f in range(DIAMOND_FRAMES):
+        w, h, px = gen_diamonds(f)
+        name = "T_S2Sky_Diamonds_%d" % (f + 1)
+        write_texture(os.path.join(tex, name + ".oct"), name,
+                      UUID_DIAMONDS + f, w, h, px, wrap=1)
 
     gen_material(os.path.join(mat, "M_Sky.oct"))
     gen_mesh(os.path.join(mesh, "SM_SkyDome.oct"))
