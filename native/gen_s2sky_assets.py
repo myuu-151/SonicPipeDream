@@ -57,23 +57,53 @@ DIAMOND_BOTTOM = (0x36, 0xCB, 0x00)
 # makes the sky flicker: every diamond is one flat shape switching between
 # colours at once. Bands give the motion somewhere to happen inside the shape,
 # so what reads is movement rather than blinking.
-DIAMOND_BANDS = 8          # bands across one diamond's height
+DIAMOND_BANDS = 32         # steps the gradient is quantised into
 
-# One frame per band, so each frame advances the pattern exactly one band and
-# the travel is even. Six frames against eight bands moved 1.3 bands a frame,
-# which stutters.
+# The animation is a wave travelling down the gradient, not the gradient itself
+# sliding.
 #
-# Frames because there is no shader to palette-swap with: every variation costs
-# a whole texture. Fewer frames is a coarser flow, not a shorter one.
-DIAMOND_FRAMES = DIAMOND_BANDS
+# Sliding it meant the value wrapped: it climbed to the top of the ramp and
+# jumped straight back to the bottom, so a hard line of blue-against-green cut
+# across the cluster and marched down it. A wave modulates the ramp instead --
+# the gradient stays put, blue at the top into green at the bottom, and only
+# the ripple moves, so there is nothing to wrap and no seam.
+DIAMOND_WAVES = 2.0        # wave cycles across the cluster's height
+DIAMOND_WAVE_AMP = 0.16    # how far the wave pushes the gradient
+
+# Frames have to divide the band count, so each one advances the pattern by a
+# whole number of bands and the travel is even. Eight into sixteen is two bands
+# a frame; six against eight was 1.3 and stuttered.
+#
+# It does NOT have to be one frame per band, which is what keeps the band count
+# free to rise: there is no shader to palette-swap with, so every frame is a
+# whole texture, and sixteen of them would be 16MB for the diamonds alone.
+DIAMOND_FRAMES = 8
+assert DIAMOND_BANDS % DIAMOND_FRAMES == 0, "frames must divide bands evenly"
 
 SHADOW = (0, 38, 66)
 
 # --- layout ---------------------------------------------------------------
-# Clusters around the horizon. A cluster is 5 cells wide, so a cell covers
-# (360/DIAMOND_REPEAT)/5 degrees, and the vertical step is derived from that to
-# keep cells square. Lower means bigger diamonds.
-DIAMOND_REPEAT = 8.0
+# One cluster in the sky, and the texture covers only the cluster.
+#
+# Spanning the whole 360 degrees with it was the obvious way to stop it tiling
+# and it threw away eight ninths of the resolution: 512 pixels across a full
+# circle is 1.4 per degree, where the tiling version had 11. The cluster came
+# out blocky.
+#
+# So UV0 maps the cluster's patch of sky onto the whole texture instead, and
+# the texture is sampled with Clamp -- outside the patch the edge pixels are
+# transparent, so nothing repeats and nothing else is drawn. The 512 pixels all
+# go on the cluster.
+# Width and height separately, so the cluster can be stretched across without
+# growing taller. The texture stays square; the difference between these two is
+# what makes the diamonds wider than they are tall.
+CLUSTER_DEG_W = 62.0       # how wide the cluster is, in degrees of azimuth
+CLUSTER_DEG_H = 56.0       # how tall, in degrees of elevation
+CLUSTER_AZ = 180.0         # where it sits around the horizon
+CLUSTER_ELEV = 20.0        # and how high
+
+# A margin of empty texture, so clamping outside the patch gives transparency.
+CLUSTER_MARGIN = 0.04
 STAR_REPEAT = 4.0          # starfield tiles around the horizon
 
 # The twinkle is frames of the star texture, swapped by Sky.lua.
@@ -338,90 +368,78 @@ ROW_OFFSET = 2             # cells that alternate rows are shifted by
 
 
 def gen_diamonds(frame=0, size=TEX):
-    """Diamond clusters over the dome: each a 1/3/5/3/1 diamond of small
-    diamonds with a drop shadow, separated by sky, repeating across and up.
+    """The cluster, drawn to fill the texture.
 
-    Tiles horizontally because a tile is exactly one cluster wide, so each
-    cluster's outer tips land on the tile edges and meet its neighbours'.
+    The texture IS the cluster's patch of sky, so this is drawn in cluster
+    space: 5 cells across and 5 down, square, centred, with a small transparent
+    margin for Clamp to sample outside the patch.
     """
-    step_x = size / float(CELLS_ACROSS)
+    usable = size * (1.0 - 2.0 * CLUSTER_MARGIN)
+    step = usable / float(2 * CLUSTER_RADIUS + 1)
 
-    # Square cells: a cell has to cover as many degrees up as across. One tile
-    # spans 360/DIAMOND_REPEAT of azimuth; the texture spans the dome's whole
-    # elevation range.
-    deg_across = (360.0 / DIAMOND_REPEAT) / CELLS_ACROSS
-    step_y = size * (deg_across / (ELEV_MAX - ELEV_MIN))
+    hw = (step * 0.5) * (1.0 - GAP)
+    hh = hw
 
-    hw = (step_x * 0.5) * (1.0 - GAP)
-    hh = (step_y * 0.5) * (1.0 - GAP)
+    cx = cy = size * 0.5
 
     colour = [[None] * size for _ in range(size)]
 
-    # Start high enough that the lowest row of clusters clears the skirt band
-    # completely: its bottom cell reaches a further half-cell below its centre,
-    # and without that the row came out with its lowest diamond sliced flat.
-    first = SKIRT_CLEAR_V * size + CLUSTER_RADIUS * step_y + hh + 2
-    n_rows = CLUSTER_ROWS
+    # Top to bottom of the cluster, for the gradient to run across.
+    cluster_span = 2.0 * (CLUSTER_RADIUS * step + hh)
 
-    for n in range(n_rows):
-        cy = first + n * ROW_SPACING * step_y
-        cx = size * 0.5 + (ROW_OFFSET * step_x if (n % 2) else 0.0)
+    for dj in range(-CLUSTER_RADIUS, CLUSTER_RADIUS + 1):
+        for di in range(-CLUSTER_RADIUS, CLUSTER_RADIUS + 1):
+            if abs(di) + abs(dj) > CLUSTER_RADIUS:
+                continue
 
-        for dj in range(-CLUSTER_RADIUS, CLUSTER_RADIUS + 1):
-            for di in range(-CLUSTER_RADIUS, CLUSTER_RADIUS + 1):
-                if abs(di) + abs(dj) > CLUSTER_RADIUS:
-                    continue
+            dcx = cx + di * step
+            dcy = cy + dj * step
 
-                dcx = cx + di * step_x
-                dcy = cy + dj * step_y
+            x0 = max(0, int(math.floor(dcx - hw)))
+            x1 = min(size - 1, int(math.ceil(dcx + hw)))
+            y0 = max(0, int(math.floor(dcy - hh)))
+            y1 = min(size - 1, int(math.ceil(dcy + hh)))
 
-                x0 = int(math.floor(dcx - hw))
-                x1 = int(math.ceil(dcx + hw))
-                y0 = max(0, int(math.floor(dcy - hh)))
-                y1 = min(size - 1, int(math.ceil(dcy + hh)))
+            for y in range(y0, y1 + 1):
+                for x in range(x0, x1 + 1):
+                    if abs(x - dcx) / hw + abs(y - dcy) / hh > 1.0:
+                        continue
 
-                for y in range(y0, y1 + 1):
-                    for x in range(x0, x1 + 1):
-                        if abs(x - dcx) / hw + abs(y - dcy) / hh > 1.0:
-                            continue
+                    # Where the pixel sits up the CLUSTER, not up its own
+                    # diamond: one gradient runs through the whole group, so a
+                    # band crosses several diamonds. Per-diamond, the ramp
+                    # restarted in every cell and the cluster read as a set of
+                    # separately shaded pieces rather than one shape being lit.
+                    ty = (y - cy) / cluster_span + 0.5
 
-                        # Where the pixel sits up the diamond: 0 at its bottom
-                        # point, 1 at its top.
-                        ty = (y - dcy) / (2.0 * hh) + 0.5
+                    wave = math.sin(2.0 * math.pi *
+                                    (ty * DIAMOND_WAVES +
+                                     frame / float(DIAMOND_FRAMES)))
+                    shade = min(1.0, max(0.0, ty + DIAMOND_WAVE_AMP * wave))
 
-                        # Bands down the diamond, travelling toward its bottom
-                        # as the frame advances. y climbs toward the zenith, so
-                        # adding the phase sends them down the screen.
-                        band = (ty + frame / float(DIAMOND_FRAMES)) % 1.0
-                        step = int(band * DIAMOND_BANDS) / float(DIAMOND_BANDS - 1)
+                    step_i = int(shade * (DIAMOND_BANDS - 1)) / float(DIAMOND_BANDS - 1)
 
-                        colour[y][x % size] = mixc(DIAMOND_BOTTOM, DIAMOND_TOP,
-                                                   min(step, 1.0))
-
-    # Nothing in the bottom band: the dome's skirt samples down there and would
-    # draw whatever it found into a streak.
-    for y in range(min(int(SKIRT_CLEAR_V * size), size)):
-        for x in range(size):
-            colour[y][x] = None
+                    colour[y][x] = mixc(DIAMOND_BOTTOM, DIAMOND_TOP, step_i)
 
     px = bytearray(size * size * 4)
 
     def put(x, y, c, a):
-        o = ((y % size) * size + (x % size)) * 4
+        if not (0 <= x < size and 0 <= y < size):
+            return
+        o = (y * size + x) * 4
         px[o], px[o + 1], px[o + 2], px[o + 3] = c[0], c[1], c[2], a
 
     # Shadow first, and only where no diamond will land on top of it.
     #
-    # Down the screen means toward the horizon, and row 0 IS the horizon -- v
-    # climbs to the zenith. So the shadow steps to a lower row, not a higher
-    # one; offsetting the other way hung it above the diamond.
+    # Down the screen means toward the horizon, and v climbs to the zenith, so
+    # the shadow steps to a lower row.
     for y in range(size):
         for x in range(size):
             if colour[y][x] is None:
                 continue
             sy = y - SHADOW_OFF
-            sx = (x + SHADOW_OFF) % size
-            if sy >= 0 and colour[sy][sx] is None:
+            sx = x + SHADOW_OFF
+            if 0 <= sy < size and 0 <= sx < size and colour[sy][sx] is None:
                 put(sx, sy, SHADOW, 255)
 
     for y in range(size):
@@ -508,14 +526,27 @@ def gen_mesh(path):
             dz = math.sin(ar) * cy
             dy = sy_
 
-            u0 = az * DIAMOND_REPEAT
+            # UV0 maps the cluster's patch of sky across the whole texture.
+            #
+            # az runs 0..1 over the ring and is NOT wrapped back, so u0 climbs
+            # monotonically from about -2.1 to 3.1 and crosses 0..1 exactly
+            # once -- where the cluster is. Wrapping the azimuth into
+            # [-180,180] instead would make u0 jump at the seam, and the
+            # triangle spanning that jump would sweep the whole texture across
+            # itself and draw a smeared second cluster there.
+            u0 = ((az * 360.0) - CLUSTER_AZ) / CLUSTER_DEG_W + 0.5
+            v0 = (elev - CLUSTER_ELEV) / CLUSTER_DEG_H + 0.5
+
             u1 = az * STAR_REPEAT
 
             verts.append((dx * RADIUS, dy * RADIUS, dz * RADIUS,
-                          u0, v, u1, v, -dx, -dy, -dz))
+                          u0, v0, u1, v, -dx, -dy, -dz))
 
     pole_index = len(verts)
-    verts.append((0.0, RADIUS, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, -1.0, 0.0))
+    # The pole. Its UV0 is pushed well outside the cluster patch so the cap
+    # samples the transparent margin rather than stretching the cluster to it.
+    pole_v0 = (90.0 - CLUSTER_ELEV) / CLUSTER_DEG_H + 0.5
+    verts.append((0.0, RADIUS, 0.0, 0.5, pole_v0, 0.0, 1.0, 0.0, -1.0, 0.0))
 
     idx = []
     cols = SEGMENTS + 1
@@ -570,7 +601,7 @@ def main():
         w, h, px = gen_diamonds(f)
         name = "T_S2Sky_Diamonds_%d" % (f + 1)
         write_texture(os.path.join(tex, name + ".oct"), name,
-                      UUID_DIAMONDS + f, w, h, px, wrap=1)
+                      UUID_DIAMONDS + f, w, h, px, wrap=0)      # Clamp
 
     gen_material(os.path.join(mat, "M_Sky.oct"))
     gen_mesh(os.path.join(mesh, "SM_SkyDome.oct"))
