@@ -51,6 +51,9 @@ ELEV_MAX = 90.0
 SKY_DEEP = (0, 62, 101)
 SKY_LIFT = (27, 94, 133)
 
+# How far from the horizon the sky takes to reach its deepest, in degrees.
+GRADIENT_RAMP_DEG = 50.0
+
 # The diamonds are a vertical gradient: blue at the top of a cluster running
 # down into green at the bottom.
 DIAMOND_TOP = (0x1B, 0x5E, 0x85)
@@ -284,7 +287,14 @@ def gen_gradient(w=16, h=256):
         # both the zenith and the nadir. The sphere is closed now, so below the
         # horizon is as visible as above it and holding one flat colour down
         # there would read as a lid.
-        k = abs(v - HORIZON_V) / 0.50
+        #
+        # Measured in degrees of elevation, not as a fraction of the texture.
+        # It was half the texture's height, which was 50 degrees while the dome
+        # was a hemisphere and silently became 90 when the sphere closed -- so
+        # the darkening took nearly twice as far to arrive and the sky stayed
+        # pale where it used to be deep.
+        elev = ELEV_MIN + v * (ELEV_MAX - ELEV_MIN)
+        k = abs(elev) / GRADIENT_RAMP_DEG
         c = SKY_DEEP if k >= 1.0 else mixc(SKY_LIFT, SKY_DEEP, smoothstep(0.0, 1.0, k))
 
         px += bytes((c[0], c[1], c[2], 255)) * w
