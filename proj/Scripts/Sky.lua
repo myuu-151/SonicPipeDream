@@ -14,13 +14,15 @@ Sky = {}
 -- Lua indices here are 1-based: slot 1 is the gradient, 2 the stars, 3 the
 -- diamonds.
 local STAR_SLOT = 2
-local STAR_FRAMES = 4
+local STAR_FRAMES = 16
 
 local DIAMOND_SLOT = 3
 local DIAMOND_FRAMES = 8
 
 function Sky:Create()
-    self.twinklesPerSecond = 7.0
+    -- Frames a second, so a full twinkle is STAR_FRAMES / this. At 16 frames
+    -- that is about 1.3 seconds a cycle.
+    self.twinklesPerSecond = 12.0
     self.colourShiftsPerSecond = 2.0
     self.time = 0.0
     self.frame = -1

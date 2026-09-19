@@ -140,7 +140,18 @@ STAR_V_REPEAT = 2.0
 # Stars stay at 256 while the diamonds are 512: a star is a pixel or two and
 # gains nothing from more, and these are paid for once per frame of animation.
 # Four frames at 256 is 1MB; four at 512 would be 4MB for no visible gain.
-STAR_FRAMES = 4
+# Sixteen.
+#
+# Worth having now that the arm tips fade in fractionally: before that the arm
+# length was whole pixels, so a six pixel arm had seven states and extra frames
+# only repeated the same jumps. With fractional tips every frame is a distinct
+# state, so the count is what the smoothness actually costs.
+#
+# Sixteen frames at 512 is 16MB of RGBA8, which is most of what the sky costs
+# in the editor. On a GameCube these would cook to CMPR -- an eighth of that,
+# 2MB -- and stars suit it: they are white on transparent, which is exactly the
+# one bit of alpha CMPR carries.
+STAR_FRAMES = 16
 
 # 512 as well. At 256 a sparkle was about seven pixels across at its largest,
 # which is not enough room for a core, a tapering arm and corners -- the detail
@@ -370,7 +381,17 @@ def gen_stars_frame(field, frame, frames=STAR_FRAMES, size=STAR_TEX):
         x, y = st["x"], st["y"]
 
         span = st["arms"] * STAR_SCALE          # full arm length at its peak
-        reach = int(round(span * pulse))
+
+        # Fractional, so an arm can be part way into its next pixel.
+        #
+        # Rounding it meant the arm only ever had a whole number of pixels, and
+        # at six long that is seven states the twinkle can be in -- so a star
+        # jumped two pixels at a time and more frames simply repeated the same
+        # jumps. The tip pixel is now faded in by how far the arm has grown
+        # into it, which is what makes the glint smooth rather than stepped.
+        exact = span * pulse
+        reach = int(exact)
+        frac = exact - reach
 
         # Core: a single pixel for the small ones, a solid block for the big.
         core = max(1, (st["arms"] * STAR_SCALE) // 3)
@@ -381,6 +402,16 @@ def gen_stars_frame(field, frame, frames=STAR_FRAMES, size=STAR_TEX):
         for k in range(1, reach + 1):
             step = int((k - 1) * len(ARM) / float(max(span, 1)))
             v = ARM[min(step, len(ARM) - 1)]
+            for dx, dy in ((k, 0), (-k, 0), (0, k), (0, -k)):
+                put(x + dx, y + dy, v, b=16)
+
+        # The tip, part way in. Held well above nothing even at its faintest --
+        # a dim white pixel on this blue is a grey-brown one, and a whole
+        # field of half-lit tips is what turned the stars muddy before.
+        if reach < span and frac > 0.12:
+            step = int(reach * len(ARM) / float(max(span, 1)))
+            v = int(ARM[min(step, len(ARM) - 1)] * (0.45 + 0.55 * frac))
+            k = reach + 1
             for dx, dy in ((k, 0), (-k, 0), (0, k), (0, -k)):
                 put(x + dx, y + dy, v, b=16)
 
