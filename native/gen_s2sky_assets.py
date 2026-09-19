@@ -41,6 +41,12 @@ UUID_MESH = 0x51C0FFEE00000004      # kept: the scene's dome
 UUID_STARS = 0x51C0FFEE00000020     # + frame index; kept clear of the diamonds
 UUID_DIAMONDS = 0x51C0FFEE00000030   # + frame index; clear of the star frames
 
+# The dome's elevation range. Declared up here because sizes elsewhere are
+# derived from it -- how many pixels a degree gets, and therefore how big a
+# star should be drawn.
+ELEV_MIN = -90.0
+ELEV_MAX = 90.0
+
 # --- sampled from the reference -------------------------------------------
 SKY_DEEP = (0, 62, 101)
 SKY_LIFT = (27, 94, 133)
@@ -119,6 +125,16 @@ CLUSTER_V_MARGIN = 5.0
 CLUSTER_MARGIN = 0.04
 STAR_REPEAT = 4.0          # starfield tiles around the horizon
 
+# And tiles vertically as well, rather than one copy stretched over the whole
+# 180 degrees of a closed sphere.
+#
+# This is what the stars' sharpness actually depends on: pixels per degree, not
+# texture size. One copy over 180 degrees at 1024 is 5.7 per degree; two copies
+# is 11.4, for the same memory. The drawing wraps in both axes, so the tiling
+# is seamless, and the repeat falls at the horizon where the lower copy is
+# mostly out of sight anyway.
+STAR_V_REPEAT = 2.0
+
 # The twinkle is frames of the star texture, swapped by Sky.lua.
 #
 # Stars stay at 256 while the diamonds are 512: a star is a pixel or two and
@@ -130,8 +146,10 @@ STAR_FRAMES = 4
 # which is not enough room for a core, a tapering arm and corners -- the detail
 # had nowhere to go. Four frames at 512 is 4MB rather than 1MB; that is the
 # cost of the twinkle being frames.
-STAR_TEX = 512
-STAR_SCALE = STAR_TEX // 256
+# 1024 now that the sphere is closed: the texture spans 180 degrees of
+# elevation rather than 100, so at 512 it had dropped from 5.1 pixels per
+# degree to 2.8.
+STAR_TEX = 1024
 
 # 512, not 256. One diamond tile covers an eighth of the dome and one star tile
 # a third, so these are magnified a long way on screen and 256 read as soft.
@@ -225,14 +243,12 @@ def gen_gradient(w=16, h=256):
     for row in range(h):
         v = row / (h - 1.0)
 
-        if v <= HORIZON_V:
-            # Below the horizon. Nothing of the sky is meant to show here, but
-            # it must not be a different colour from the horizon either, or the
-            # join reads as a hard line.
-            c = SKY_LIFT
-        else:
-            k = (v - HORIZON_V) / 0.50
-            c = SKY_DEEP if k >= 1.0 else mixc(SKY_LIFT, SKY_DEEP, smoothstep(0.0, 1.0, k))
+        # The ramp is mirrored about the horizon: pale there, deepening toward
+        # both the zenith and the nadir. The sphere is closed now, so below the
+        # horizon is as visible as above it and holding one flat colour down
+        # there would read as a lid.
+        k = abs(v - HORIZON_V) / 0.50
+        c = SKY_DEEP if k >= 1.0 else mixc(SKY_LIFT, SKY_DEEP, smoothstep(0.0, 1.0, k))
 
         px += bytes((c[0], c[1], c[2], 255)) * w
 
@@ -241,8 +257,25 @@ def gen_gradient(w=16, h=256):
 
 # Stars per side of the jittered grid. 20 gives 400 cells, less the ones
 # dropped, so roughly 370 stars.
-STAR_GRID = 20
+# The tile covers nearly twice the sky it did, so the grid grows with it to
+# hold the density steady rather than spreading the same stars thinner.
+STAR_GRID = 26
 STAR_DROP = 0.08
+
+
+# Sprite size, worked out from how many pixels a degree gets rather than from
+# the texture's size.
+#
+# It used to be STAR_TEX // 256, which quietly meant "bigger texture, bigger
+# stars" -- fine while the texture always covered the same sky, wrong the
+# moment the span changed. Tied to pixels per degree, a star keeps its apparent
+# size whatever the resolution or the span.
+# How much sky one step of a star's arm covers. This is the number that sets
+# how big stars look; everything else about their size follows from it.
+STAR_ARM_DEG = 0.45
+
+STAR_PX_PER_DEG = STAR_TEX / ((ELEV_MAX - ELEV_MIN) / STAR_V_REPEAT)
+STAR_SCALE = max(1, int(round(STAR_ARM_DEG * STAR_PX_PER_DEG)))
 
 
 def star_field(seed=20992, size=STAR_TEX):
@@ -297,15 +330,18 @@ def star_field(seed=20992, size=STAR_TEX):
 def gen_stars_frame(field, frame, frames=STAR_FRAMES, size=STAR_TEX):
     """One frame of the twinkle.
 
-    A sparkle is a white core, four arms stepping down in brightness toward
-    their tips, and diagonals filling the corners so it reads as a star rather
-    than a plus sign. Arm length and corner reach scale with STAR_SCALE, so the
-    shape keeps its proportions at any texture size.
+    A star is drawn as a four-pointed shape rather than assembled from a core
+    block, arm pixels and corner dots. The old way was tuned by hand at one or
+    two pixels a step and fell apart when the scale grew: the core became a fat
+    square block and the corners scattered into speckle.
 
-    The steps stay bright on purpose. An earlier version faded the arms smoothly
-    toward nothing, and a dimmed white pixel on this blue is not a faint star,
-    it is a grey-brown one -- the whole field went muddy. The twinkle is the
-    arms changing length, not the star changing brightness.
+    The shape is sqrt(|dx|) + sqrt(|dy|) <= sqrt(r) -- an astroid, which is a
+    square with its sides pulled inward, so it has four sharp points and thin
+    concave edges between them. It is defined continuously, so it comes out the
+    right shape at any radius instead of only at the size it was tuned for.
+
+    Twinkling is still the radius changing, and the brightness stays high: a
+    dimmed white pixel on this blue is a grey-brown one, not a faint star.
     """
     px = bytearray(size * size * 4)
 
@@ -315,11 +351,10 @@ def gen_stars_frame(field, frame, frames=STAR_FRAMES, size=STAR_TEX):
             return                      # brightest wins; stars must not erase each other
         px[o] = v
         px[o + 1] = v
-        px[o + 2] = min(255, v + b)     # a touch of blue toward the tips
+        px[o + 2] = min(255, v + b)
         px[o + 3] = 255
 
-    # Brightness down the length of an arm, sampled by how far along it is.
-    ARM = (250, 240, 226, 206, 180, 150)
+    dot = max(1, STAR_SCALE // 2)
 
     for st in field:
         t = ((frame / float(frames)) + st["phase"]) % 1.0
@@ -327,57 +362,36 @@ def gen_stars_frame(field, frame, frames=STAR_FRAMES, size=STAR_TEX):
 
         x, y = st["x"], st["y"]
 
-        span = st["arms"] * STAR_SCALE          # full arm length at its peak
-        reach = int(round(span * pulse))
+        if st["arms"] == 0:
+            # A plain point of light. These are most of the sky and want to
+            # stay points, so they do not twinkle in size.
+            for oy in range(dot):
+                for ox in range(dot):
+                    put(x + ox, y + oy, 255)
+            continue
 
-        # Core: a single pixel for the small ones, a solid block for the big.
-        core = max(1, (st["arms"] * STAR_SCALE) // 3)
-        for oy in range(core):
-            for ox in range(core):
-                put(x + ox - core // 2, y + oy - core // 2, 255)
+        r = st["arms"] * STAR_SCALE * (0.45 + 0.55 * pulse)
 
-        for k in range(1, reach + 1):
-            step = int((k - 1) * len(ARM) / float(max(span, 1)))
-            v = ARM[min(step, len(ARM) - 1)]
-            for dx, dy in ((k, 0), (-k, 0), (0, k), (0, -k)):
-                put(x + dx, y + dy, v, b=16)
+        if r < 1.0:
+            put(x, y, 255)
+            continue
 
-        # The corners, which are what turn a plus into a star. Only once the
-        # arms are more than half out.
-        if st["arms"] >= 2 and reach > span * 0.5:
-            cr = max(1, reach // 3)
-            for k in range(1, cr + 1):
-                v = 170 - 30 * (k - 1)
-                if v < 60:
-                    break
-                for dx, dy in ((k, k), (k, -k), (-k, k), (-k, -k)):
-                    put(x + dx, y + dy, v, b=36)
+        rr = math.sqrt(r)
+        span = int(math.ceil(r))
 
-        # A fainter shoulder between arm and corner, on the largest only.
-        if st["arms"] >= 3 and reach > span * 0.7:
-            k = max(1, reach // 3)
-            for dx, dy in ((2 * k, k), (k, 2 * k), (-2 * k, k), (-k, 2 * k),
-                           (2 * k, -k), (k, -2 * k), (-2 * k, -k), (-k, -2 * k)):
-                put(x + dx, y + dy, 96, b=44)
+        for dy in range(-span, span + 1):
+            for dx in range(-span, span + 1):
+                d = math.sqrt(abs(dx)) + math.sqrt(abs(dy))
+                if d > rr:
+                    continue
+
+                # Full white at the middle, easing toward the points, but never
+                # far: the tips are still a star, not a smudge.
+                k = d / rr
+                v = int(round(255 - 70.0 * k * k))
+                put(x + dx, y + dy, v, b=int(20 * k))
 
     return size, size, px
-
-
-# One cluster per tile across, and clusters repeated up the dome.
-#
-# They are deliberately NOT tessellated. A 13-cell diamond does tile the plane
-# exactly -- every cell belonging to a cluster, none left over -- and that was
-# tried: it fills the dome and destroys the whole point, because with no sky
-# between them the clusters stop reading as clusters and it becomes a field of
-# loose diamonds. The gaps are what make a big diamond visible.
-CELLS_ACROSS = 5           # one cluster wide
-
-# One row, sitting on the horizon. Stacking them up the dome filled it but read
-# as wallpaper; a single band with open starfield above it is both closer to
-# the reference and the thing that looked right.
-CLUSTER_ROWS = 1
-ROW_SPACING = 5            # cells between rows, if there is ever more than one
-ROW_OFFSET = 2             # cells that alternate rows are shifted by
 
 
 def gen_diamonds(frame=0, size=TEX):
@@ -514,7 +528,14 @@ V_HI = CLUSTER_ELEV + CLUSTER_DEG_H * 0.5 + CLUSTER_V_MARGIN
 
 RADIUS = 900.0
 SEGMENTS = 64      # doubled: the diamonds show faceting at 32
-ELEVATIONS = [-10.0, 0.0, 4.0, 9.0, 15.0, 22.0, 30.0, 40.0, 52.0, 66.0, 80.0]
+# A full sphere, not a hemisphere with a short skirt.
+#
+# It used to stop at -10 degrees, so everything below that was simply not
+# drawn -- the black half. Rings now run from -80 up to 80 with a cap at each
+# pole, and the ring spacing is mirrored about the horizon so the bottom is as
+# finely divided as the top.
+ELEVATIONS = [-80.0, -66.0, -52.0, -40.0, -30.0, -22.0, -15.0, -9.0, -4.0,
+              0.0, 4.0, 9.0, 15.0, 22.0, 30.0, 40.0, 52.0, 66.0, 80.0]
 
 # The whole dome gets texture, skirt included.
 #
@@ -523,10 +544,6 @@ ELEVATIONS = [-10.0, 0.0, 4.0, 9.0, 15.0, 22.0, 30.0, 40.0, 52.0, 66.0, 80.0]
 # stretched down the entire skirt. Clearing that row only changed what was
 # smeared; the stretch was the mapping. Spanning the real elevation range
 # instead gives the skirt its own rows and there is nothing left to stretch.
-ELEV_MIN = ELEVATIONS[0]
-ELEV_MAX = 90.0
-
-
 def elev_to_v(elev):
     return (elev - ELEV_MIN) / (ELEV_MAX - ELEV_MIN)
 
@@ -563,10 +580,31 @@ def gen_mesh(path):
             u1 = az * STAR_REPEAT
 
             verts.append((dx * RADIUS, dy * RADIUS, dz * RADIUS,
-                          u0, v0, u1, v, -dx, -dy, -dz))
+                          u0, v0, u1, v * STAR_V_REPEAT, -dx, -dy, -dz))
 
-    pole_index = len(verts)
-    verts.append((0.0, RADIUS, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, -1.0, 0.0))
+    # A pole vertex per segment, not one shared by the whole fan.
+    #
+    # A single pole vertex has to carry one u, and the ring below it carries u
+    # running the whole way round -- so every triangle in the cap interpolated
+    # from that segment's u down to the pole's, sweeping the entire texture
+    # across itself. That is the smearing at the top and bottom of the sky.
+    # Giving each fan triangle its own pole vertex, holding the u of the
+    # segment it belongs to, keeps u constant across the triangle.
+    north_first = len(verts)
+    for seg in range(SEGMENTS):
+        az = (seg + 0.5) / SEGMENTS
+        verts.append((0.0, RADIUS, 0.0,
+                      az * CLUSTER_COUNT, 1.0,
+                      az * STAR_REPEAT, STAR_V_REPEAT,
+                      0.0, -1.0, 0.0))
+
+    south_first = len(verts)
+    for seg in range(SEGMENTS):
+        az = (seg + 0.5) / SEGMENTS
+        verts.append((0.0, -RADIUS, 0.0,
+                      az * CLUSTER_COUNT, 0.0,
+                      az * STAR_REPEAT, 0.0,
+                      0.0, 1.0, 0.0))
 
     idx = []
     cols = SEGMENTS + 1
@@ -580,7 +618,12 @@ def gen_mesh(path):
 
     top = (len(ELEVATIONS) - 1) * cols
     for seg_i in range(SEGMENTS):
-        idx += [top + seg_i, top + seg_i + 1, pole_index]
+        idx += [top + seg_i, top + seg_i + 1, north_first + seg_i]
+
+    # The cap under the lowest ring. The material culls nothing, so the winding
+    # here only decides which way the normals point, not whether it is drawn.
+    for seg_i in range(SEGMENTS):
+        idx += [seg_i + 1, seg_i, south_first + seg_i]
 
     d = header(TYPE_STATICMESH, UUID_MESH, "SM_SkyDome")
     d += u32(len(verts)) + u32(len(idx)) + u32(2)
