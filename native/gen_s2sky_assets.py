@@ -110,7 +110,9 @@ CLUSTER_DEG_H = 56.0       # how tall, in degrees of elevation
 # of it; the rest is the gap. It has to divide 360 exactly or the wrap lands
 # mid-cluster.
 CLUSTER_COUNT = 5
-CLUSTER_ELEV = 20.0        # and how high
+# Centred on the horizon, which is the sphere's equator -- the band sits
+# across the middle rather than up in the top half.
+CLUSTER_ELEV = 5.0
 
 # The elevation band the texture covers, a little taller than the cluster.
 #
