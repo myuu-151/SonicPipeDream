@@ -61,6 +61,14 @@ DIAMOND_MODE = "medley"
 MEDLEY_COUNT = 4
 MEDLEY_ELEV = 5.0          # centre of the band, as the clusters were
 
+# Cover the whole sphere rather than one band round the horizon.
+#
+# The tile is 90 by 45 degrees, so four around by four up fills 360 by 180
+# exactly, with no part-tile left over at either pole. The mapping is the same
+# latitude-longitude one the stars use, so the diamonds narrow toward the poles
+# the way the stars do; that is the sphere, not something to fix in the texture.
+MEDLEY_WHOLE_SKY = True
+
 # The dome's elevation range. Declared up here because sizes elsewhere are
 # derived from it -- how many pixels a degree gets, and therefore how big a
 # star should be drawn.
@@ -711,7 +719,7 @@ def dome_rings():
     here: the medley's edge rows are full of diamonds, and a clamp would smear
     them to the poles.
     """
-    if DIAMOND_MODE != "medley":
+    if DIAMOND_MODE != "medley" or MEDLEY_WHOLE_SKY:
         return [(e, True) for e in ELEVATIONS]
 
     lo, hi = medley_band()
@@ -731,6 +739,13 @@ def diamond_uv(az, elev, inside):
 
     import s2sky_medley
     w, h = float(s2sky_medley.TEX_W), float(s2sky_medley.TEX_H)
+
+    if MEDLEY_WHOLE_SKY:
+        tile_h = (360.0 / MEDLEY_COUNT) * h / w
+        rows = (ELEV_MAX - ELEV_MIN) / tile_h
+        assert abs(rows - round(rows)) < 1e-6, "tiles must stack to the poles exactly"
+        return az * MEDLEY_COUNT, (elev - ELEV_MIN) / tile_h
+
     if not inside:
         # Parked on the centre of texel (0, 0), which every frame leaves empty
         # (the medley module asserts it). Dead centre, so bilinear filtering
@@ -790,7 +805,7 @@ def gen_mesh(path):
     north_first = len(verts)
     for seg in range(SEGMENTS):
         az = (seg + 0.5) / SEGMENTS
-        pu, pv = diamond_uv(az, 90.0, False)
+        pu, pv = diamond_uv(az, 90.0, MEDLEY_WHOLE_SKY)
         verts.append((0.0, RADIUS, 0.0,
                       az * STAR_REPEAT, 1.0,
                       pu, pv,
@@ -799,7 +814,7 @@ def gen_mesh(path):
     south_first = len(verts)
     for seg in range(SEGMENTS):
         az = (seg + 0.5) / SEGMENTS
-        pu, pv = diamond_uv(az, -90.0, False)
+        pu, pv = diamond_uv(az, -90.0, MEDLEY_WHOLE_SKY)
         verts.append((0.0, -RADIUS, 0.0,
                       az * STAR_REPEAT, 0.0,
                       pu, pv,

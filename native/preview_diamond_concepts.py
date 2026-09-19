@@ -5,7 +5,8 @@ Not part of the asset build: this only writes GIFs to look at. Every concept
 obeys the limits the real texture has to live with, so nothing here is a look
 the GameCube cannot actually show:
 
-  * it tiles left to right (everything is periodic in x),
+  * it tiles in both directions (everything is periodic in x and in y), so
+    it can be stacked up the whole sphere as well as run round it,
   * it loops (everything is periodic in t),
   * alpha is 1 bit -- a texel is a diamond or it is sky,
   * colour comes from a short quantised ramp, as CMPR blocks would give.
@@ -75,11 +76,17 @@ def wrap_dx(dx):
     return dx - TILE_W if dx > TILE_W / 2.0 else dx
 
 
+def wrap_dy(dy):
+    """And the same vertically, now that the tile stacks up the sky too."""
+    dy = dy % TILE_H
+    return dy - TILE_H if dy > TILE_H / 2.0 else dy
+
+
 def lattice(cell=CELL):
     """Staggered lattice: odd rows sit half a cell across, which is what lets
     small diamonds nest into bigger diamond shapes."""
     row = cell // 2
-    for j in range(TILE_H // row + 1):
+    for j in range(TILE_H // row):
         off = cell // 2 if (j % 2) else 0
         for i in range(TILE_W // cell):
             yield i, j, i * cell + off + cell // 2, j * row
@@ -99,7 +106,7 @@ def ripple(t):
     out = []
     r = CELL * R_FILL
     for i, j, cx, cy in lattice():
-        d = math.hypot(wrap_dx(cx - TILE_W / 2.0), (cy - TILE_H / 2.0) * 1.6)
+        d = math.hypot(wrap_dx(cx - TILE_W / 2.0), wrap_dy(cy - TILE_H / 2.0) * 1.6)
         w = 0.5 + 0.5 * math.cos(TAU * (d / 90.0 - t))
         s = r * (0.4 + 0.6 * w)
         out.append((cx, cy, s, s, w))
@@ -133,7 +140,7 @@ def rings(t):
     r = CELL * R_FILL
     span = 5.0                                   # lattice steps between rings
     for i, j, cx, cy in lattice():
-        m = (abs(wrap_dx(cx - TILE_W / 2.0)) + abs(cy - TILE_H / 2.0) * 2.0) / CELL
+        m = (abs(wrap_dx(cx - TILE_W / 2.0)) + abs(wrap_dy(cy - TILE_H / 2.0)) * 2.0) / CELL
         u = (m / span - t) % 1.0                 # 0 on a ring, rising behind it
         w = max(0.0, 1.0 - u * 2.4)
         if w <= 0.0:
@@ -150,7 +157,7 @@ def bloom(t):
     grow = 0.5 - 0.5 * math.cos(TAU * t)
     radius = 0.5 + 6.0 * grow
     for i, j, cx, cy in lattice():
-        m = (abs(wrap_dx(cx - TILE_W / 2.0)) + abs(cy - TILE_H / 2.0) * 2.0) / CELL
+        m = (abs(wrap_dx(cx - TILE_W / 2.0)) + abs(wrap_dy(cy - TILE_H / 2.0)) * 2.0) / CELL
         if m > radius:
             continue
         edge = 1.0 - (radius - m) / max(radius, 1e-6)
@@ -164,7 +171,7 @@ def flip(t):
     out = []
     r = CELL * R_FILL
     for i, j, cx, cy in lattice():
-        c = math.cos(TAU * (cx / TILE_W * 2.0 + cy / TILE_H * 0.5 - t))
+        c = math.cos(TAU * (cx / TILE_W * 2.0 + cy / TILE_H * 1.0 - t))
         out.append((cx, cy, r * max(0.06, abs(c)), r, 1.0 if c > 0.0 else 0.0))
     return out
 
@@ -244,30 +251,33 @@ def paint(shapes, bg):
     # Biggest first so small diamonds sit on top of big ones, and every shadow
     # before any diamond so no shadow lands on a neighbour.
     shapes = sorted(shapes, key=lambda s: -s[2])
-    for rep in range(REPEATS):
+    for rep in range(-1, REPEATS + 1):
         ox = rep * TILE_W
-        for cx, cy, hw, hh, _ in shapes:
-            diamond(draw, ox + cx + 3, cy + 3, hw, hh, SHADOW)
-    for rep in range(REPEATS):
+        for oy in (-TILE_H, 0, TILE_H):
+            for cx, cy, hw, hh, _ in shapes:
+                diamond(draw, ox + cx + 3, oy + cy + 3, hw, hh, SHADOW)
+    for rep in range(-1, REPEATS + 1):
         ox = rep * TILE_W
-        for cx, cy, hw, hh, level in shapes:
-            diamond(draw, ox + cx, cy, hw, hh, ramp(level))
+        for oy in (-TILE_H, 0, TILE_H):
+            for cx, cy, hw, hh, level in shapes:
+                diamond(draw, ox + cx, oy + cy, hw, hh, ramp(level))
     return im
 
 
 def paint_rgba(shapes):
     """One tile on transparency, as the real texture wants it: no sky behind,
     and anything crossing the left or right edge drawn again on the far side so
-    the tile repeats without a seam. Image row 0 is the TOP of the band."""
+    the tile repeats without a seam, in both directions. Image row 0 is the TOP."""
     im = Image.new("RGBA", (TILE_W, TILE_H), (0, 0, 0, 0))
     draw = ImageDraw.Draw(im)
     shapes = sorted(shapes, key=lambda s: -s[2])
+    wraps = [(ox, oy) for ox in (-TILE_W, 0, TILE_W) for oy in (-TILE_H, 0, TILE_H)]
     for cx, cy, hw, hh, _ in shapes:
-        for ox in (-TILE_W, 0, TILE_W):
-            diamond(draw, ox + cx + 3, cy + 3, hw, hh, SHADOW + (255,))
+        for ox, oy in wraps:
+            diamond(draw, ox + cx + 3, oy + cy + 3, hw, hh, SHADOW + (255,))
     for cx, cy, hw, hh, level in shapes:
-        for ox in (-TILE_W, 0, TILE_W):
-            diamond(draw, ox + cx, cy, hw, hh, ramp(level) + (255,))
+        for ox, oy in wraps:
+            diamond(draw, ox + cx, oy + cy, hw, hh, ramp(level) + (255,))
     return im
 
 

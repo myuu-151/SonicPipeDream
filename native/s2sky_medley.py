@@ -23,7 +23,8 @@ def frame_pixels(f):
     v runs. The preview paints with row 0 at the top, so it is flipped here."""
     im = pat.paint_rgba(pat.medley_frame(f)).transpose(pat.Image.FLIP_TOP_BOTTOM)
 
-    # The dome parks everything outside the band on texel (0, 0), so that texel
-    # has to be empty in every frame or it would be smeared over the whole sky.
+    # When the medley is a band rather than the whole sky, the dome parks
+    # everything outside it on texel (0, 0), so that texel has to be empty in
+    # every frame or it would be smeared from the band's edge to the poles.
     assert im.getpixel((0, 0))[3] == 0, "frame %d: texel (0,0) is not empty" % f
     return im.tobytes()
