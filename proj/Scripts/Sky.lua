@@ -14,7 +14,7 @@ Sky = {}
 -- Lua indices here are 1-based: slot 1 is the gradient, 2 the stars, 3 the
 -- diamonds.
 local STAR_SLOT = 2
-local STAR_FRAMES = 16
+local STAR_FRAMES = 8
 
 local DIAMOND_SLOT = 3
 local DIAMOND_FRAMES = 8

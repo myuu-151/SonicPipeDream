@@ -127,15 +127,15 @@ CLUSTER_V_MARGIN = 5.0
 CLUSTER_MARGIN = 0.04
 STAR_REPEAT = 4.0          # starfield tiles around the horizon
 
-# And tiles vertically as well, rather than one copy stretched over the whole
-# 180 degrees of a closed sphere.
+# One copy up the sphere, NOT two.
 #
-# This is what the stars' sharpness actually depends on: pixels per degree, not
-# texture size. One copy over 180 degrees at 1024 is 5.7 per degree; two copies
-# is 11.4, for the same memory. The drawing wraps in both axes, so the tiling
-# is seamless, and the repeat falls at the horizon where the lower copy is
-# mostly out of sight anyway.
-STAR_V_REPEAT = 2.0
+# Tiling vertically doubled the stars' pixels per degree for free, and broke
+# the sky: UV1 carries the gradient as well as the stars, so scaling its v for
+# the star tiling scaled the gradient with it and the gradient wrapped twice up
+# the dome. Two layers on one channel cannot have different mappings.
+#
+# The sharpness comes from resolution instead.
+STAR_V_REPEAT = 1.0
 
 # The twinkle is frames of the star texture, swapped by Sky.lua.
 #
@@ -153,7 +153,7 @@ STAR_V_REPEAT = 2.0
 # in the editor. On a GameCube these would cook to CMPR -- an eighth of that,
 # 2MB -- and stars suit it: they are white on transparent, which is exactly the
 # one bit of alpha CMPR carries.
-STAR_FRAMES = 16
+STAR_FRAMES = 8
 
 # 512 as well. At 256 a sparkle was about seven pixels across at its largest,
 # which is not enough room for a core, a tapering arm and corners -- the detail
@@ -170,7 +170,16 @@ STAR_FRAMES = 16
 # 5.1 per degree; a closed sphere spans 180, so one copy at 512 would be 2.8
 # and the sprite would be drawn at half the density it expects. Two copies
 # bring it back to 5.7.
-STAR_TEX = 512
+# Not square, because the tile it covers is not square.
+#
+# One tile spans 360/STAR_REPEAT degrees across and the sphere's whole 180 up.
+# A square texture over that gives twice as many pixels per degree across as up
+# -- so a star drawn as a round shape in pixels comes out stretched 2:1 on the
+# dome. Sizing the texture to the tile's own proportions makes a pixel cover
+# the same angle either way, which is what keeps the sprite round.
+STAR_TEX_W = 512
+STAR_TEX_H = 1024
+STAR_TEX = STAR_TEX_W                      # kept for the sprite's own maths
 
 # 512, not 256. One diamond tile covers an eighth of the dome and one star tile
 # a third, so these are magnified a long way on screen and 256 read as soft.
@@ -238,12 +247,19 @@ def mixc(a, b, t):
     return tuple(int(round(a[i] + (b[i] - a[i]) * t)) for i in range(3))
 
 
-def write_texture(path, name, uuid, w, h, pixels, wrap, srgb=True):
+def write_texture(path, name, uuid, w, h, pixels, wrap, srgb=True, force_hq=False):
+    """force_hq exempts a texture from the project's low-quality cook.
+
+    On GameCube the project cooks textures to CMPR, which is block compression
+    with one bit of alpha. Stars and diamonds suit it -- both are solid colour
+    on transparency -- but a smooth gradient does not: 4x4 blocks of a slow ramp
+    band badly, and this one is 16x256, so keeping it uncompressed costs 16KB.
+    """
     d = header(TYPE_TEXTURE, uuid, name)
     d += u32(w) + u32(h) + u32(1) + u32(1)
     d += u32(2) + u32(1) + u32(wrap)             # RGBA8, Linear, wrap
     d += u8(0) + u8(0) + u8(1 if srgb else 0)
-    d += u8(0) + u8(1)
+    d += u8(1 if force_hq else 0) + u8(1)
     assert len(pixels) == w * h * 4, (len(pixels), w * h * 4)
     d += bytes(pixels)
     with open(path, "wb") as f:
@@ -278,9 +294,14 @@ def gen_gradient(w=16, h=256):
 
 # Stars per side of the jittered grid. 20 gives 400 cells, less the ones
 # dropped, so roughly 370 stars.
-# The tile covers nearly twice the sky it did, so the grid grows with it to
-# hold the density steady rather than spreading the same stars thinner.
-STAR_GRID = 26
+# Cells across and up. Twice as many up, because the tile is twice as tall as
+# it is wide -- an even grid on an uneven tile bunches the stars in one axis.
+#
+# The pair also has to track the tile's area or the density moves under you:
+# dropping the vertical tiling doubled that area, and leaving the grid alone
+# halved the density.
+STAR_GRID_X = 26
+STAR_GRID_Y = 52
 STAR_DROP = 0.08
 
 
@@ -300,32 +321,30 @@ STAR_SCALE = 2
 STAR_PX_PER_DEG = STAR_TEX / ((ELEV_MAX - ELEV_MIN) / STAR_V_REPEAT)
 
 
-def star_field(seed=20992, size=STAR_TEX):
+def star_field(seed=20992):
     """The star positions, chosen once so every frame twinkles the same stars.
 
-    Placed one per cell of a grid, jittered inside it, rather than at uniformly
-    random points.
-
-    Uniform random positions clump: over a few hundred stars some patches come
-    out crowded and others empty, and since this tile repeats four times around
-    the dome every void repeats with it -- which showed up as one side of the
-    sky being noticeably barer than the other. A jittered grid keeps them
-    evenly spread and still looks scattered rather than laid out.
+    Placed one per cell of a jittered grid rather than at uniformly random
+    points. Random positions clump: over a few hundred stars some patches come
+    out crowded and others empty, and since the tile repeats around the dome
+    every void repeats with it -- which showed up as one side of the sky being
+    noticeably barer than the other.
 
     Cells are dropped at random so the grid never shows through as rows.
     """
     rng = random.Random(seed)
     field = []
 
-    cell = size / float(STAR_GRID)
+    cell_w = STAR_TEX_W / float(STAR_GRID_X)
+    cell_h = STAR_TEX_H / float(STAR_GRID_Y)
 
-    for gy in range(STAR_GRID):
-        for gx in range(STAR_GRID):
+    for gy in range(STAR_GRID_Y):
+        for gx in range(STAR_GRID_X):
             if rng.random() < STAR_DROP:
                 continue
 
-            x = int((gx + rng.random()) * cell) % size
-            y = int((gy + rng.random()) * cell) % size
+            x = int((gx + rng.random()) * cell_w) % STAR_TEX_W
+            y = int((gy + rng.random()) * cell_h) % STAR_TEX_H
 
             roll = rng.random()
 
@@ -349,7 +368,7 @@ def star_field(seed=20992, size=STAR_TEX):
     return field
 
 
-def gen_stars_frame(field, frame, frames=STAR_FRAMES, size=STAR_TEX):
+def gen_stars_frame(field, frame, frames=STAR_FRAMES, w=STAR_TEX_W, h=STAR_TEX_H):
     """One frame of the twinkle.
 
     A sparkle is a white core, four arms stepping down in brightness toward
@@ -362,10 +381,10 @@ def gen_stars_frame(field, frame, frames=STAR_FRAMES, size=STAR_TEX):
     it is a grey-brown one -- the whole field went muddy. The twinkle is the
     arms changing length, not the star changing brightness.
     """
-    px = bytearray(size * size * 4)
+    px = bytearray(w * h * 4)
 
     def put(x, y, v, b=0):
-        o = ((y % size) * size + (x % size)) * 4
+        o = ((y % h) * w + (x % w)) * 4
         if v <= px[o]:
             return                      # brightest wins; stars must not erase each other
         px[o] = v
@@ -435,7 +454,7 @@ def gen_stars_frame(field, frame, frames=STAR_FRAMES, size=STAR_TEX):
                            (2 * k, -k), (k, -2 * k), (-2 * k, -k), (-k, -2 * k)):
                 put(x + dx, y + dy, 96, b=44)
 
-    return size, size, px
+    return w, h, px
 
 
 # One cluster per tile across, and clusters repeated up the dome.
