@@ -11,3 +11,6 @@ __pycache__/
 
 # Blender's rolling backup of the previous save
 *.blend1
+
+# Look-dev output from native/preview_diamond_concepts.py
+preview_diamonds/

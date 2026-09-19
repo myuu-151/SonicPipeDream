@@ -20,11 +20,26 @@ local STAR_FRAMES = 8
 local DIAMOND_SLOT = 2
 local DIAMOND_FRAMES = 8
 
+-- The diamond layer comes in two forms and the generator decides which: five
+-- static clusters with a colour band sliding through them (8 frames), or the
+-- medley, a long show that moves from one pattern to the next (384 frames,
+-- editor only for now). If the medley's first frame exists, that is what plays.
+local MEDLEY_FRAMES = 384
+-- Loading every medley frame in one go stalls the scene for seconds, so they
+-- come in a few per tick, in the order they will be shown.
+local MEDLEY_LOADS_PER_TICK = 8
+
+local function MedleyName(i)
+    return string.format("T_S2Sky_Medley_%03d", i)
+end
+
 function Sky:Create()
     -- Frames a second, so a full twinkle is STAR_FRAMES / this. At 16 frames
     -- that is about 1.3 seconds a cycle.
     self.twinklesPerSecond = 12.0
     self.colourShiftsPerSecond = 2.0
+    -- The preview ran at 70ms a frame, which is about 14.
+    self.medleyFramesPerSecond = 14.0
     self.time = 0.0
     self.frame = -1
     self.diamondFrame = -1
@@ -35,6 +50,7 @@ function Sky:GatherProperties()
     {
         { name = "twinklesPerSecond", type = DatumType.Float },
         { name = "colourShiftsPerSecond", type = DatumType.Float },
+        { name = "medleyFramesPerSecond", type = DatumType.Float },
     }
 end
 
@@ -54,8 +70,16 @@ function Sky:UpdateSky(deltaTime)
         end
 
         self.diamondFrames = {}
-        for i = 1, DIAMOND_FRAMES do
-            self.diamondFrames[i] = LoadAsset("T_S2Sky_Diamonds_" .. i)
+        local first = LoadAsset(MedleyName(1))
+        self.medley = (first ~= nil)
+        if (self.medley) then
+            self.diamondFrames[1] = first
+            self.medleyLoaded = 1
+            self.medleyTime = 0.0
+        else
+            for i = 1, DIAMOND_FRAMES do
+                self.diamondFrames[i] = LoadAsset("T_S2Sky_Diamonds_" .. i)
+            end
         end
 
         self:EnableCollision(false)
@@ -77,7 +101,27 @@ function Sky:UpdateSky(deltaTime)
 
     -- And the diamonds, slower than the stars: the colour shift is meant to
     -- read as a wave moving through the clusters, not as flickering.
-    local dframe = math.floor(self.time * self.colourShiftsPerSecond) % DIAMOND_FRAMES
+    local dframe
+    if (self.medley) then
+        local want = self.medleyLoaded + MEDLEY_LOADS_PER_TICK
+        while (self.medleyLoaded < MEDLEY_FRAMES and self.medleyLoaded < want) do
+            self.medleyLoaded = self.medleyLoaded + 1
+            self.diamondFrames[self.medleyLoaded] = LoadAsset(MedleyName(self.medleyLoaded))
+        end
+
+        -- Its own clock, which only runs while the next frame is in memory: on
+        -- the first pass playback can catch the loader up, and waiting a tick
+        -- is better than skipping ahead and showing a gap.
+        local nextTime = self.medleyTime + deltaTime
+        local nextFrame = math.floor(nextTime * self.medleyFramesPerSecond) % MEDLEY_FRAMES
+        if (nextFrame < self.medleyLoaded) then
+            self.medleyTime = nextTime
+        end
+        dframe = math.floor(self.medleyTime * self.medleyFramesPerSecond) % MEDLEY_FRAMES
+    else
+        dframe = math.floor(self.time * self.colourShiftsPerSecond) % DIAMOND_FRAMES
+    end
+
     if (dframe ~= self.diamondFrame) then
         self.diamondFrame = dframe
         local dtex = self.diamondFrames[dframe + 1]

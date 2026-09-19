@@ -40,6 +40,26 @@ UUID_MAT = 0x51C0FFEE00000003       # kept: the scene's material
 UUID_MESH = 0x51C0FFEE00000004      # kept: the scene's dome
 UUID_STARS = 0x51C0FFEE00000020     # + frame index; kept clear of the diamonds
 UUID_DIAMONDS = 0x51C0FFEE00000030   # + frame index; clear of the star frames
+UUID_MEDLEY = 0x51C0FFEE00001000     # + frame index; room for hundreds
+
+# What the diamond layer is.
+#
+#   "clusters"  five static clusters with a colour band sliding through them:
+#               8 frames, and the only mode the GameCube can hold.
+#   "medley"    the full animated show, 384 frames at 512x256. EDITOR ONLY for
+#               now -- cooked, that is about 25MB, more than the console's
+#               entire memory. Needs Pillow.
+#
+# The dome's second UV set is laid out differently for each, so switching mode
+# means regenerating; Sky.lua works out which one it has been given.
+DIAMOND_MODE = "medley"
+
+# The medley's band. The tile is twice as wide as it is tall, so with
+# MEDLEY_COUNT of them around the horizon the band's height follows from
+# keeping the diamonds square. Four around is 90 degrees a tile and a band 45
+# tall; five made the band only 36 and the texels no finer for it.
+MEDLEY_COUNT = 4
+MEDLEY_ELEV = 5.0          # centre of the band, as the clusters were
 
 # The dome's elevation range. Declared up here because sizes elsewhere are
 # derived from it -- how many pixels a degree gets, and therefore how big a
@@ -258,7 +278,7 @@ def mixc(a, b, t):
     return tuple(int(round(a[i] + (b[i] - a[i]) * t)) for i in range(3))
 
 
-def write_texture(path, name, uuid, w, h, pixels, wrap, srgb=True, force_hq=False):
+def write_texture(path, name, uuid, w, h, pixels, wrap, srgb=True, force_hq=False, quiet=False):
     """force_hq exempts a texture from the project's low-quality cook.
 
     On GameCube the project cooks textures to CMPR, which is block compression
@@ -275,7 +295,8 @@ def write_texture(path, name, uuid, w, h, pixels, wrap, srgb=True, force_hq=Fals
     d += bytes(pixels)
     with open(path, "wb") as f:
         f.write(d)
-    print("wrote %s (%d bytes)" % (os.path.basename(path), len(d)))
+    if not quiet:
+        print("wrote %s (%d bytes)" % (os.path.basename(path), len(d)))
 
 
 # ------------------------------------------------------------------ pixels
@@ -613,7 +634,10 @@ def gen_material(path):
     d += asset_ref(UUID_STARS, "T_S2Sky_Stars_1") + u8(0) + u8(0)
     # 1: diamonds on uv1, Decal. This one genuinely needs alpha, so it cooks to
     #    RGB5A3 rather than CMPR.
-    d += asset_ref(UUID_DIAMONDS, "T_S2Sky_Diamonds_1") + u8(1) + u8(2)
+    if DIAMOND_MODE == "medley":
+        d += asset_ref(UUID_MEDLEY, "T_S2Sky_Medley_001") + u8(1) + u8(2)
+    else:
+        d += asset_ref(UUID_DIAMONDS, "T_S2Sky_Diamonds_1") + u8(1) + u8(2)
     d += null_ref() + u8(0) + u8(1)
     d += null_ref() + u8(0) + u8(1)
     for _ in range(2):
@@ -669,9 +693,61 @@ def elev_to_v(elev):
 HORIZON_V = (0.0 - ELEV_MIN) / (ELEV_MAX - ELEV_MIN)
 
 
+def medley_band():
+    import s2sky_medley
+    tile_deg = 360.0 / MEDLEY_COUNT
+    height = tile_deg * s2sky_medley.TEX_H / float(s2sky_medley.TEX_W)
+    return MEDLEY_ELEV - height * 0.5, MEDLEY_ELEV + height * 0.5
+
+
+def dome_rings():
+    """(elevation, inside_band) for every ring of the dome.
+
+    In cluster mode that is just ELEVATIONS. In medley mode the band's two edges
+    each get a PAIR of rings at the same elevation: one carrying the band's UVs
+    and one parked outside it. The strip between a pair has no height, so
+    nothing is drawn there, and the band's texture stops dead at its edge
+    instead of being dragged up to the next ring. Clamping cannot do that job
+    here: the medley's edge rows are full of diamonds, and a clamp would smear
+    them to the poles.
+    """
+    if DIAMOND_MODE != "medley":
+        return [(e, True) for e in ELEVATIONS]
+
+    lo, hi = medley_band()
+    rings = [(e, False) for e in ELEVATIONS if e < lo - 0.5]
+    rings += [(lo, False), (lo, True)]
+    rings += [(e, True) for e in ELEVATIONS if lo + 0.5 < e < hi - 0.5]
+    rings += [(hi, True), (hi, False)]
+    rings += [(e, False) for e in ELEVATIONS if e > hi + 0.5]
+    return rings
+
+
+def diamond_uv(az, elev, inside):
+    """The dome's second UV set, for whichever diamond layer is in use."""
+    if DIAMOND_MODE != "medley":
+        # Clamped so the texture's Repeat can only ever act across, never up.
+        return az * CLUSTER_COUNT, min(1.0, max(0.0, (elev - V_LO) / (V_HI - V_LO)))
+
+    import s2sky_medley
+    w, h = float(s2sky_medley.TEX_W), float(s2sky_medley.TEX_H)
+    if not inside:
+        # Parked on the centre of texel (0, 0), which every frame leaves empty
+        # (the medley module asserts it). Dead centre, so bilinear filtering
+        # reads that texel and nothing beside it.
+        return 0.5 / w, 0.5 / h
+
+    lo, hi = medley_band()
+    k = (elev - lo) / (hi - lo)
+    # Half a texel in from each edge, so Repeat cannot blend the top row of the
+    # band with the bottom one.
+    return az * MEDLEY_COUNT, (0.5 + k * (h - 1.0)) / h
+
+
 def gen_mesh(path):
     verts = []
-    for elev in ELEVATIONS:
+    rings = dome_rings()
+    for elev, inside in rings:
         er = math.radians(elev)
         cy, sy_ = math.cos(er), math.sin(er)
         v = elev_to_v(elev)
@@ -698,8 +774,7 @@ def gen_mesh(path):
 
             # UV1 is the diamond band, clamped so the texture's Repeat can only
             # ever act across, never up.
-            u1 = az * CLUSTER_COUNT
-            v1 = min(1.0, max(0.0, (elev - V_LO) / (V_HI - V_LO)))
+            u1, v1 = diamond_uv(az, elev, inside)
 
             verts.append((dx * RADIUS, dy * RADIUS, dz * RADIUS,
                           u0, v0, u1, v1, -dx, -dy, -dz))
@@ -715,22 +790,24 @@ def gen_mesh(path):
     north_first = len(verts)
     for seg in range(SEGMENTS):
         az = (seg + 0.5) / SEGMENTS
+        pu, pv = diamond_uv(az, 90.0, False)
         verts.append((0.0, RADIUS, 0.0,
                       az * STAR_REPEAT, 1.0,
-                      az * CLUSTER_COUNT, 1.0,
+                      pu, pv,
                       0.0, -1.0, 0.0))
 
     south_first = len(verts)
     for seg in range(SEGMENTS):
         az = (seg + 0.5) / SEGMENTS
+        pu, pv = diamond_uv(az, -90.0, False)
         verts.append((0.0, -RADIUS, 0.0,
                       az * STAR_REPEAT, 0.0,
-                      az * CLUSTER_COUNT, 0.0,
+                      pu, pv,
                       0.0, 1.0, 0.0))
 
     idx = []
     cols = SEGMENTS + 1
-    for ring in range(len(ELEVATIONS) - 1):
+    for ring in range(len(rings) - 1):
         for seg_i in range(SEGMENTS):
             a = ring * cols + seg_i
             b = a + 1
@@ -738,7 +815,7 @@ def gen_mesh(path):
             dd = c + 1
             idx += [a, b, c, b, dd, c]     # inward-facing
 
-    top = (len(ELEVATIONS) - 1) * cols
+    top = (len(rings) - 1) * cols
     for seg_i in range(SEGMENTS):
         idx += [top + seg_i, top + seg_i + 1, north_first + seg_i]
 
@@ -782,11 +859,20 @@ def main():
         write_texture(os.path.join(tex, name + ".oct"), name,
                       UUID_STARS + f, w, h, px, wrap=1)
 
-    for f in range(DIAMOND_FRAMES):
-        w, h, px = gen_diamonds(f)
-        name = "T_S2Sky_Diamonds_%d" % (f + 1)
-        write_texture(os.path.join(tex, name + ".oct"), name,
-                      UUID_DIAMONDS + f, w, h, px, wrap=1)      # Repeat
+    if DIAMOND_MODE == "medley":
+        import s2sky_medley
+        for f in range(s2sky_medley.FRAMES):
+            name = s2sky_medley.frame_name(f)
+            write_texture(os.path.join(tex, name + ".oct"), name, UUID_MEDLEY + f,
+                          s2sky_medley.TEX_W, s2sky_medley.TEX_H,
+                          s2sky_medley.frame_pixels(f), wrap=1, quiet=True)
+        print("wrote %d medley frames" % s2sky_medley.FRAMES)
+    else:
+        for f in range(DIAMOND_FRAMES):
+            w, h, px = gen_diamonds(f)
+            name = "T_S2Sky_Diamonds_%d" % (f + 1)
+            write_texture(os.path.join(tex, name + ".oct"), name,
+                          UUID_DIAMONDS + f, w, h, px, wrap=1)      # Repeat
 
     gen_material(os.path.join(mat, "M_Sky.oct"))
     gen_mesh(os.path.join(mesh, "SM_SkyDome.oct"))
