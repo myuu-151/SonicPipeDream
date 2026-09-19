@@ -59,16 +59,15 @@ DIAMOND_BOTTOM = (0x36, 0xCB, 0x00)
 # so what reads is movement rather than blinking.
 DIAMOND_BANDS = 32         # steps the gradient is quantised into
 
-# The animation is a wave travelling down the gradient, not the gradient itself
-# sliding.
+# The gradient is mirrored -- blue into green and back into blue -- and slides
+# downward through the cluster.
 #
-# Sliding it meant the value wrapped: it climbed to the top of the ramp and
-# jumped straight back to the bottom, so a hard line of blue-against-green cut
-# across the cluster and marched down it. A wave modulates the ramp instead --
-# the gradient stays put, blue at the top into green at the bottom, and only
-# the ripple moves, so there is nothing to wrap and no seam.
-DIAMOND_WAVES = 2.0        # wave cycles across the cluster's height
-DIAMOND_WAVE_AMP = 0.16    # how far the wave pushes the gradient
+# Mirroring is what lets it slide at all. A plain blue-to-green ramp does not
+# meet itself at the ends, so sliding it wrapped: the value climbed to the top
+# and dropped straight back to the bottom, putting a hard line of blue against
+# green across the cluster that marched down with it. A mirrored ramp arrives
+# back where it started, so it slides continuously and the green band simply
+# travels from the top of the cluster to the bottom.
 
 # Frames have to divide the band count, so each one advances the pattern by a
 # whole number of bands and the travel is even. Eight into sixteen is two bands
@@ -97,10 +96,24 @@ SHADOW = (0, 38, 66)
 # Width and height separately, so the cluster can be stretched across without
 # growing taller. The texture stays square; the difference between these two is
 # what makes the diamonds wider than they are tall.
-CLUSTER_DEG_W = 62.0       # how wide the cluster is, in degrees of azimuth
+CLUSTER_DEG_W = 56.0       # how wide the cluster is, in degrees of azimuth
 CLUSTER_DEG_H = 56.0       # how tall, in degrees of elevation
-CLUSTER_AZ = 180.0         # where it sits around the horizon
+# How many clusters go around the horizon, spaced apart.
+#
+# The tile is 360/CLUSTER_COUNT degrees wide and the cluster takes CLUSTER_DEG_W
+# of it; the rest is the gap. It has to divide 360 exactly or the wrap lands
+# mid-cluster.
+CLUSTER_COUNT = 5
 CLUSTER_ELEV = 20.0        # and how high
+
+# The elevation band the texture covers, a little taller than the cluster.
+#
+# It used to span the dome's whole -10..90, which put 44 per cent of the
+# texture's height on empty sky the cluster never reaches -- resolution spent
+# on nothing. Covering only the band the cluster occupies, and clamping v at
+# the vertices so it never leaves 0..1, gives all of it to the diamonds.
+# The margin is what clamping samples outside the band, so it must be empty.
+CLUSTER_V_MARGIN = 5.0
 
 # A margin of empty texture, so clamping outside the patch gives transparency.
 CLUSTER_MARGIN = 0.04
@@ -368,35 +381,40 @@ ROW_OFFSET = 2             # cells that alternate rows are shifted by
 
 
 def gen_diamonds(frame=0, size=TEX):
-    """The cluster, drawn to fill the texture.
+    """One cluster in a tile, with sky either side of it.
 
-    The texture IS the cluster's patch of sky, so this is drawn in cluster
-    space: 5 cells across and 5 down, square, centred, with a small transparent
-    margin for Clamp to sample outside the patch.
+    The tile is 360/CLUSTER_COUNT degrees across and the texture spans the
+    dome's whole elevation range, so the cluster is placed at its own size and
+    height within that and the rest is left transparent -- the gap between
+    clusters is simply the empty part of the tile.
     """
-    usable = size * (1.0 - 2.0 * CLUSTER_MARGIN)
-    step = usable / float(2 * CLUSTER_RADIUS + 1)
+    tile_deg = 360.0 / CLUSTER_COUNT
+    span = 2 * CLUSTER_RADIUS + 1
 
-    hw = (step * 0.5) * (1.0 - GAP)
-    hh = hw
+    step_x = size * (CLUSTER_DEG_W / tile_deg) / float(span)
+    step_y = size * (CLUSTER_DEG_H / (V_HI - V_LO)) / float(span)
 
-    cx = cy = size * 0.5
+    hw = (step_x * 0.5) * (1.0 - GAP)
+    hh = (step_y * 0.5) * (1.0 - GAP)
+
+    cx = size * 0.5
+    cy = ((CLUSTER_ELEV - V_LO) / (V_HI - V_LO)) * (size - 1)
 
     colour = [[None] * size for _ in range(size)]
 
     # Top to bottom of the cluster, for the gradient to run across.
-    cluster_span = 2.0 * (CLUSTER_RADIUS * step + hh)
+    cluster_span = 2.0 * (CLUSTER_RADIUS * step_y + hh)
 
     for dj in range(-CLUSTER_RADIUS, CLUSTER_RADIUS + 1):
         for di in range(-CLUSTER_RADIUS, CLUSTER_RADIUS + 1):
             if abs(di) + abs(dj) > CLUSTER_RADIUS:
                 continue
 
-            dcx = cx + di * step
-            dcy = cy + dj * step
+            dcx = cx + di * step_x
+            dcy = cy + dj * step_y
 
-            x0 = max(0, int(math.floor(dcx - hw)))
-            x1 = min(size - 1, int(math.ceil(dcx + hw)))
+            x0 = int(math.floor(dcx - hw))
+            x1 = int(math.ceil(dcx + hw))
             y0 = max(0, int(math.floor(dcy - hh)))
             y1 = min(size - 1, int(math.ceil(dcy + hh)))
 
@@ -412,21 +430,22 @@ def gen_diamonds(frame=0, size=TEX):
                     # separately shaded pieces rather than one shape being lit.
                     ty = (y - cy) / cluster_span + 0.5
 
-                    wave = math.sin(2.0 * math.pi *
-                                    (ty * DIAMOND_WAVES +
-                                     frame / float(DIAMOND_FRAMES)))
-                    shade = min(1.0, max(0.0, ty + DIAMOND_WAVE_AMP * wave))
+                    # ty is 0 at the bottom of the cluster and 1 at the top, so
+                    # adding the phase sends the pattern downward.
+                    g = (ty + frame / float(DIAMOND_FRAMES)) % 1.0
+
+                    # Mirrored: blue at both ends of the cycle, green in the
+                    # middle, so the ends meet and the slide has no seam.
+                    shade = 1.0 - abs(2.0 * g - 1.0)
 
                     step_i = int(shade * (DIAMOND_BANDS - 1)) / float(DIAMOND_BANDS - 1)
 
-                    colour[y][x] = mixc(DIAMOND_BOTTOM, DIAMOND_TOP, step_i)
+                    colour[y][x % size] = mixc(DIAMOND_TOP, DIAMOND_BOTTOM, step_i)
 
     px = bytearray(size * size * 4)
 
     def put(x, y, c, a):
-        if not (0 <= x < size and 0 <= y < size):
-            return
-        o = (y * size + x) * 4
+        o = ((y % size) * size + (x % size)) * 4
         px[o], px[o + 1], px[o + 2], px[o + 3] = c[0], c[1], c[2], a
 
     # Shadow first, and only where no diamond will land on top of it.
@@ -438,8 +457,8 @@ def gen_diamonds(frame=0, size=TEX):
             if colour[y][x] is None:
                 continue
             sy = y - SHADOW_OFF
-            sx = x + SHADOW_OFF
-            if 0 <= sy < size and 0 <= sx < size and colour[sy][sx] is None:
+            sx = (x + SHADOW_OFF) % size
+            if sy >= 0 and colour[sy][sx] is None:
                 put(sx, sy, SHADOW, 255)
 
     for y in range(size):
@@ -489,6 +508,10 @@ def gen_material(path):
 
 
 # -------------------------------------------------------------------- mesh
+# The elevation band the diamond texture covers.
+V_LO = CLUSTER_ELEV - CLUSTER_DEG_H * 0.5 - CLUSTER_V_MARGIN
+V_HI = CLUSTER_ELEV + CLUSTER_DEG_H * 0.5 + CLUSTER_V_MARGIN
+
 RADIUS = 900.0
 SEGMENTS = 64      # doubled: the diamonds show faceting at 32
 ELEVATIONS = [-10.0, 0.0, 4.0, 9.0, 15.0, 22.0, 30.0, 40.0, 52.0, 66.0, 80.0]
@@ -526,16 +549,16 @@ def gen_mesh(path):
             dz = math.sin(ar) * cy
             dy = sy_
 
-            # UV0 maps the cluster's patch of sky across the whole texture.
+            # UV0 tiles horizontally, one cluster per tile, and covers only
+            # the cluster's band of elevation vertically.
             #
-            # az runs 0..1 over the ring and is NOT wrapped back, so u0 climbs
-            # monotonically from about -2.1 to 3.1 and crosses 0..1 exactly
-            # once -- where the cluster is. Wrapping the azimuth into
-            # [-180,180] instead would make u0 jump at the seam, and the
-            # triangle spanning that jump would sweep the whole texture across
-            # itself and draw a smeared second cluster there.
-            u0 = ((az * 360.0) - CLUSTER_AZ) / CLUSTER_DEG_W + 0.5
-            v0 = (elev - CLUSTER_ELEV) / CLUSTER_DEG_H + 0.5
+            # v is clamped here, at the vertex, so it never leaves 0..1 and the
+            # texture's Repeat can only ever act on u. Without that the texture
+            # would wrap vertically and draw the cluster again above and below
+            # itself. Vertices outside the band all sit on 0 or 1, which are
+            # the empty margin rows, so nothing is smeared by the clamp.
+            u0 = az * CLUSTER_COUNT
+            v0 = min(1.0, max(0.0, (elev - V_LO) / (V_HI - V_LO)))
 
             u1 = az * STAR_REPEAT
 
@@ -543,10 +566,7 @@ def gen_mesh(path):
                           u0, v0, u1, v, -dx, -dy, -dz))
 
     pole_index = len(verts)
-    # The pole. Its UV0 is pushed well outside the cluster patch so the cap
-    # samples the transparent margin rather than stretching the cluster to it.
-    pole_v0 = (90.0 - CLUSTER_ELEV) / CLUSTER_DEG_H + 0.5
-    verts.append((0.0, RADIUS, 0.0, 0.5, pole_v0, 0.0, 1.0, 0.0, -1.0, 0.0))
+    verts.append((0.0, RADIUS, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, -1.0, 0.0))
 
     idx = []
     cols = SEGMENTS + 1
@@ -601,7 +621,7 @@ def main():
         w, h, px = gen_diamonds(f)
         name = "T_S2Sky_Diamonds_%d" % (f + 1)
         write_texture(os.path.join(tex, name + ".oct"), name,
-                      UUID_DIAMONDS + f, w, h, px, wrap=0)      # Clamp
+                      UUID_DIAMONDS + f, w, h, px, wrap=1)      # Repeat
 
     gen_material(os.path.join(mat, "M_Sky.oct"))
     gen_mesh(os.path.join(mesh, "SM_SkyDome.oct"))
