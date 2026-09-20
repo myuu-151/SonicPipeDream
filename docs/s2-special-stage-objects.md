@@ -269,6 +269,35 @@ same joint as a track piece) and the rings parented to it, all sharing the one `
 
 There is no bomb model yet: `Bomb_Placeholder` is a dark ball.
 
+## Corners, slopes, long and short: one module, not variants
+
+The original has **no corner or slope shapes**. An object is only ever "this far along,
+this far round", so the same `Cluster` is straight on a straight, bent on a turn and
+tipped over on a drop. What the track changes is *which* shapes are used and *how many*.
+Measured over all seven stages:
+
+| Under the player | Objects per 100 frames | Favoured there |
+|---|---|---|
+| straight | 45 | `BombCluster`, `Cluster`, `ClusterSmall`, `BombWall` |
+| entering a turn | 17 | almost nothing: the run-up to a turn is left clear |
+| turning | 87 | the densest part of a stage; `Cluster` by a long way |
+| leaving a turn | 37 | |
+| rise / drop | 67 / 69 | `TriangleBig` by a long way; `Confetti` is only ever on drops |
+
+These are the rulebook columns the generator needs: density and module weights per kind of
+piece, not per-piece copies of the shapes.
+
+`native/gen_rings_on_pieces.py` proves the first half. Its `PiecePath` measures a piece's
+centre line by distance and gives the curve's own frame at any point; `lay(module, path,
+first_frame, at)` puts a module on it. `external/ring/RingsOnPieces.blend` has a `Cluster`
+and a `Snake` going round `TP_Corner`, and three `TriangleBig` and a `Spiral` going down
+`TP_LongDrop`. A module that runs off the end of its piece is cut there; carrying it on to
+the next piece is the level generator's job, and not done.
+
+**Long and short** are parameters, not variants: every rule in `ring_modules.py` takes a
+length (`capsule(3)`, `snake(64)`, `corkscrew(64)`), and anything in `RUNS` can be cut to
+whatever room a piece has left.
+
 ## Not done yet
 
 * **Laying modules on a level.** `gen_random_level.py` still deals track only. Next: deal
