@@ -360,6 +360,15 @@ def mirrored(module):
     return [(f, -a, k) for f, a, k in module]
 
 
+def roll(angle, at=0.0):
+    """How far an object is turned about the track's direction, in radians, so that it
+    stands square to the bit of pipe it hovers over: its own up points at the pipe's axis,
+    not at the sky. On the floor's centre line that is no turn at all; on a rim it is a
+    quarter turn. (A ring looks the same either way; a bomb does not.)"""
+    side = -1.0 if ANGLE_00_SIDE == "right" else 1.0
+    return side * (angle + at) * 2.0 * math.pi / 256.0
+
+
 def local(frame, angle, at=0.0, hover=HOVER):
     """Where an object sits on a STRAIGHT piece: x along the track from the module's
     start, y across, z up from the floor's centre line. `at` is the angle the module

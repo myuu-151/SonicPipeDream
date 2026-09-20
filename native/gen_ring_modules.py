@@ -31,6 +31,7 @@ import ring_modules as rm
 
 args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 SHEET = "sheet" in args
+ONLY = [a for a in args if a != "sheet"]        # render just these modules, to check a change
 
 BOMB_BLEND = os.path.abspath(os.path.join(HERE, "..", "external", "bomb", "Bomb.blend"))
 RING_BLEND = os.path.abspath(os.path.join(HERE, "..", "external", "ring", "Ring.blend"))
@@ -131,6 +132,7 @@ def main():
             ob = bpy.data.objects.new("%s_%s_%02d" % (name, kind, i), ring if kind == rm.RING else bomb)
             ob.parent = root
             ob.location = rm.local(frame, angle)
+            ob.rotation_euler = (rm.roll(angle), 0.0, 0.0)     # square to the pipe under it
             if kind == rm.RING:
                 ob.scale = (RING_SCALE,) * 3
             coll.objects.link(ob)
@@ -177,13 +179,13 @@ def main():
         scene.render.resolution_x, scene.render.resolution_y = 480, 360
         scene.render.image_settings.file_format = 'PNG'
         os.makedirs(PREVIEW, exist_ok=True)
-        for name in lanes:
+        for name in (ONLY or lanes):
             aim(name)
             scene.render.filepath = os.path.join(PREVIEW, name + ".png")
             bpy.ops.render.render(write_still=True)
         # and from straight above, which is how spacing is judged
         cam_data.type = 'ORTHO'
-        for name in TOP_VIEWS:
+        for name in ([] if ONLY else TOP_VIEWS):
             y, start = lanes[name]
             span = rm.length(rm.MODULES[name]) * rm.STEP
             cam_data.ortho_scale = max(span + 16.0, 40.0)
@@ -191,7 +193,7 @@ def main():
             cam.rotation_euler = (0.0, 0.0, 0.0)
             scene.render.filepath = os.path.join(PREVIEW, "top_" + name + ".png")
             bpy.ops.render.render(write_still=True)
-        print("rendered", len(lanes), "previews to", PREVIEW)
+        print("rendered", len(ONLY or lanes), "previews to", PREVIEW)
 
 
 main()

@@ -112,7 +112,8 @@ def lay(module, path, first_frame=0, at=0.0):
         x, y, z = rm.local(frame + first_frame, angle, at)
         if x > path.length:
             continue
-        out.append((path.frame(x) @ Matrix.Translation((0.0, y, z)), kind))
+        out.append((path.frame(x) @ Matrix.Translation((0.0, y, z))
+                    @ Matrix.Rotation(rm.roll(angle, at), 4, 'X'), kind))
     return out
 
 
