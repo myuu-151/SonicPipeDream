@@ -2,8 +2,19 @@
 
 A 3D take on the Sonic 2 special stage, built on the Octave engine.
 
-Currently the sky: a dome carrying a gradient, a twinkling starfield, and a band
-of diamond clusters along the horizon.
+So far: the sky (gradient, twinkling stars, an animated diamond show), a rigged and
+animated Sonic, and a half-pipe built from modular pieces that a generator lays out
+into levels.
+
+## Docs
+
+| | |
+| --- | --- |
+| [docs/procedural-stages.md](docs/procedural-stages.md) | **start here** -- why a stage is a list of hand-shaped pieces, not a model |
+| [docs/procedural-generation.md](docs/procedural-generation.md) | how the level generator works: pieces, the deck, the difficulty rulebook |
+| [docs/s2-special-stage-layouts.md](docs/s2-special-stage-layouts.md) | the original game's track data, decoded, and what it does and does not say |
+
+The sections below describe the sky and predate the rest.
 
 ## Layout
 

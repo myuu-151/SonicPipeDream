@@ -6,8 +6,11 @@ One Bezier curve per segment type of the Sonic 2 special stage. These are STARTI
 shapes, meant to be reshaped by eye in Blender; chain_track_pieces.py reads each
 piece's end point and heading from the curve itself, so any reshaping still chains.
 
-It refuses to overwrite an existing file unless --force is given, because the whole
-point of that file is the hand edits in it.
+    ... -- <out.blend> --redo TP_StraightDrop     remake just the named pieces
+
+It is ADDITIVE. If the file already exists it is opened, and only the pieces missing
+from it are added; a piece that is already there is never touched, because the whole
+point of that file is the hand edits in it. --force starts the file again from nothing.
 
 The joint every piece must respect: start at the origin heading +X and level, and
 END LEVEL. A piece may climb or fall, but its last stretch has to be flat.
@@ -22,10 +25,16 @@ import bpy
 args = sys.argv[sys.argv.index("--") + 1:]
 OUT = os.path.abspath(args[0])
 FORCE = "--force" in args
+# --redo TP_Name [TP_Name ...]: throw those pieces away and make them again. For when
+# a starter shape was wrong; it does discard any hand edits to the pieces named.
+REDO = [a for a in args[args.index("--redo") + 1:] if a.startswith("TP_")] if "--redo" in args else []
 
 SECTION = 40.161            # one pipe section; the pieces are whole numbers of these
 TURN_DEG = 60.0             # how far a turn piece turns; unmirrored is to the right
 DROP = 45.0                 # how far a drop piece falls, over two sections
+CORNER_DEG = 90.0           # the stand-alone corner piece
+CHUTE_DEG = 50.0            # the slope the long drop holds
+CHUTE_SECTIONS = 6          # its whole length: tip, slope, settle, run-off
 SAMPLES_PER_SECTION = 8     # curve points per section
 
 # Shown side by side, this far apart, so they can be looked at together. Each
@@ -59,6 +68,26 @@ def walk(sections, yaw_at, z_at):
     return pts[::4], yaw_at(1.0)
 
 
+def walk_pitch(sections, yaw_at, pitch_at):
+    """As walk(), but shaped by the slope itself: pitch_at(u) is the angle below (or
+    above) level, in radians, at u = 0..1. That is the natural way to describe a
+    chute, which holds one slope for a long way; a height curve can only ever be
+    curving."""
+    n = sections * SAMPLES_PER_SECTION * 4
+    step = sections * SECTION / n
+    x = y = z = 0.0
+    pts = [(0.0, 0.0, 0.0)]
+    for i in range(n):
+        u = (i + 0.5) / n
+        pitch, yaw = pitch_at(u), yaw_at(u)
+        flat = step * math.cos(pitch)
+        x += flat * math.cos(yaw)
+        y += flat * math.sin(yaw)
+        z += step * math.sin(pitch)
+        pts.append((x, y, z))
+    return pts[::4], yaw_at(1.0)
+
+
 turn = -math.radians(TURN_DEG)                       # negative yaw is a right turn
 
 
@@ -72,26 +101,78 @@ def turn_then(hill):
     return walk(3, yaw_at, z_at)
 
 
+def straight_drop():
+    """Straight ahead and down, no turn. The ease is flat at both ends already, so
+    the fall can use the whole two sections: squeezed into less, its steepest part
+    passed what a step along the curve can cover and the drop came up short."""
+    return walk(2, lambda u: 0.0, lambda u: -DROP * ease(u))
+
+
+def long_drop():
+    """A chute. Tips over across the first section, holds a steady slope for three,
+    levels out across the next, and finishes with a flat run-off, so whatever comes
+    after it starts on the level."""
+    slope = -math.radians(CHUTE_DEG)
+    total = float(CHUTE_SECTIONS)
+    tip, settle, runoff = 1.0 / total, 1.0 / total, 0.75 / total
+
+    def pitch_at(u):
+        if u < tip:
+            return slope * ease(u / tip)
+        if u < 1.0 - settle - runoff:
+            return slope
+        if u < 1.0 - runoff:
+            return slope * (1.0 - ease((u - (1.0 - settle - runoff)) / settle))
+        return 0.0
+    return walk_pitch(CHUTE_SECTIONS, lambda u: 0.0, pitch_at)
+
+
+def corner():
+    """A corner that stands on its own between two straights: half a section
+    straight, a quarter turn across two sections, half a section straight. The lead
+    in and out are what let it butt cleanly against a straight at either end."""
+    quarter = -math.radians(CORNER_DEG)
+
+    def yaw_at(u):
+        return quarter * ease(max(0.0, min(1.0, (u * 3.0 - 0.5) / 2.0)))
+    return walk(3, yaw_at, lambda u: 0.0)
+
+
 PIECES = [
-    # name, game type, points
+    # name, game type (-1: not one of the game's five, for generated stages only), points
     ("TP_Straight", 3, walk(1, lambda u: 0.0, lambda u: 0.0)),
     # In the game these frames only show the bend arriving; nothing turns yet.
     ("TP_StraightToTurn", 4, walk(1, lambda u: 0.0, lambda u: 0.0)),
     ("TP_TurnToStraight", 2, walk(1, lambda u: turn * ease(u), lambda u: 0.0)),
     ("TP_TurnThenDrop", 1, turn_then(-DROP)),
     ("TP_TurnThenRise", 0, turn_then(DROP)),
+    ("TP_StraightDrop", -1, straight_drop()),
+    ("TP_Corner", -1, corner()),
+    ("TP_LongDrop", -1, long_drop()),
 ]
 
 
 def main():
     if os.path.exists(OUT) and not FORCE:
-        raise SystemExit("%s exists; it holds hand edits. Pass --force to replace it." % OUT)
+        bpy.ops.wm.open_mainfile(filepath=OUT)
+        coll = bpy.data.collections.get("TrackPieces")
+    else:
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+        coll = None
+    if coll is None:
+        coll = bpy.data.collections.new("TrackPieces")
+        bpy.context.scene.collection.children.link(coll)
 
-    bpy.ops.wm.read_factory_settings(use_empty=True)
-    coll = bpy.data.collections.new("TrackPieces")
-    bpy.context.scene.collection.children.link(coll)
+    for name in REDO:
+        # Its model objects are its children; they go too, and are rebuilt afterwards.
+        for ob in [o for o in bpy.data.objects if o.name == name or
+                   (o.parent is not None and o.parent.name == name)]:
+            bpy.data.objects.remove(ob, do_unlink=True)
 
     for k, (name, kind, (pts, end_yaw)) in enumerate(PIECES):
+        if name in bpy.data.objects:
+            print("%-20s already there; left alone" % name)
+            continue
         cu = bpy.data.curves.new(name, 'CURVE')
         cu.dimensions = '3D'
         cu.twist_mode = 'Z_UP'

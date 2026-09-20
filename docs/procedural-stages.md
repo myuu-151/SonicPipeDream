@@ -56,6 +56,36 @@ fall, but its last stretch must be flat, or everything after it inherits the til
 **Mirroring.** A left turn is a right turn mirrored, as in the original. Only the
 unmirrored pieces are authored.
 
+**The model on each piece.** `native/build_piece_models.py` puts the real half-pipe on
+every piece: pipe, rails and sphere arches (`TPM_<piece>_Pipe`, `_Rails`, `_Spheres`),
+repeated once per section and bent along that piece's curve. Run it again after
+reshaping a curve; it replaces only the objects it made, never the curves.
+
+A piece's model has to span its curve exactly, 0 to its length, or chained pieces gap
+or overlap. The pipe was modelled from x = -8.18, so the meshes are shifted to start at
+0. That puts the hoop and its arch in the middle of each section and the rails on the
+seams; **each piece owns the rail at the end of each of its sections**, so none is built
+twice. The script checks the fit and prints how far each pipe's far end lands from its
+curve's end (0.03 units at worst).
+
+### The working set: three shapes, five pieces -- `TrackPiecesPack.blend`
+
+The pieces are modular, and that is worth more than it sounds. The pack that is
+actually used holds three authored shapes -- `TP_Straight`, `TP_Corner` (90 degrees,
+with a straight lead in and out) and `TP_LongDrop` (a chute: tips over, holds 50
+degrees, settles, flat run-off) -- and they give five pieces:
+
+| Piece | How |
+|---|---|
+| Straight | as authored |
+| Corner right | as authored |
+| Corner left | the same piece mirrored |
+| Drop | as authored |
+| Rise | the drop piece travelled backwards |
+
+An S-bend is just a left corner followed by a right one. The five game-typed pieces in
+`TrackPieces.blend` are only needed to play back the original layouts.
+
 ### Object patterns -- not built yet
 
 Rings and bombs come as patterns, not as loose objects: ring spiral, ring row, ring
@@ -81,6 +111,29 @@ Two sources of lists:
 a whole stage in Blender. The engine should do the same at runtime, keeping only the
 next few pieces alive: cheap enough for a GameCube, and a stage that would cross itself
 as one object never shows it, because its far parts do not exist yet.
+
+## The generator -- `native/gen_random_level.py`
+
+    blender -b external/halfpipe/TrackPiecesPack.blend \
+        --python native/gen_random_level.py -- <out.blend> [difficulty 1-7] [seed]
+
+Track only, so far. It bakes each piece once into a single self-contained mesh (pipe,
+rails and arches joined, modifiers applied; the mirrored corner has its faces turned
+back the right way) and sets those down end to end with one rigid transform each --
+which is exactly what the engine will do at runtime.
+
+**It deals from a deck; it does not roll dice.** Rolling each piece independently only
+meets the rulebook on average: one seed at difficulty 3 rolled high nine times running
+and produced fifteen straights out of eighteen, and the same luck the other way is how
+an easy level turns hard. So the mix is fixed first -- this many corners, this many
+hills, the rest straights -- then the straights the rules demand are placed (two to
+open, a rest after each hill, a break in any run of corners past the limit, one to
+close), and only what is left is scattered at random.
+
+**It will not build a level that runs into itself.** A piece that would come within 45
+units of an earlier part of the track at a similar height is swapped for the nearest
+thing that fits -- the other corner, a drop to pass underneath, a straight -- and the
+swap is printed, since it changes the mix the deck promised.
 
 ## Generated stages and the difficulty rulebook
 
