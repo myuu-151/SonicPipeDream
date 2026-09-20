@@ -37,7 +37,8 @@ throws them faster -- so **low stages are roomy and forgiving, high ones long an
 unforgiving**. Each stage has **its own pipe colour**, the original's.
 
 **The marathon.** Unlocked in the menu when the seventh emerald is won. **One continuous
-run with no end**, a new random seed every time, harder section by section. Sections come
+run with no end**, always unique -- no run and no stage in it is ever played twice -- and
+harder section by section. Sections come
 in threes -- a *zone* -- and after each third check:
 
 > the camera zooms in on Sonic, thumbs up, running on plain straight pipe, and he keeps
@@ -247,7 +248,8 @@ difficulty.
    laid under him again and again; build the next zone from `"<seed>/zone<n>"`; **free the
    old zone and move everything back to the origin**; shift the palette (pipe materials
    and `sky` on the SkyDome); release the zoom.
-3. Score, distance, best run; a new seed per run, shown so a run can be shared.
+3. Score, distance, best run. **Every run is unique**: seeded afresh from the clock or the
+   hardware, never shown, never replayed.
 
 **Done when:** a run passes ten zones with no seam visible at a hold, no growth in memory,
 and positions as steady in zone ten as in zone one.

@@ -22,7 +22,9 @@ authoritative -- everyone plays the same seven -- so each stage has one fixed se
 
 **The marathon** is unlocked in the menu when the seventh emerald is won (the unlock is the
 game's business, not this script's). It is **one continuous run with no end**, harder
-section by section, with a new random seed every run. A `.blend` cannot be endless, so
+section by section, and **always unique**: every run is seeded afresh from the system's own
+randomness (one of 2^62), so no run and no zone is ever played twice. The seed is not a
+feature -- it is never shown, shared or replayed. A `.blend` cannot be endless, so
 `marathon Z` builds the first Z zones to look at; the engine carries on with the same
 rules, which are written into the `.json` as `marathon_rules`.
 

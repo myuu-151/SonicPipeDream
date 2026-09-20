@@ -109,6 +109,13 @@ MARATHON_RING_RATE_CEILING = 0.60
 MARATHON_FLAVOURS = (6, 7, 3, 5)        # past 7, whose modules a zone draws on, in rotation:
                                         # bomb fields, ring storms, corkscrews, helixes
 SECTIONS_PER_ZONE = 3                   # the palette shifts after every third check
+MARATHON_ROOM = (1.0, 1.45)             # ALWAYS UNIQUE has to mean more than a new shuffle. The
+                                        # deck deals a fixed mix and a section is sized to its
+                                        # rings, so every run's first zone came out the same
+                                        # length with the same pieces in a new order. Each
+                                        # marathon section is now given this much room, drawn
+                                        # afresh: tight and busy, or long and open. The ring
+                                        # promise is kept either way -- it is trimmed to.
 
 
 def between(table, d):
@@ -152,9 +159,12 @@ def designs(book_of):
 
 
 if SEED is None:
-    # "random level seeds": a marathon run is new every time. The seed is printed and is in
-    # the file's name, so a run worth keeping can be built again.
-    SEED = random.SystemRandom().randrange(1, 1000000) if MARATHON else GAUNTLET_SEED[STAGE]
+    # A MARATHON RUN IS ALWAYS UNIQUE -- the owner's rule. Every run takes a fresh seed from
+    # the system's own randomness, out of 2**62 of them, so no run is ever played twice and
+    # no zone is ever seen twice. (The seed only ends up in the file's name so that a preview
+    # can be found again; it is not a feature of the game. In the engine: seed from the
+    # clock or the hardware, the same way, and never show it.)
+    SEED = random.SystemRandom().randrange(1, 2 ** 62) if MARATHON else GAUNTLET_SEED[STAGE]
 NAME = "Marathon_seed%d" % SEED if MARATHON else "Stage%d_seed%d" % (STAGE, SEED)
 
 # THE RING CHECK is its own stretch of track, as it is in the original: every one of the
@@ -592,7 +602,8 @@ def main():
             rng = random.Random("%s/%d" % (key, attempt))
             names, cuts, zones = ["Straight"] * (INTRO_STRAIGHTS if first else 0), [], []
             for k, d in enumerate(part):
-                need = d["target"] / d["per_frame"] * 1.05 + (lead if k == 0 else 0)
+                room = rng.uniform(*MARATHON_ROOM) if MARATHON else 1.05
+                need = d["target"] / d["per_frame"] * room + (lead if k == 0 else 0)
                 names += plan_section(d["rules"], rng, need, paths, extra[k])
                 emerald = d["leads_to"] == "EMERALD"
                 run_up, plays = (EMERALD_RUN_UP, EMERALD_PLAYS) if emerald else (CHECK_RUN_UP, CHECK_PLAYS)
