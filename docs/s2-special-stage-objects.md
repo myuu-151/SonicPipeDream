@@ -61,6 +61,38 @@ grid round the pipe is 8 (11.25 degrees) between neighbours in staggered rows, 1
 
 Bombs do not climb evenly: 3 and 6 are the bomb stages, 5 and 7 the ring feasts.
 
+## The safeguard -- `native/check_ring_coverage.py`
+
+    python native/check_ring_coverage.py        # exit status 0 = nothing is missing
+
+Whether a type is missing is not a matter of anyone's memory. This script lays all seven
+original stages out end to end and **rebuilds them out of the modules**: any module, at any
+frame, at any angle, either way round. Whatever no module accounts for is *left over*, and
+is drawn and printed as a row ready to paste into `MODULES`.
+
+As it stands: **3,250 objects, 0 left over.** Run it after any change to the table.
+
+Three rules keep it honest:
+
+* **Singles are not cover.** `Bomb` would otherwise explain every bomb in the game. A lone
+  ring or bomb only passes where nothing else of its kind is near it.
+* **Runs.** A line, a zigzag, a weave, a wave, a sweep, a helix, a corkscrew: the game cuts
+  these to whatever length it has room for (corkscrews of 16, 23 and 24; hooks of 13 and
+  15). The *type* is the run, so `ring_modules.RUNS` holds each at full length and any
+  stretch of three frames or more counts. The named modules are the cuts worth naming.
+* **Oddities.** Two places where the original data looks like a slip of the hand -- a
+  `TriangleSmall` with its point 8 off-centre in stage 2, a `BombCluster` with its rows
+  shuffled in stage 7 -- are let through by name in `ODDITIES`, not made into types.
+
+The first run of it found 209 objects the hand-made table had missed, which is the argument
+for having it: other corkscrew lengths, the second phase of the wave, gapped small and long
+clusters, a wrongly spaced `BombClusterTight` (6 apart, not 8), a ring missing from
+`HookToWall`, and a mis-transcribed `Confetti` whose two halves differ by one unit.
+
+The other half of the safeguard is that the original placements themselves are kept
+(`s2_objects.stages()`), so a classic stage can always be laid exactly as the game has it,
+modules or no modules.
+
 ## The vocabulary
 
 Grouping touching objects into shapes and counting them across all seven stages gives a small
@@ -94,7 +126,7 @@ grouping splits differently depending on their spacing.)
 | two strands crossing, right round the pipe | 30 | 5 | `Helix` -- stage 5 |
 | half of that: floor to overhead, or back | 16 | 2 | `HelixUp`, `HelixDown` |
 | two strands out to the rims and back | 17 | 1 | `HelixBounce` -- leads into stage 5's helix |
-| 2 a frame thrown all round the pipe, 10-frame repeat | 20 | 6 | `Confetti` -- stage 7 |
+| 2 a frame thrown all round the pipe, 20 frames | 40 | 6 | `Confetti` -- stage 7 |
 | one bomb | 1 | 83 | `Bomb` |
 | 1, 2, 1 of bombs | 4 | 78 | `BombCluster` -- the staple |
 | 1, 2, 2, 1 | 6 | 16 | `BombClusterLong` |
@@ -145,12 +177,12 @@ shape **placed more than once**. These are modules too:
 | `TriangleTrain`, `TriangleSnake` | `TriangleSmall` every 4 frames; straight, or snaking out to the wall and back | stage 2 |
 | `TriangleWeave` | three `Triangle`s 8 frames apart, alternating sides | stage 1 |
 | `BombTrain`, `BombDots` | bomb clusters every 8 frames; single bombs every 4 | stages 2, 4, 7 |
-| `ClusterGapped`, `ClusterSparse` | a `Cluster` with a frame left empty after its first ring, or between every row | stages 3, 6, 7 |
-| `BombClusterTight` | stage 2's own bomb cluster, `40 / 38 44 / 40`, lopsided as the game has it | stage 2 |
+| `ClusterSmallGapped`, `ClusterGapped`, `ClusterLong12Gapped`, `ClusterSparse` | a `Cluster` with a frame left empty after its first ring, or between every row | stages 3, 6, 7 |
+| `BombClusterTight` | stage 2's own bomb cluster, `40 / 3A 46 / 40`: 6 apart, not 8 | stage 2 |
 | `DottedArrow` | dotted line, two rows of three, one: stage 4's opening shape | stage 4 |
 
 `twin(module, apart)`, `train(shape, angles, every)` and `put(module, frame, angle)` build
-these, and modules add with `+`, so a new arrangement is one line. 77 modules in all.
+these, and modules add with `+`, so a new arrangement is one line. 79 modules in all.
 
 What is deliberately *not* a module: a shape simply put somewhere else (a `TriangleBig` on
 a wall, or overhead as in stage 5), which is the `at` angle's job when a level is laid; other

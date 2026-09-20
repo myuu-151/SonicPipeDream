@@ -38,10 +38,11 @@ def rows(kind, *row_angles, start=0, step=1):
     return [(start + i * step, a, kind) for i, row in enumerate(row_angles) for a in row]
 
 
-def capsule(kind, pairs):
+def capsule(kind, pairs, gapped=False):
     """One, then `pairs` rows of two, then one: the game's staple. 1 pair is the small
-    diamond; 3 pairs, eight rings, is the commonest ring shape in the game."""
-    return rows(kind, (0,), *[(-8, 8)] * pairs, (0,))
+    diamond; 3 pairs, eight rings, is the commonest ring shape in the game. `gapped`
+    leaves a frame empty after the first one, as the game sometimes does."""
+    return rows(kind, (0,), *([()] if gapped else []), *[(-8, 8)] * pairs, (0,))
 
 
 def diamond(kind, width, hollow=False):
@@ -136,7 +137,7 @@ def bounce(kind):
     """Two strands run out to the rims, wait a frame, and come back to meet on the
     floor: how stage 5 leads into its helix."""
     out = [16, 32, 48, 64, 64, 48, 32, 16]
-    return [(i, s * a, kind) for i, a in enumerate(out) for s in (-1, 1)] + [(8, 0, kind)]
+    return [(i, s * a, kind) for i, a in enumerate(out) for s in (-1, 1)]
 
 
 def funnel(kind, frames=10, wide=48, per_frame=4):
@@ -169,12 +170,15 @@ def train(shape, angles, every=4):
     return [o for n, a in enumerate(angles) for o in put(shape, n * every, a)]
 
 
-# Stage 7's ring storm: twenty rings over ten frames, thrown all round the pipe, and
-# repeated. Too irregular to make from a rule, so it is kept as the angles themselves.
-CONFETTI = [(0, -59, RING), (0, 22, RING), (1, 35, RING), (1, 112, RING), (2, -43, RING),
-            (2, 6, RING), (3, 80, RING), (3, -103, RING), (4, 32, RING), (4, 62, RING),
-            (5, -9, RING), (5, 64, RING), (6, -51, RING), (6, 40, RING), (7, 128, RING),
-            (7, -91, RING), (8, -13, RING), (8, 32, RING), (9, -24, RING), (9, 104, RING)]
+# Stage 7's ring storm: forty rings over twenty frames, two a frame, thrown all round
+# the pipe. Too irregular to make from a rule, so it is kept as the angles themselves.
+# Its second ten frames repeat the first, but for two rings a single unit out; that is
+# the game's, and check_ring_coverage.py would notice if it were tidied away.
+_STORM = [(-59, 22), (35, 112), (6, -43), (-103, 80), (62, 32), (64, -9), (-51, 40),
+          (-91, -128), (32, -13), (-24, 104),
+          (-59, 22), (35, 112), (5, -42), (-103, 80), (62, 32), (64, -9), (-51, 40),
+          (-91, -128), (32, -13), (-24, 104)]
+CONFETTI = [(f, a, RING) for f, pair in enumerate(_STORM) for a in pair]
 
 
 MODULES = {
@@ -189,7 +193,9 @@ MODULES = {
     "ClusterBig":      diamond(RING, 3),        #  9   x7
     "ClusterStairs":   stairs(capsule(RING, 1), 3),   # 12   stage 2: small ones stepping across
     "ClusterStairsLong": train(capsule(RING, 1), (48, 48, 32, 16, 0, -16)),   # 24   stage 2
-    "ClusterGapped":   rows(RING, (0,), (), (-8, 8), (-8, 8), (-8, 8), (0,)),   # 8   x5: a beat's rest
+    "ClusterSmallGapped": capsule(RING, 1, True),  #  4   stage 3
+    "ClusterGapped":   capsule(RING, 3, True),  #  8   x5: a beat's rest
+    "ClusterLong12Gapped": capsule(RING, 5, True),   # 12   stage 7
     "ClusterSparse":   rows(RING, (0,), (-8, 8), (), (-8, 8), (), (-8, 8), (0,)),   # 8   stage 6
     # --- rings: the same shape in two places ----------------------------------------
     "TwinClusterSmall": twin(capsule(RING, 1)),        #  8   both walls at once
@@ -226,13 +232,13 @@ MODULES = {
     "Helix":           helix(RING),             # 30   x5, stage 5: right round the pipe
     "HelixUp":         [o for o in helix(RING) if o[0] <= 8],    # 16   floor to overhead
     "HelixDown":       put([o for o in helix(RING) if o[0] >= 8], -8) + [(8, 0, RING)],   # 16
-    "HelixBounce":     bounce(RING),            # 17   out to the rims and back
-    "Confetti":        list(CONFETTI),          # 20   stage 7
+    "HelixBounce":     bounce(RING),            # 16   out to the rims and back
+    "Confetti":        list(CONFETTI),          # 40   stage 7
     # --- bombs ----------------------------------------------------------------------
     "Bomb":            line(BOMB, 1),           #  1   x83
     "BombCluster":     capsule(BOMB, 1),        #  4   x78, the staple
     "BombClusterLong": capsule(BOMB, 2),        #  6   x16
-    "BombClusterTight": rows(BOMB, (0,), (-8, 4), (0,)),   # 4   stage 2's own, lopsided as the game has it
+    "BombClusterTight": rows(BOMB, (0,), (-6, 6), (0,)),   # 4   stage 2's own: 6 apart, not 8
     "BombTrain":       train(capsule(BOMB, 1), (0, 0, 0), 8),    # 12   stage 2
     "BombDots":        dotted(BOMB, 3, 4),      #  3   down the centre line, every 4 frames
     "BombTwin":        twin(capsule(BOMB, 1)),  #  8   x12: both walls, the floor is the way through
@@ -251,8 +257,8 @@ MODULES = {
     # --- rings and bombs together, as the game pairs them ---------------------------
     "Slalom":          wave(RING) + put(capsule(BOMB, 1), 3) + put(capsule(BOMB, 1), 12),
     "LineInCorkscrew": put(corkscrew(BOMB, 24), 0, -64) + put(line(RING, 10), 11),
-    "HookToWallLeft":  hook(RING, 8, 4, -1) + put(wall(BOMB), 13),
-    "HookToWallRight": hook(RING, 8, 4, +1) + put(wall(BOMB), 13),
+    "HookToWallLeft":  hook(RING, 8, 4, -1) + [(12, -28, RING)] + put(wall(BOMB), 13),
+    "HookToWallRight": hook(RING, 8, 4, +1) + [(12, 28, RING)] + put(wall(BOMB), 13),
     "WeaveByBombs":    put(weave(RING, 8), 0, -32) + put(dotted(BOMB, 3, 4), 0),
     "GateAndTriangle": wall(BOMB, gap_at=-8, gap=4) + put(triangle(RING, 4), 6, 32),
     "WallThenCluster": wall(BOMB) + put(capsule(RING, 3), 2),      # jump it and land in rings
@@ -270,6 +276,27 @@ MODULES = {
     # Clusters on alternate walls, single bombs down the centre line between them.
     "ClusterByBombs":  (put(capsule(RING, 3), 0, -40) + put(capsule(RING, 3), 12, 40)
                         + [(f, 0, BOMB) for f in (0, 4, 8, 12, 16, 20)]),   # stage 7
+}
+
+
+# Shapes that are a run: the game cuts them to whatever length the segment has room for,
+# so the TYPE is the run and any stretch of it counts. Each is given here at full length;
+# the named modules above are the cuts worth having by name. check_ring_coverage.py
+# accepts any stretch of three frames or more.
+RUNS = {
+    "Line":          line(RING, 24),
+    "LineDotted":    dotted(RING, 12),
+    "Zigzag":        zigzag(RING, 24),
+    "Weave":         weave(RING, 24),
+    "Wave":          wave(RING) + [(16 + f, a - 8, k) for f, a, k in wave(RING)[:15]],   # stage 6 runs two on end
+    "Sweep":         sweep(RING, 11, 4),
+    "Slant":         slant(RING, 16),
+    "Helix":         helix(RING, 2),
+    "BombDots":      dotted(BOMB, 8, 4),
+    "BombCorkscrew": corkscrew(BOMB, 32),
+    "BombSpiral":    corkscrew(BOMB, 16, -16),
+    "BombSlant":     slant(BOMB, 16),
+    "BombFunnel":    funnel(BOMB, 12, 56),
 }
 
 
