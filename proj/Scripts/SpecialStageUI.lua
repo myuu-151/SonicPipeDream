@@ -298,11 +298,12 @@ function SpecialStageUI:TickCool(deltaTime)
         opacity = 1.0 - (t - COOL_POP - COOL_HOLD) / COOL_FADE
     end
 
-    -- emblem and glove float together, slowly up and down, as the original's does
+    -- The glove floats slowly up and down, and the emblem behind it floats the OTHER way:
+    -- as the hand rises the wings sink, so the two drift apart and back together.
     local ew, eh, th = EMBLEM_W * size, EMBLEM_H * size, THUMB_SIZE * size
-    local cy = 84.0 + math.sin(t * 2.0 * math.pi / COOL_BOB_TIME) * COOL_BOB
-    self:Place(self.emblem, SCREEN_W * 0.5 - ew * 0.5, cy - eh * 0.5, ew, eh)
-    self:Place(self.thumb, SCREEN_W * 0.5 - th * 0.5, cy - th * 0.5, th, th)
+    local bob = math.sin(t * 2.0 * math.pi / COOL_BOB_TIME) * COOL_BOB
+    self:Place(self.emblem, SCREEN_W * 0.5 - ew * 0.5, 84.0 + bob - eh * 0.5, ew, eh)
+    self:Place(self.thumb, SCREEN_W * 0.5 - th * 0.5, 84.0 - bob - th * 0.5, th, th)
     self:Place(self.coolText, SCREEN_W * 0.5 - 44.0, 128.0)
     self.emblem:SetOpacityFloat(opacity)
     self.thumb:SetOpacityFloat(opacity)
