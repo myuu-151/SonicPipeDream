@@ -226,17 +226,19 @@ The marathon cannot be pre-built, so `build_part()` and what it calls are ported
 engine: `plan` (deal the track), `even_corners`, `steer`, laying pieces with the collision
 check, `build_cards`, `fill`, `top_up`, `trim`, and the assert that is the guarantee.
 
-**One thing must be settled first: the random numbers.** The Python uses `random.Random`
-seeded with a string, which no other language will reproduce. Either (a) replace it in
-`gen_stage.py` with a small portable generator (PCG or xorshift) implemented identically
-on both sides, so *the preview and the game build the same zone from the same key* and the
-Python stays a test oracle for the port; or (b) accept that they differ, and test the
-engine only against itself. **(a) is recommended** -- it turns the port into something that
-can be checked line by line -- and it should be done *before* porting, while the seven
-gauntlet seeds can still be re-chosen cheaply (changing the generator changes every stage).
+**The random numbers need no special care.** The gauntlet ships as finished `.json` and is
+never generated in the engine; the marathon is *meant* to be different every run, so
+nothing requires the engine's zone to match a Blender preview's. (The Python seeds
+`random.Random` with a string, which no other language reproduces -- and that is fine. The
+preview shows what *kind* of thing comes out, not the thing itself.) Sharing a seed between
+players works regardless: both are running the same engine.
 
-**Done when:** for ten keys, the engine's zone matches `gen_stage.py`'s piece for piece and
-object for object (option a), and 1,000 generated zones all pass the guarantee.
+So the port is tested on its own terms, not against the Python.
+
+**Done when:** 1,000 zones generated in the engine all pass the guarantee, none runs into
+itself, every one ends heading the way it began, and the mix of shapes and the bombs per
+ring, counted over all of them, sit close to what `gen_stage.py` produces at the same
+difficulty.
 
 ### Phase 7 -- the marathon
 
@@ -285,7 +287,6 @@ All of these are one constant or one table. None has been confirmed by playing.
 | Which palette slot colours which material | `ROLES` | `stage_palettes.py` |
 | Stage 5 and 6 pair green with orange | the original's; the owner is red-green colourblind | `stage_palettes.py` |
 | Playing alone or as a team | alone; the team quotas are recorded | `gen_stage.py` |
-| Portable random numbers | not done; see phase 6 | `gen_stage.py` |
 | The seven gauntlet seeds | all 1, never chosen by playing | `gen_stage.py` |
 
 ---
@@ -302,8 +303,10 @@ All of these are one constant or one table. None has been confirmed by playing.
 * **Speed is not designed at all.** Every length here is in frames; how long a frame takes
   is the engine's, and it changes what every other number feels like.
 * **The guarantee counts rings, not reachable rings** (phase 9).
-* **Port drift.** Without portable random numbers the game's marathon and the preview are
-  different generators that merely resemble each other (phase 6).
+* **Port drift.** The engine's generator is a second implementation of the Python one, and
+  nothing forces them to agree line by line. The guarantee is the safety net -- it is
+  asserted in both -- but subtler things (how samey a zone feels, how bombs cluster) can only
+  be compared by counting over many zones (phase 6).
 
 ---
 
