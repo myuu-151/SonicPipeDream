@@ -47,6 +47,9 @@ EFFECTS = [
 ]
 
 
+NORMALISE = {"SW_GetEmerald": 0.97}     # asset -> the peak to bring it up to (the file peaks at 0.51)
+
+
 def write(asset, uuid, channels, width, rate, frames, pcm):
     name = asset.encode("ascii")
     d = struct.pack("<IIIB", MAGIC, VERSION, TYPE_SOUNDWAVE, 0)
@@ -77,6 +80,11 @@ def main():
     import soundfile
     for file_name, asset, uuid in EFFECTS:
         data, rate = soundfile.read(os.path.join(SRC, file_name), dtype="int16", always_2d=True)
+        if asset in NORMALISE:
+            # a quiet file, already played at full volume in the game: bring its peak up here
+            import numpy
+            gain = NORMALISE[asset] * 32767.0 / max(1, int(numpy.abs(data.astype(numpy.int32)).max()))
+            data = numpy.clip(data.astype(numpy.float64) * gain, -32768, 32767).astype(numpy.int16)
         write(asset, uuid, data.shape[1], 2, rate, data.shape[0], data.tobytes())
 
 
