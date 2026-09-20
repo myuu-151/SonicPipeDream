@@ -25,6 +25,13 @@ BOMB = "bomb"
 SECTION = 40.161            # one straight piece
 FRAMES_PER_SECTION = 16     # the original's straight is 16 frames
 FRAME = SECTION / FRAMES_PER_SECTION
+
+# How far apart two rings a frame apart really sit, as a multiple of FRAME. CHOSEN: the
+# game's data has no distances in it. At 1.0 a frame is 2.51 units and a ring is 2.48
+# across, so a line of rings is a solid tube; 2.0 leaves a ring's width between them.
+# A 16-frame module is then two straight pieces long, not one.
+STRETCH = 2.0
+STEP = FRAME * STRETCH      # along the track, per frame
 PIPE_RADIUS = 10.0          # the pipe's axis is this far above the floor's centre line
 HOVER = 1.9                 # a ring's centre above the pipe's surface
 
@@ -133,6 +140,22 @@ def wave(kind, reach=32, per_frame=8):
     return [(i, a, kind) for i, a in enumerate(path)]
 
 
+def snake(kind, frames, reach=32, per_frame=8):
+    """One ring a frame, weaving from side to side for as long as you like: the wave, not
+    cut short. It rests a frame at each end of its swing, as the game's does."""
+    out, a, d, rest = [], 0, 1, False
+    for i in range(frames):
+        out.append((i, a, kind))
+        if abs(a) == reach and not rest:
+            rest = True
+            continue
+        if abs(a) == reach:
+            d = -d
+        rest = False
+        a += d * per_frame
+    return out
+
+
 def bounce(kind):
     """Two strands run out to the rims, wait a frame, and come back to meet on the
     floor: how stage 5 leads into its helix."""
@@ -222,14 +245,29 @@ MODULES = {
     "DottedArrow":     (dotted(RING, 5) + put(rows(RING, (-8, 0, 8)), 10)
                         + put(rows(RING, (-8, 0, 8)), 12) + [(14, 0, RING)]),   # 12   stage 4's opener
     "Row3":            rows(RING, (-8, 0, 8)),  #  3   abreast
+    # --- rings: single rings stretched across the slope ------------------------------
+    "Row5":            rows(RING, (-16, -8, 0, 8, 16)),       #  5   stage 4
+    "Row4Wide":        rows(RING, (-24, -8, 8, 24)),          #  4   stages 2, 5, 6
+    "Row5Wide":        rows(RING, (-32, -16, 0, 16, 32)),     #  5   stage 4
+    "RowAcross":       rows(RING, tuple(range(-64, 65, 16))), #  9   rim to rim in one frame; stage 5
+                                                              #      has 8 abreast, right round
+    "Across":          slant(RING, 17, 8),      # 17   one ring a frame, rim to rim; the game
+                                                #      runs 9 of it at a time (stage 6)
     # --- rings: curves and spirals --------------------------------------------------
     "SweepLeft":       sweep(RING, 6, 4, -1),   # 16   stage 3, in left/right pairs
     "SweepRight":      sweep(RING, 6, 4, +1),   # 16
     "HookLeft":        hook(RING, 11, 4, -1),   # 15   a sweep that stays out; stage 3
     "HookRight":       hook(RING, 11, 4, +1),   # 15
     "Wave":            wave(RING),              # 16   stage 6
+    "Snake":           snake(RING, 32),         # 32   the long single line, weaving: stage 6 runs 31
+    "SnakeLong":       snake(RING, 64),         # 64   four straights of it
+    "SnakeWide":       snake(RING, 48, 56),     # 48   the same, swinging nearly rim to rim
     "Slant":           slant(RING, 6),          #  6
-    "Helix":           helix(RING),             # 30   x5, stage 5: right round the pipe
+    "Spiral":          corkscrew(RING, 16, 16), # 16   ONE strand right round the pipe, 16 a frame
+    "SpiralLong":      corkscrew(RING, 48, 16), # 48   three turns on end: stage 6
+    "SpiralSlow":      corkscrew(RING, 32, 8),  # 32   the same at the bombs' pace, 8 a frame
+    "Helix":           helix(RING),             # 30   x5, stage 5: two spirals, crossing
+    "HelixLong":       helix(RING, 3),          # 90   stage 6 runs three on end
     "HelixUp":         [o for o in helix(RING) if o[0] <= 8],    # 16   floor to overhead
     "HelixDown":       put([o for o in helix(RING) if o[0] >= 8], -8) + [(8, 0, RING)],   # 16
     "HelixBounce":     bounce(RING),            # 16   out to the rims and back
@@ -291,7 +329,9 @@ RUNS = {
     "Wave":          wave(RING) + [(16 + f, a - 8, k) for f, a, k in wave(RING)[:15]],   # stage 6 runs two on end
     "Sweep":         sweep(RING, 11, 4),
     "Slant":         slant(RING, 16),
-    "Helix":         helix(RING, 2),
+    "Helix":         helix(RING, 3),
+    "Spiral":        corkscrew(RING, 48, 16),
+    "SpiralSlow":    corkscrew(RING, 32, 8),
     "BombDots":      dotted(BOMB, 8, 4),
     "BombCorkscrew": corkscrew(BOMB, 32),
     "BombSpiral":    corkscrew(BOMB, 16, -16),
@@ -326,7 +366,7 @@ def local(frame, angle, at=0.0, hover=HOVER):
     side = -1.0 if ANGLE_00_SIDE == "right" else 1.0
     t = side * (angle + at) * 2.0 * math.pi / 256.0
     r = PIPE_RADIUS - hover
-    return (frame * FRAME, r * math.sin(t), PIPE_RADIUS - r * math.cos(t))
+    return (frame * STEP, r * math.sin(t), PIPE_RADIUS - r * math.cos(t))
 
 
 if __name__ == "__main__":

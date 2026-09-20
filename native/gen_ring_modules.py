@@ -39,6 +39,7 @@ LANE = 60.0                 # between one module's pipe and the next
 LEAD_IN = 8                 # frames of bare pipe before a module starts, for the camera
 RING_SCALE = 1.0
 BOMB_RADIUS = 1.3
+TOP_VIEWS = ("Cluster", "TriangleBig", "Zigzag", "Snake", "Spiral", "Slalom")
 
 
 def bake_straight():
@@ -103,8 +104,8 @@ def main():
         coll = bpy.data.collections.new("RM_" + name)
         scene.collection.children.link(coll)
         y = -n * LANE
-        start = LEAD_IN * rm.FRAME
-        sections = int(math.ceil((LEAD_IN + rm.length(module) + 4) / rm.FRAMES_PER_SECTION)) + 1
+        start = LEAD_IN * rm.STEP
+        sections = int(math.ceil((LEAD_IN + rm.length(module) + 4) * rm.STEP / rm.SECTION)) + 1
         for s in range(sections):
             p = bpy.data.objects.new("RMPipe_%s_%d" % (name, s), pipe)
             p.location = (s * rm.SECTION, y, 0.0)
@@ -147,7 +148,7 @@ def main():
         # so its rows read as rows and not as one ring behind another.
         y, start = lanes[name]
         pos = Vector((start - 5.0 * rm.FRAME, y, 9.5))
-        target = Vector((start + 0.5 * rm.length(rm.MODULES[name]) * rm.FRAME, y, 1.5))
+        target = Vector((start + min(0.5 * rm.length(rm.MODULES[name]), 5.0) * rm.STEP, y, 1.5))
         cam.location = pos
         cam.rotation_euler = (target - pos).to_track_quat('-Z', 'Y').to_euler()
 
@@ -169,6 +170,16 @@ def main():
         for name in lanes:
             aim(name)
             scene.render.filepath = os.path.join(PREVIEW, name + ".png")
+            bpy.ops.render.render(write_still=True)
+        # and from straight above, which is how spacing is judged
+        cam_data.type = 'ORTHO'
+        for name in TOP_VIEWS:
+            y, start = lanes[name]
+            span = rm.length(rm.MODULES[name]) * rm.STEP
+            cam_data.ortho_scale = max(span + 16.0, 40.0)
+            cam.location = (start + span / 2.0, y, 120.0)
+            cam.rotation_euler = (0.0, 0.0, 0.0)
+            scene.render.filepath = os.path.join(PREVIEW, "top_" + name + ".png")
             bpy.ops.render.render(write_still=True)
         print("rendered", len(lanes), "previews to", PREVIEW)
 

@@ -93,6 +93,38 @@ The other half of the safeguard is that the original placements themselves are k
 (`s2_objects.stages()`), so a classic stage can always be laid exactly as the game has it,
 modules or no modules.
 
+### What the checker cannot see -- `native/make_stage_maps.py`
+
+"0 left over" means every object is *accounted for*. It does not mean the modules are the
+shapes a player sees. The checker once explained stage 6's 48-frame run of rings as three
+`Helix` modules and passed, while the thing a player follows there -- **one corkscrew
+strand winding round the pipe** -- had no module at all; and it explained rows of rings
+across the slope as the first rows of triangles. The project's owner caught both from
+memory of the game.
+
+So there is a second safeguard, for eyes:
+
+    python native/make_stage_maps.py        -> docs/stage-maps/stage1.png ... stage7.png
+
+Each original stage unrolled flat -- along the track across, round the pipe up and down,
+the part over the pipe shaded -- with every placed module named on it. Anything on those
+pictures with no name of its own is a missing type. (Yellow rings, white crosses on dark
+for bombs; no red or green.)
+
+Added that way: `Spiral`, `SpiralLong`, `SpiralSlow` (the single corkscrew, which the game
+only ever runs in crossing pairs, as `Helix`, or as bombs); `Snake`, `SnakeLong`,
+`SnakeWide` (the long single weaving line; stage 6 runs 31 frames of it, which `Wave` cut
+to 16); `Row5`, `Row4Wide`, `Row5Wide`, `RowAcross`, `Across` (single rings stretched
+across the slope). 91 modules.
+
+### Spacing along the track
+
+`STRETCH` in `ring_modules.py`, **chosen**: the data has no distances. At 1.0 a frame is
+2.51 units and a ring 2.48 across, so rings a frame apart touch and a line reads as a tube.
+It is 2.0: a ring's width between them, and a 16-frame module two straight pieces long.
+A classic stage played back against the original track would need the track's frames
+stretched to match.
+
 ## The vocabulary
 
 Grouping touching objects into shapes and counting them across all seven stages gives a small
@@ -182,7 +214,7 @@ shape **placed more than once**. These are modules too:
 | `DottedArrow` | dotted line, two rows of three, one: stage 4's opening shape | stage 4 |
 
 `twin(module, apart)`, `train(shape, angles, every)` and `put(module, frame, angle)` build
-these, and modules add with `+`, so a new arrangement is one line. 79 modules in all.
+these, and modules add with `+`, so a new arrangement is one line. 91 modules in all.
 
 What is deliberately *not* a module: a shape simply put somewhere else (a `TriangleBig` on
 a wall, or overhead as in stage 5), which is the `at` angle's job when a level is laid; other
