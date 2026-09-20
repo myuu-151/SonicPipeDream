@@ -287,12 +287,31 @@ Measured over all seven stages:
 These are the rulebook columns the generator needs: density and module weights per kind of
 piece, not per-piece copies of the shapes.
 
-`native/gen_rings_on_pieces.py` proves the first half. Its `PiecePath` measures a piece's
-centre line by distance and gives the curve's own frame at any point; `lay(module, path,
-first_frame, at)` puts a module on it. `external/ring/RingsOnPieces.blend` has a `Cluster`
-and a `Snake` going round `TP_Corner`, and three `TriangleBig` and a `Spiral` going down
-`TP_LongDrop`. A module that runs off the end of its piece is cut there; carrying it on to
-the next piece is the level generator's job, and not done.
+`native/gen_rings_on_pieces.py` proves the first half, for every module and not just the
+ones it draws. `PiecePath` measures a piece's centre line by distance and gives the curve's
+own frame at any point; `ChainPath` does the same over pieces laid end to end, so a module
+can start on one piece and finish on the next; `lay(module, path, first_frame, at)` puts a
+module on either, and does not care whether an object is a ring or a bomb.
+
+Its check lays **all 93 modules on every piece and on a five-piece run** and measures each
+object's distance from the pipe's axis in the curve's frame there: 5,122 objects, the worst
+0.00001 units off the circle it should be on. What it also shows is room:
+
+| Piece | Frames of objects it holds | Modules that fit on it whole |
+|---|---|---|
+| `TP_Straight` | 8 | 46 of 93 |
+| `TP_Corner` | 24 | 85 |
+| `TP_LongDrop` | 48 | 91 |
+| straight, corner, straight, drop, straight | 96 | all 93 |
+
+So a short straight alone is too short for half the table (at `STRETCH = 2.0`): the
+generator must lay modules along the *level*, across joints, not piece by piece.
+
+`external/ring/RingsOnPieces.blend` is that run with rings and bombs together: twin bombs
+and a cluster abreast on the first straight, a `Slalom` bending into the corner, `SwapWalls`
+across the joint out of it, a `BombGate` with a `TriangleBig` through the gap, a
+`LineInCorkscrew` going over the lip and down the drop, a triangle and a bomb cluster abreast
+on the slope, and a `Snake` round the bottom onto the flat. `RingsOnRun_*.png` beside it.
 
 **Long and short** are parameters, not variants: every rule in `ring_modules.py` takes a
 length (`capsule(3)`, `snake(64)`, `corkscrew(64)`), and anything in `RUNS` can be cut to

@@ -1,16 +1,19 @@
-"""Lay ring modules on the bent track pieces, to prove a module needs no corner or slope
-variant of its own: it is the same list of (frame, angle), and the piece's curve bends it.
+"""Lay ring and bomb modules along real track pieces -- straight, corner, drop -- to prove a
+module needs no corner or slope variant of its own: it is the same list of (frame, angle),
+and the track's curve bends it.
 
     blender -b external/halfpipe/TrackPiecesPack.blend \
         --python native/gen_rings_on_pieces.py -- [render]
 
 Writes external/ring/RingsOnPieces.blend (the pack is read, never written), and with
-`render` two pictures beside it.
+`render` four pictures beside it. It also CHECKS: every module is laid on every piece and
+on the whole run, and each object's distance from the pipe's axis is measured.
 
-`PiecePath` and `lay()` are the part that lasts: the level generator lays modules the same
-way. A module's frame becomes distance along the piece's centre line; its angle becomes a
-place on the circle round the pipe's axis, in the curve's OWN frame at that distance -- so
-on a corner the shape turns with the pipe, and on a drop it tips over with it.
+`PiecePath`, `ChainPath` and `lay()` are the part that lasts: the level generator lays
+modules the same way. A module's frame becomes distance along the centre line; its angle
+becomes a place on the circle round the pipe's axis, in the curve's OWN frame at that
+distance -- so on a corner the shape turns with the pipe, and on a drop it tips over with
+it. Rings or bombs or both: lay() does not care what kind an object is.
 """
 
 import math
@@ -29,16 +32,24 @@ import ring_modules as rm
 args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 RENDER = "render" in args
 RING_BLEND = os.path.abspath(os.path.join(HERE, "..", "external", "ring", "Ring.blend"))
+BOMB_BLEND = os.path.abspath(os.path.join(HERE, "..", "external", "bomb", "Bomb.blend"))
 OUT_DIR = os.path.abspath(os.path.join(HERE, "..", "external", "ring"))
 
-# What goes on what: (module, first frame, angle it is put at). Chosen to be what the
-# original favours there: clusters and a snake round a corner, big triangles and a spiral
-# down a drop.
-DEMO = {
-    "TP_Corner":   [("Cluster", 1, 0), ("Snake", 7, 0)],
-    "TP_LongDrop": [("TriangleBig", 2, -32), ("TriangleBig", 10, 32), ("TriangleBig", 18, -32),
-                    ("Spiral", 26, 0)],
-}
+# A short run of track, and what is laid along it: (module, first frame, angle it is put
+# at). Frames count from the start of the RUN, not of a piece, so a module may start on one
+# piece and finish on the next. Rings and bombs together, several modules abreast, and
+# long modules across joints are all here on purpose: it is what this file is for.
+RUN = ["TP_Straight", "TP_Corner", "TP_Straight", "TP_LongDrop", "TP_Straight"]
+DEMO = [
+    ("TwinBombsAndCluster", 1, 0),      # short straight: rings and bombs abreast
+    ("Slalom", 9, 0),                   # into the corner: a mixed module, bending
+    ("SwapWalls", 24, 0),               # out of the corner, across the joint
+    ("BombGate", 38, 0),                # short straight: a wall with a gap...
+    ("TriangleBig", 40, 0),             # ...and rings through it: two modules on one piece
+    ("LineInCorkscrew", 46, 0),         # over the lip and down the drop
+    ("TriangleBig", 72, -32), ("BombCluster", 72, 32),   # on the slope, abreast
+    ("Snake", 80, 0),                   # down the slope, round the bottom, onto the flat
+]
 
 
 class PiecePath:
@@ -73,15 +84,62 @@ class PiecePath:
         return m
 
 
+class ChainPath:
+    """Pieces end to end, measured by distance from the start of the first: what lets a
+    module begin on one piece and finish on the next. Each piece starts where the last one
+    ended, heading the way it was heading -- the same joint the level generator uses."""
+
+    def __init__(self, paths):
+        self.parts = []                   # (start distance, origin matrix, path)
+        origin, start = Matrix.Identity(4), 0.0
+        for path in paths:
+            self.parts.append((start, origin.copy(), path))
+            origin = origin @ path.frame(path.length)
+            start += path.length
+        self.length = start
+
+    def frame(self, s):
+        s = max(0.0, min(s, self.length))
+        start, origin, path = [p for p in self.parts if p[0] <= s][-1]
+        return origin @ path.frame(s - start)
+
+
 def lay(module, path, first_frame=0, at=0.0):
-    """[(matrix, kind)]: where each of the module's objects sits on this piece."""
+    """[(matrix, kind)]: where each of the module's objects sits. `path` is a PiecePath or
+    a ChainPath. Anything past the end of the path is dropped."""
     out = []
     for frame, angle, kind in module:
         x, y, z = rm.local(frame + first_frame, angle, at)
         if x > path.length:
-            continue                      # ran off the end: the next piece's business
+            continue
         out.append((path.frame(x) @ Matrix.Translation((0.0, y, z)), kind))
     return out
+
+
+def check(paths):
+    """Every module on every piece, and on the whole run: does each object sit where it
+    should -- the right distance from the pipe's axis, in the curve's own frame?"""
+    want = rm.PIPE_RADIUS - rm.HOVER
+    worst, count = 0.0, 0
+    targets = dict(paths)
+    targets["the whole run"] = ChainPath([paths[n] for n in RUN])
+    for where, path in targets.items():
+        cut = []
+        for name, module in rm.MODULES.items():
+            placed = lay(module, path, 1, 0)
+            if len(placed) < len(module):
+                cut.append(name)
+            kept = [o for o in module if rm.local(o[0] + 1, o[1])[0] <= path.length]
+            for (m, kind), (frame, angle, _) in zip(placed, kept):
+                f = path.frame(rm.local(frame + 1, angle)[0])
+                axis = f @ Vector((0.0, 0.0, rm.PIPE_RADIUS))
+                worst = max(worst, abs((m.translation - axis).length - want))
+                count += 1
+        print("%-14s %5.1f frames long: %2d of %d modules fit whole%s"
+              % (where, path.length / rm.STEP, len(rm.MODULES) - len(cut), len(rm.MODULES),
+                 "" if not cut else "; too long for it alone: " + ", ".join(cut[:5])
+                 + (" ..." if len(cut) > 5 else "")))
+    print("%d objects laid; the furthest any sits from the pipe's circle: %.6f" % (count, worst))
 
 
 def bake(curve):
@@ -105,27 +163,32 @@ def bake(curve):
 
 
 def main():
-    pieces = {name: (bake(bpy.data.objects[name]), PiecePath(bpy.data.objects[name])) for name in DEMO}
-    with bpy.data.libraries.load(RING_BLEND) as (src, dst):
-        dst.meshes = [n for n in src.meshes if n == "Ring"]
-    ring = dst.meshes[0]
+    names = sorted(set(RUN))
+    baked = {n: bake(bpy.data.objects[n]) for n in names}
+    paths = {n: PiecePath(bpy.data.objects[n]) for n in names}
+    meshes = {}
+    for kind, blend, mesh in ((rm.RING, RING_BLEND, "Ring"), (rm.BOMB, BOMB_BLEND, "Bomb")):
+        with bpy.data.libraries.load(blend) as (src, dst):
+            dst.meshes = [n for n in src.meshes if n == mesh]
+        meshes[kind] = dst.meshes[0]
     for ob in list(bpy.data.objects):
         bpy.data.objects.remove(ob, do_unlink=True)
     scene = bpy.context.scene
 
-    origins = {}
-    for n, (name, (mesh, path)) in enumerate(pieces.items()):
-        origin = Matrix.Translation((0.0, -n * 400.0, 0.0))
-        origins[name] = (origin, path)
-        piece = bpy.data.objects.new(name[3:], mesh)
+    print()
+    check(paths)
+
+    chain = ChainPath([paths[n] for n in RUN])
+    for i, (name, (start, origin, _)) in enumerate(zip(RUN, chain.parts)):
+        piece = bpy.data.objects.new("R%02d_%s" % (i, name[3:]), baked[name])
         piece.matrix_world = origin
         scene.collection.objects.link(piece)
-        for module, first, at in DEMO[name]:
-            for i, (m, kind) in enumerate(lay(rm.MODULES[module], path, first, at)):
-                ob = bpy.data.objects.new("%s_%s_%02d" % (name[3:], module, i), ring)
-                ob.matrix_world = origin @ m
-                scene.collection.objects.link(ob)
-        print("%-12s %7.2f long = %4.1f frames of rings" % (name, path.length, path.length / rm.STEP))
+    for module, first, at in DEMO:
+        for i, (m, kind) in enumerate(lay(rm.MODULES[module], chain, first, at)):
+            ob = bpy.data.objects.new("%s_%s_%02d" % (module, kind, i), meshes[kind])
+            ob.matrix_world = m
+            scene.collection.objects.link(ob)
+    print("the run: %s = %.1f frames" % (" ".join(n[3:] for n in RUN), chain.length / rm.STEP))
 
     sun = bpy.data.objects.new("Sun", bpy.data.lights.new("Sun", 'SUN'))
     sun.data.energy = 3.0
@@ -138,7 +201,7 @@ def main():
     scene.world = world
     scene.view_settings.view_transform = 'Standard'
     cam_data = bpy.data.cameras.new("Camera")
-    cam_data.lens, cam_data.clip_end = 22.0, 3000.0
+    cam_data.lens, cam_data.clip_end = 20.0, 3000.0
     cam = bpy.data.objects.new("Camera", cam_data)
     scene.collection.objects.link(cam)
     scene.camera = cam
@@ -153,19 +216,19 @@ def main():
             except TypeError:
                 pass
         scene.render.resolution_x, scene.render.resolution_y = 1100, 700
+        # (looking at this far along the run, from this offset in that spot's own frame)
         views = {
-            # looking down onto the corner from above and behind its start
-            "TP_Corner":   (Vector((-45.0, 40.0, 75.0)), 0.45),
-            # from beside and above, looking down into the chute
-            "TP_LongDrop": (Vector((150.0, 95.0, 25.0)), 0.5),
+            "1_straight_and_corner": (0.14, Vector((-70.0, 30.0, 60.0))),
+            "2_gate_and_lip":        (0.38, Vector((-60.0, 0.0, 38.0))),
+            "3_down_the_drop":       (0.70, Vector((-75.0, 0.0, 32.0))),
+            "4_bottom":              (0.90, Vector((-80.0, 10.0, 45.0))),
         }
-        for name, (offset, along) in views.items():
-            origin, path = origins[name]
-            target = origin @ path.frame(path.length * along).translation
-            pos = origin @ offset
+        for name, (along, offset) in views.items():
+            f = chain.frame(chain.length * along)
+            pos = f @ offset
             cam.location = pos
-            cam.rotation_euler = (target - pos).to_track_quat('-Z', 'Y').to_euler()
-            scene.render.filepath = os.path.join(OUT_DIR, "RingsOn_%s.png" % name[3:])
+            cam.rotation_euler = (f.translation + Vector((0, 0, 4.0)) - pos).to_track_quat('-Z', 'Y').to_euler()
+            scene.render.filepath = os.path.join(OUT_DIR, "RingsOnRun_%s.png" % name)
             bpy.ops.render.render(write_still=True)
 
 
