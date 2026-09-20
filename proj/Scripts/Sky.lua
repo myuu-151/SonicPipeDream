@@ -50,7 +50,7 @@ end
 function Sky:Create()
     -- Which sky: 0 classic, 1 Midnight, 2 Dawn, 3 Pastel, 4 Sunset, 5 Aurora,
     -- 6 Inferno, 7 Noir. Change it in the inspector or from a level script.
-    self.sky = 3
+    self.sky = 1
     -- Frames a second, so a full twinkle is STAR_FRAMES / this.
     self.twinklesPerSecond = 12.0
     self.colourShiftsPerSecond = 2.0

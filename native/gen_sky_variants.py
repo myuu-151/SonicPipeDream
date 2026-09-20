@@ -30,25 +30,44 @@ PREVIEWS = os.path.join(HERE, "..", "sky_previews")
 
 UUID_BASE = 0x51C0FFEE00100000          # + 0x1000 per sky; stars at +0xE00
 
-# name: sky at the horizon, sky at the poles, diamonds dim, diamonds lit, shadow
+# name, sky at the horizon, sky at the poles, shadow under a diamond, and the colours
+# the diamonds travel through from dim to lit.
+#
+# Five stops, not two. With two, a whole pattern is "colour A, colour B and a few
+# blends between", and however good A and B are there is not much to look at. Each
+# ramp is a journey: it moves through hue as well as brightness, and ends near white
+# so the brightest diamonds really flare.
 #
 # The order is the `sky` number in Sky.lua, from 1. Keep it in step with SKY_NAMES there.
 SKIES = [
-    ("Midnight", (4, 6, 22),       (16, 22, 56),    (96, 62, 205),   (84, 232, 255),  (1, 2, 9)),
-    ("Dawn",     (255, 192, 150),  (150, 200, 245), (236, 104, 96),  (255, 226, 120), (196, 132, 112)),
-    ("Pastel",   (204, 184, 242),  (182, 236, 222), (255, 168, 212), (168, 216, 255), (150, 132, 204)),
-    ("Sunset",   (152, 30, 84),    (40, 20, 92),    (255, 116, 22),  (255, 232, 84),  (70, 10, 50)),
-    ("Aurora",   (0, 42, 46),      (5, 20, 42),     (40, 222, 142),  (255, 122, 222), (0, 17, 21)),
-    ("Inferno",  (34, 4, 4),       (76, 15, 8),     (206, 32, 12),   (255, 222, 62),  (12, 0, 0)),
-    ("Noir",     (20, 20, 25),     (62, 62, 74),    (118, 118, 136), (255, 242, 204), (4, 4, 7)),
+    ("Midnight", (4, 6, 22), (16, 22, 56), (1, 2, 9),
+     [(44, 22, 124), (124, 60, 222), (58, 150, 255), (90, 240, 255), (232, 255, 255)]),
+    ("Dawn", (255, 192, 150), (150, 200, 245), (190, 124, 118),
+     [(196, 66, 112), (246, 118, 92), (255, 178, 88), (255, 230, 128), (255, 251, 214)]),
+    ("Pastel", (204, 184, 242), (182, 236, 222), (132, 112, 190),
+     [(150, 118, 214), (242, 150, 202), (255, 202, 172), (168, 226, 250), (238, 255, 250)]),
+    ("Sunset", (152, 30, 84), (40, 20, 92), (62, 8, 46),
+     [(122, 20, 112), (232, 50, 92), (255, 120, 30), (255, 202, 60), (255, 246, 172)]),
+    ("Aurora", (0, 42, 46), (5, 20, 42), (0, 15, 19),
+     [(20, 92, 124), (30, 202, 142), (162, 242, 90), (255, 122, 222), (204, 164, 255)]),
+    ("Inferno", (34, 4, 4), (76, 15, 8), (10, 0, 0),
+     [(92, 10, 10), (204, 30, 10), (255, 112, 0), (255, 204, 40), (255, 251, 204)]),
+    # Cold in the shadows, warm in the light: still monochrome at a glance, but the
+    # ramp crosses from blue-grey to cream rather than just getting brighter.
+    ("Noir", (20, 20, 25), (62, 62, 74), (4, 4, 7),
+     [(62, 66, 88), (124, 128, 152), (188, 186, 192), (242, 226, 196), (255, 251, 236)]),
 ]
+
+LEVELS = 16                 # colour steps, where the classic sky has 8
+DRIFT = 0.28                # how far position pulls a diamond's colour; see the painter
 
 
 def apply(spec):
     """Point both generators at this sky's colours. They read these at draw time."""
-    _, horizon, poles, dim, lit, shadow = spec
+    _, horizon, poles, shadow, stops = spec
     sky.SKY_DEEP, sky.SKY_LIFT = horizon, poles
-    pat.RAMP_LO, pat.RAMP_HI, pat.SHADOW = dim, lit, shadow
+    pat.RAMP_STOPS, pat.SHADOW = stops, shadow
+    pat.LEVELS, pat.DRIFT = LEVELS, DRIFT
 
 
 def preview(name, star_px, frames):
@@ -69,7 +88,13 @@ def preview(name, star_px, frames):
         out.paste(panel, (k * w // 2, 0))
     os.makedirs(PREVIEWS, exist_ok=True)
     path = os.path.join(PREVIEWS, "%s.png" % name)
-    out.save(path)
+    try:
+        out.save(path)
+    except OSError:
+        # Open in an image viewer, most likely. The preview is a convenience and
+        # must not stop the assets being made.
+        path = os.path.join(PREVIEWS, "%s_new.png" % name)
+        out.save(path)
     return path
 
 

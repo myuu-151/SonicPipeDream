@@ -59,6 +59,21 @@ DIAMOND_MODE = "medley"
 # keeping the diamonds square. Four around is 90 degrees a tile and a band 45
 # tall; five made the band only 36 and the texels no finer for it.
 MEDLEY_COUNT = 4
+
+# The colours the medley's diamonds travel through, dim to lit.
+#
+# It was two: the blue and the green below. With two, a whole pattern is "blue, green
+# and a few blends between", which is not much to look at however good the two are.
+# Five keeps the sky recognisable -- it still starts on that blue and still passes
+# through that green -- and gives it somewhere to go either side: a teal on the way
+# in, a lime and a pale mint on the way out, so the brightest diamonds flare.
+MEDLEY_STOPS = [(0x1B, 0x5E, 0x85), (20, 150, 140), (0x36, 0xCB, 0x00),
+                (172, 240, 62), (236, 255, 212)]
+MEDLEY_LEVELS = 16         # colour steps; it was 8
+# How far a diamond's colour is pulled by WHERE it is, so that two diamonds showing
+# the same level are not identical and a pattern covering the sky is not one flat
+# colour. See drifted() in preview_diamond_concepts.py.
+MEDLEY_DRIFT = 0.28
 MEDLEY_ELEV = 5.0          # centre of the band, as the clusters were
 
 # Cover the whole sphere rather than one band round the horizon.
@@ -875,7 +890,9 @@ def main():
                       UUID_STARS + f, w, h, px, wrap=1)
 
     if DIAMOND_MODE == "medley":
+        import preview_diamond_concepts as pat
         import s2sky_medley
+        pat.RAMP_STOPS, pat.LEVELS, pat.DRIFT = MEDLEY_STOPS, MEDLEY_LEVELS, MEDLEY_DRIFT
         for f in range(s2sky_medley.FRAMES):
             name = s2sky_medley.frame_name(f)
             write_texture(os.path.join(tex, name + ".oct"), name, UUID_MEDLEY + f,

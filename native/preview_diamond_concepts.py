@@ -47,10 +47,35 @@ def lerp(a, b, t):
     return tuple(int(round(a[i] + (b[i] - a[i]) * t)) for i in range(3))
 
 
+# A richer ramp, for skies that want one: a list of colours the diamonds travel
+# through from dim to lit, evenly spaced. None means the plain two-colour ramp from
+# RAMP_LO to RAMP_HI, which is what the classic sky uses.
+RAMP_STOPS = None
+
+# How much a diamond's colour drifts with WHERE it is, 0 to 1. At 0, two diamonds
+# showing the same level are identical, so a pattern that covers the sky evenly is
+# one flat colour. A little drift makes neighbours differ. It runs a whole number of
+# times across the tile both ways, so it never shows a seam.
+DRIFT = 0.0
+
+
 def ramp(level):
     level = max(0.0, min(1.0, level))
     q = round(level * (LEVELS - 1)) / float(LEVELS - 1)
-    return lerp(RAMP_LO, RAMP_HI, q)
+    if not RAMP_STOPS:
+        return lerp(RAMP_LO, RAMP_HI, q)
+    x = q * (len(RAMP_STOPS) - 1)
+    i = min(int(x), len(RAMP_STOPS) - 2)
+    return lerp(RAMP_STOPS[i], RAMP_STOPS[i + 1], x - i)
+
+
+def drifted(level, cx, cy):
+    """The level a diamond is drawn at, once its position has had its say."""
+    if DRIFT <= 0.0:
+        return level
+    wave = 0.5 + 0.5 * math.sin(TAU * (cx / TILE_W + cy / TILE_H))
+    wave2 = 0.5 + 0.5 * math.sin(TAU * (2.0 * cx / TILE_W - cy / TILE_H) + 1.3)
+    return level * (1.0 - DRIFT) + DRIFT * (0.6 * wave + 0.4 * wave2)
 
 
 def smooth(k):
@@ -260,7 +285,7 @@ def paint(shapes, bg):
         ox = rep * TILE_W
         for oy in (-TILE_H, 0, TILE_H):
             for cx, cy, hw, hh, level in shapes:
-                diamond(draw, ox + cx, oy + cy, hw, hh, ramp(level))
+                diamond(draw, ox + cx, oy + cy, hw, hh, ramp(drifted(level, cx, cy)))
     return im
 
 
@@ -276,8 +301,9 @@ def paint_rgba(shapes):
         for ox, oy in wraps:
             diamond(draw, ox + cx + 3, oy + cy + 3, hw, hh, SHADOW + (255,))
     for cx, cy, hw, hh, level in shapes:
+        colour = ramp(drifted(level, cx, cy)) + (255,)
         for ox, oy in wraps:
-            diamond(draw, ox + cx, oy + cy, hw, hh, ramp(level) + (255,))
+            diamond(draw, ox + cx, oy + cy, hw, hh, colour)
     return im
 
 

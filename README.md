@@ -12,6 +12,7 @@ into levels.
 | --- | --- |
 | [docs/procedural-stages.md](docs/procedural-stages.md) | **start here** -- why a stage is a list of hand-shaped pieces, not a model |
 | [docs/procedural-generation.md](docs/procedural-generation.md) | how the level generator works: pieces, the deck, the difficulty rulebook |
+| [docs/skies.md](docs/skies.md) | the eight skies: which number is which, with a chart, and how to change one |
 | [docs/s2-special-stage-layouts.md](docs/s2-special-stage-layouts.md) | the original game's track data, decoded, and what it does and does not say |
 
 The sections below describe the sky and predate the rest.
