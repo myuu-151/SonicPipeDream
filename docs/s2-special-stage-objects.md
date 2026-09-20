@@ -74,18 +74,26 @@ grouping splits differently depending on their spacing.)
 | 1, 2, 2, 1 | 6 | 17 | `ClusterMedium` |
 | 1, 2, 2, 2, 1 | 8 | 47 | `Cluster` -- the staple |
 | 1, 2 x4, 1 | 10 | 9 | `ClusterLong` |
-| 1, 2 x5 .. x7, 1 | 12-16 | 4 | `ClusterLonger` (14) |
+| 1, 2 x5 .. x7, 1 | 12, 14, 16 | 5 | `ClusterLong12`, `ClusterLonger`, `ClusterLongest` |
 | 1, 2, 3, 2, 1 | 9 | 7 | `ClusterBig` |
+| small clusters every 4 frames, stepping 16 across | 12, 24 | 2 | `ClusterStairs` -- stage 2 |
 | 2, 1 | 3 | 13 | `TriangleSmall` |
 | 3, 2, 1 | 6 | 8 | `Triangle` |
 | 4, 3, 2, 1 | 10 | 33 | `TriangleBig` |
 | 5, 4, 3, 2, 1 | 15 | 1 | `TriangleHuge` -- stage 4's last shape |
+| 1, 2, 5 | 8 | 1 | `Arrowhead` -- stage 4 |
 | one a frame, alternating 8 apart | 8 | ~25 | `Zigzag` -- most of stage 1 |
-| 2, 1, 2, 1 ... | 9, 12 | 13 | `Weave` |
-| a straight line down the floor | 3-10 | 4 | `Line`, `LineLong` |
+| 2, 1, 2, 1 ... | 9, 12 | 13 | `WeaveShort`, `Weave` |
+| a straight line down the floor | 3-10 | 5 | `Line`, `LineLong` |
+| a line with every other frame empty | 5 | 1 | `LineDotted` -- stage 4 |
+| three abreast, 8 apart | 3 | 2 | `Row3` |
 | slides across 4 a frame, holds, slides back | 13-16 | 6 | `SweepLeft`, `SweepRight` -- stage 3, in pairs |
+| slides across and stays there | 13-15 | 4 | `HookLeft`, `HookRight` -- stage 3 |
+| one strand swinging side to side, 8 a frame | 15, 16 | 2 | `Wave` -- stage 6 |
 | a straight diagonal | 6 | 2 | `Slant` |
 | two strands crossing, right round the pipe | 30 | 5 | `Helix` -- stage 5 |
+| half of that: floor to overhead, or back | 16 | 2 | `HelixUp`, `HelixDown` |
+| two strands out to the rims and back | 17 | 1 | `HelixBounce` -- leads into stage 5's helix |
 | 2 a frame thrown all round the pipe, 10-frame repeat | 20 | 6 | `Confetti` -- stage 7 |
 | one bomb | 1 | 83 | `Bomb` |
 | 1, 2, 1 of bombs | 4 | 78 | `BombCluster` -- the staple |
@@ -94,9 +102,31 @@ grouping splits differently depending on their spacing.)
 | 3 or 5 abreast | 3, 5 | 7 | `BombRow3`, `BombRow5` |
 | 1, 2 | 3 | 5 | `BombChevron` |
 | sixteen right round the pipe in one frame | 16 | 20 | `BombWall` -- jump it |
-| the same with a gap | 12, 13 | 5 | `BombGate` |
+| the same with a gap of 3 or 4 | 13, 12 | 5 | `BombGate`, `BombGateWide` |
 | one strand winding round, 8 a frame | 16-24 | 5 | `BombCorkscrew` -- stage 3 |
+| the same at 16 a frame: right round in one straight | 16 | 1 | `BombSpiral` |
 | a diagonal of bombs | 10 | 2 | `BombSlant` |
+| two diagonals closing on the centre | 20 | 1 | `BombFunnel` -- stage 3 |
+
+### Rings and bombs together
+
+The game also pairs shapes in one segment often enough that the pairs are modules too:
+
+| Module | What it is | From |
+|---|---|---|
+| `Slalom` | a `Wave` of rings winding round two `BombCluster`s | stage 6 |
+| `LineInCorkscrew` | a `LineLong` down the floor while a `BombCorkscrew` passes overhead | stage 3 |
+| `HookToWallLeft`, `-Right` | a hook of rings that leads up the wall and into a `BombWall` | stage 3 |
+| `WeaveByBombs` | a `Weave` on one wall, single bombs down the centre line | stage 4 |
+| `GateAndTriangle` | a `BombGateWide`, then a `TriangleBig` off to one side of the gap | stage 4 |
+
+`put(module, frame, angle)` moves a module along and round, and modules add with `+`, so
+a new pairing is one line.
+
+`native/s2_objects.py` plus the matcher used to find these (group touching objects, compare
+with every module, list what is left) accounts for every shape in the seven stages: what
+remains unmatched is only other lengths of `Line`, `Hook` and `ClusterLong`, and clusters
+with one frame left empty.
 
 Things worth knowing when laying them:
 

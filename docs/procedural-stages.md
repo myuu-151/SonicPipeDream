@@ -88,7 +88,7 @@ An S-bend is just a left corner followed by a right one. The five game-typed pie
 
 ### Object patterns -- `native/ring_modules.py`
 
-**Built** as thirty ring and bomb modules taken from the original's own vocabulary; see
+**Built** as fifty-two ring and bomb modules taken from the original's own vocabulary; see
 [s2-special-stage-objects.md](s2-special-stage-objects.md). Not yet laid on levels. The
 paragraphs below are the plan they were built to.
 

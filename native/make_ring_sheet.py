@@ -14,7 +14,7 @@ import ring_modules as rm
 
 SRC = os.path.join(HERE, "..", "external", "ring", "preview")
 OUT = os.path.join(HERE, "..", "external", "ring", "RingModules_sheet.png")
-COLS, W, H, LABEL = 5, 320, 240, 22
+COLS, W, H, LABEL = 6, 300, 225, 22
 
 names = list(rm.MODULES)
 rows = (len(names) + COLS - 1) // COLS
@@ -24,7 +24,8 @@ for i, name in enumerate(names):
     x, y = (i % COLS) * W, (i // COLS) * (H + LABEL)
     sheet.paste(Image.open(os.path.join(SRC, name + ".png")).convert("RGB").resize((W, H)), (x, y + LABEL))
     m = rm.MODULES[name]
-    n = rm.count(m) or rm.count(m, rm.BOMB)
-    draw.text((x + 6, y + 5), "%s  %d, %d frames" % (name, n, rm.length(m)), fill=(255, 225, 120))
+    r, b = rm.count(m), rm.count(m, rm.BOMB)
+    what = " + ".join(t for t in ("%d rings" % r if r else "", "%d bombs" % b if b else "") if t)
+    draw.text((x + 6, y + 5), "%s  %s" % (name, what), fill=(255, 225, 120))
 sheet.save(OUT)
 print("saved", os.path.abspath(OUT))

@@ -117,6 +117,47 @@ def wall(kind, gap_at=None, gap=0):
     return out
 
 
+def hook(kind, out, hold, side=1):
+    """Slides across 4 a frame and stays there: a sweep that never comes back."""
+    return [(i, side * 4 * min(i, out), kind) for i in range(out + hold)]
+
+
+def wave(kind, reach=32, per_frame=8):
+    """One strand swinging out to one side, back through the middle, out to the other
+    and half way home: stage 6's slalom line. 16 frames at the game's 32 and 8."""
+    n = reach // per_frame
+    path = ([per_frame * i for i in range(n + 1)] + [reach]
+            + [reach - per_frame * i for i in range(1, 2 * n + 1)]
+            + [-reach + per_frame * i for i in range(1, n - 1)])
+    return [(i, a, kind) for i, a in enumerate(path)]
+
+
+def bounce(kind):
+    """Two strands run out to the rims, wait a frame, and come back to meet on the
+    floor: how stage 5 leads into its helix."""
+    out = [16, 32, 48, 64, 64, 48, 32, 16]
+    return [(i, s * a, kind) for i, a in enumerate(out) for s in (-1, 1)] + [(8, 0, kind)]
+
+
+def funnel(kind, frames=10, wide=48, per_frame=4):
+    """Two walls closing in on the centre line."""
+    return [(i, s * (wide - per_frame * i), kind) for i in range(frames) for s in (-1, 1)]
+
+
+def stairs(shape, steps, every=4, across=-16):
+    """The same shape again and again, stepping across the pipe."""
+    return [(f + n * every, a + n * across, k) for n in range(steps) for f, a, k in shape]
+
+
+def dotted(kind, count, every=2):
+    return [(i * every, 0, kind) for i in range(count)]
+
+
+def put(module, frame=0, angle=0):
+    """The module moved along and round, for building one module out of others."""
+    return [(f + frame, ((a + angle + 128) % 256) - 128, k) for f, a, k in module]
+
+
 # Stage 7's ring storm: twenty rings over ten frames, thrown all round the pipe, and
 # repeated. Too irregular to make from a rule, so it is kept as the angles themselves.
 CONFETTI = [(0, -59, RING), (0, 22, RING), (1, 35, RING), (1, 112, RING), (2, -43, RING),
@@ -131,23 +172,36 @@ MODULES = {
     "ClusterMedium":   capsule(RING, 2),        #  6   x17
     "Cluster":         capsule(RING, 3),        #  8   x47, the staple
     "ClusterLong":     capsule(RING, 4),        # 10   x9
+    "ClusterLong12":   capsule(RING, 5),        # 12   x3
     "ClusterLonger":   capsule(RING, 6),        # 14   stage 1's centre-line run
+    "ClusterLongest":  capsule(RING, 7),        # 16   stage 2
     "ClusterBig":      diamond(RING, 3),        #  9   x7
+    "ClusterStairs":   stairs(capsule(RING, 1), 3),   # 12   stage 2: small ones stepping across
     # --- rings: triangles -----------------------------------------------------------
     "TriangleSmall":   triangle(RING, 2),       #  3   x13
     "Triangle":        triangle(RING, 3),       #  6   x8
     "TriangleBig":     triangle(RING, 4),       # 10   x33
     "TriangleHuge":    triangle(RING, 5),       # 15   stage 4's finale
+    "Arrowhead":       rows(RING, (0,), (-8, 8), (-16, -8, 0, 8, 16)),   # 8   stage 4
     # --- rings: rows ----------------------------------------------------------------
     "Zigzag":          zigzag(RING, 8),         #  8   stage 1 is mostly these
     "Weave":           weave(RING, 8),          # 12   x8
     "Line":            line(RING, 5),           #  5
+    "WeaveShort":      weave(RING, 6),          #  9   x5
     "LineLong":        line(RING, 10),          # 10
+    "LineDotted":      dotted(RING, 5),         #  5   every other frame; stage 4
+    "Row3":            rows(RING, (-8, 0, 8)),  #  3   abreast
     # --- rings: curves and spirals --------------------------------------------------
     "SweepLeft":       sweep(RING, 6, 4, -1),   # 16   stage 3, in left/right pairs
     "SweepRight":      sweep(RING, 6, 4, +1),   # 16
+    "HookLeft":        hook(RING, 11, 4, -1),   # 15   a sweep that stays out; stage 3
+    "HookRight":       hook(RING, 11, 4, +1),   # 15
+    "Wave":            wave(RING),              # 16   stage 6
     "Slant":           slant(RING, 6),          #  6
     "Helix":           helix(RING),             # 30   x5, stage 5: right round the pipe
+    "HelixUp":         [o for o in helix(RING) if o[0] <= 8],    # 16   floor to overhead
+    "HelixDown":       put([o for o in helix(RING) if o[0] >= 8], -8) + [(8, 0, RING)],   # 16
+    "HelixBounce":     bounce(RING),            # 17   out to the rims and back
     "Confetti":        list(CONFETTI),          # 20   stage 7
     # --- bombs ----------------------------------------------------------------------
     "Bomb":            line(BOMB, 1),           #  1   x83
@@ -159,8 +213,18 @@ MODULES = {
     "BombChevron":     rows(BOMB, (0,), (-8, 8)),
     "BombWall":        wall(BOMB),              # 16   x20: jump it
     "BombGate":        wall(BOMB, gap_at=0, gap=3),   # 13: the way through is the floor
+    "BombGateWide":    wall(BOMB, gap_at=-8, gap=4),  # 12
+    "BombSpiral":      corkscrew(BOMB, 16, -16),      # 16   right round in one straight
+    "BombFunnel":      funnel(BOMB),            # 20   stage 3: two walls closing in
     "BombCorkscrew":   corkscrew(BOMB, 24),     # 24   stage 3
     "BombSlant":       slant(BOMB, 10),         # 10
+    # --- rings and bombs together, as the game pairs them ---------------------------
+    "Slalom":          wave(RING) + put(capsule(BOMB, 1), 3) + put(capsule(BOMB, 1), 12),
+    "LineInCorkscrew": put(corkscrew(BOMB, 24), 0, -64) + put(line(RING, 10), 11),
+    "HookToWallLeft":  hook(RING, 8, 4, -1) + put(wall(BOMB), 13),
+    "HookToWallRight": hook(RING, 8, 4, +1) + put(wall(BOMB), 13),
+    "WeaveByBombs":    put(weave(RING, 8), 0, -32) + put(dotted(BOMB, 3, 4), 0),
+    "GateAndTriangle": wall(BOMB, gap_at=-8, gap=4) + put(triangle(RING, 4), 6, 32),
 }
 
 
