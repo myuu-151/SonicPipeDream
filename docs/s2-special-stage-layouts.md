@@ -11,7 +11,7 @@ Sonic Retro's community disassembly of Sonic 2: <https://github.com/sonicretro/s
 | File there | What it is |
 |---|---|
 | `misc/Special stage level layouts.nem` | the track layouts for all 7 stages, Nemesis-compressed, 260 bytes |
-| `misc/Special stage object location lists.kos` | where rings and bombs sit, Kosinski-compressed. **Not decoded yet.** |
+| `misc/Special stage object location lists.kos` | where rings and bombs sit, Kosinski-compressed. Decoded: see [s2-special-stage-objects.md](s2-special-stage-objects.md). |
 | `misc/Special stage object perspective data.kos` | how objects are placed on screen per track frame. Not needed for a real 3D track. |
 
 Also useful: flamewing's special stage editor, <https://github.com/flamewing/s2ssedit>, whose README states the orientation rules independently.
@@ -241,9 +241,8 @@ far forward; without that a drop would stretch the pipe sections bent over it.
 
 ## Not done yet
 
-* **Rings and bombs.** The object location file is Kosinski-compressed and undecoded.
-  The same "sequence, not geometry" idea should apply: positions along the track and
-  around the pipe, which can be placed on the curve.
+* **Rings and bombs** are decoded and turned into modules, but not yet laid on a track:
+  see [s2-special-stage-objects.md](s2-special-stage-objects.md).
 * **Left or right.** See above; one constant.
 * **Stages 2-7** are decoded and will generate, but only stage 1 has been built and
   checked for self-collision.

@@ -86,7 +86,11 @@ degrees, settles, flat run-off) -- and they give five pieces:
 An S-bend is just a left corner followed by a right one. The five game-typed pieces in
 `TrackPieces.blend` are only needed to play back the original layouts.
 
-### Object patterns -- not built yet
+### Object patterns -- `native/ring_modules.py`
+
+**Built** as thirty ring and bomb modules taken from the original's own vocabulary; see
+[s2-special-stage-objects.md](s2-special-stage-objects.md). Not yet laid on levels. The
+paragraphs below are the plan they were built to.
 
 Rings and bombs come as patterns, not as loose objects: ring spiral, ring row, ring
 arc, bomb wall, alternating ring and bomb. Each takes a few numbers -- how many, where
@@ -185,6 +189,5 @@ The spline itself is scaffolding and goes. What it produced stays:
   memory of the game.
 * Rise or drop: what the ROM suggests and what is built differ; see the layouts doc.
   With pieces this stops mattering -- the generator simply uses the pieces it is told to.
-* The object location file is undecoded.
 * Where stages are assembled -- Blender, or the engine at runtime -- is not settled.
   Runtime is the more procedural and the lighter.
