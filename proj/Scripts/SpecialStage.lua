@@ -355,7 +355,7 @@ function SpecialStage:Collide(fromFrame)
                 self:Sound("LoseRings")
             else
                 self.rings = self.rings + 1
-                self:Sound("Ring", 0.8)
+                self:Sound("Ring")
             end
         end
     end
@@ -397,10 +397,17 @@ end
 -- ------------------------------------------------------------------ sounds
 -- The effects are SW_<name> assets (native/gen_music_assets.py makes them from external/audio).
 -- Loaded the first time each is wanted; a missing one is silence, not an error.
-function SpecialStage:Sound(name, volume)
+--
+-- THE MIX. The files are nowhere near one loudness: measured, the ring is TWICE as loud as the
+-- music (rms 0.34 against 0.16) and it is the one sound that plays in bursts, several a second,
+-- each on top of the last. So every effect has its own level here, set against the music at 1.0:
+-- the ring well under it, the one-off fanfares about level with it.
+local MIX = { Ring = 0.22, LoseRings = 0.55, Jump = 0.40, Checkpoint = 0.65, GetEmerald = 1.0 }
+
+function SpecialStage:Sound(name)
     self.sounds = self.sounds or {}
     if (self.sounds[name] == nil) then self.sounds[name] = LoadAsset("SW_" .. name) or false end
-    if (self.sounds[name]) then Audio.PlaySound2D(self.sounds[name], volume or 1.0) end
+    if (self.sounds[name]) then Audio.PlaySound2D(self.sounds[name], MIX[name] or 0.6) end
 end
 
 -- ------------------------------------------------------------------ palettes

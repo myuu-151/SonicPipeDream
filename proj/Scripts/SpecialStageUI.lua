@@ -54,7 +54,8 @@ local FLAG_W, FLAG_H = 44.0, 44.0
 -- COOL !
 local COOL_POP, COOL_HOLD, COOL_FADE = 0.30, 1.60, 0.40
 local EMBLEM_W, EMBLEM_H = 150.0, 75.0          -- the winged disc: twice as wide as tall
-local THUMB_SIZE = 50.0                         -- the glove, on the disc
+local THUMB_SIZE = 66.0                         -- the glove, on the disc and a little over its edge
+local COOL_BOB, COOL_BOB_TIME = 5.0, 1.8        -- it drifts up and down this far, this many seconds a cycle
 
 function SpecialStageUI:Create()
     self.demo = true
@@ -297,9 +298,11 @@ function SpecialStageUI:TickCool(deltaTime)
         opacity = 1.0 - (t - COOL_POP - COOL_HOLD) / COOL_FADE
     end
 
+    -- emblem and glove float together, slowly up and down, as the original's does
     local ew, eh, th = EMBLEM_W * size, EMBLEM_H * size, THUMB_SIZE * size
-    self:Place(self.emblem, SCREEN_W * 0.5 - ew * 0.5, 84.0 - eh * 0.5, ew, eh)
-    self:Place(self.thumb, SCREEN_W * 0.5 - th * 0.5, 84.0 - th * 0.5, th, th)
+    local cy = 84.0 + math.sin(t * 2.0 * math.pi / COOL_BOB_TIME) * COOL_BOB
+    self:Place(self.emblem, SCREEN_W * 0.5 - ew * 0.5, cy - eh * 0.5, ew, eh)
+    self:Place(self.thumb, SCREEN_W * 0.5 - th * 0.5, cy - th * 0.5, th, th)
     self:Place(self.coolText, SCREEN_W * 0.5 - 44.0, 128.0)
     self.emblem:SetOpacityFloat(opacity)
     self.thumb:SetOpacityFloat(opacity)
