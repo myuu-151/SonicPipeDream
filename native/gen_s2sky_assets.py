@@ -73,9 +73,9 @@ MEDLEY_STOPS = [(0x1B, 0x5E, 0x85), (20, 150, 140), (0x36, 0xCB, 0x00),
 # preview_diamond_concepts.py. Measured off a screenshot of Sonic 2: most of it is a sea
 # green, not lime; lime is only the flare either side of the yellow stripe through the middle.
 # (distance from the middle row of the tile, colour). None goes back to MEDLEY_STOPS above.
-MEDLEY_ROWS = [(0.00, (218, 196, 255)), (0.12, (255, 255, 176)), (0.26, (240, 240, 0)),
-               (0.42, (160, 240, 0)), (0.56, (64, 240, 0)), (0.70, (0, 208, 0)),
-               (0.84, (0, 192, 64)), (0.94, (0, 176, 112)), (1.00, (64, 160, 176))]
+MEDLEY_ROWS = [(0.00, (218, 196, 255)), (0.18, (255, 255, 176)), (0.38, (240, 240, 0)),
+               (0.56, (160, 240, 0)), (0.70, (64, 240, 0)), (0.82, (0, 208, 0)),
+               (0.91, (0, 192, 64)), (0.97, (0, 176, 112)), (1.00, (64, 160, 176))]
 MEDLEY_LEVELS = 16         # colour steps; it was 8
 # How far a diamond's colour is pulled by WHERE it is, so that two diamonds showing
 # the same level are not identical and a pattern covering the sky is not one flat
