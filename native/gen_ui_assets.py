@@ -11,8 +11,9 @@ something to move about. The words themselves (SONIC, RINGS, TOTAL, START, COOL 
 widgets in SpecialStageUI.lua, in the engine's own font, so they need no art at all yet.
 
 The pictures are after the original's: a black and white chequered flag on a short pole,
-waving; and a white-gloved thumbs up on a blue disc with wings. Swap a .oct for real art
-with the same name and the script picks it up unchanged.
+waving (the cloth flat-shaded along its wave, the pole and its ball shaded round); and a
+white-gloved thumbs up on a blue disc with wings. Swap a .oct for real art with the same
+name and the script picks it up unchanged.
 """
 
 import math
@@ -28,6 +29,62 @@ LOOK = os.path.abspath(os.path.join(HERE, "..", "external", "ui"))
 
 UUID_UI = 0x51C0FFEE00002000        # + index; clear of the sky's
 CLAMP = 0
+
+
+def pole_and_ball(w, h, ss=4):
+    """The flagpole and the ball on top of it, SHADED so they read as round: the pole a metal
+    cylinder (dark at the edges, a bright strip where the light catches it, a soft reflected
+    edge on the far side), the ball a gold sphere with its own hotspot and a dark underside.
+    Drawn at `ss` times the size, pixel by pixel, and scaled down, so the edges are smooth.
+    The cloth is not touched: it was liked as it was."""
+    W, H = w * ss, h * ss
+    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    px = layer.load()
+    light = (-0.45, -0.55, 0.70)                          # from the upper left, toward the viewer
+    ln = math.sqrt(sum(c * c for c in light))
+    light = tuple(c / ln for c in light)
+
+    def shade(nx, ny, nz, base, gloss, hot):
+        diffuse = max(0.0, nx * light[0] + ny * light[1] + nz * light[2])
+        # the half vector between the light and the eye, which looks straight down +z
+        hx, hy, hz = light[0], light[1], light[2] + 1.0
+        hl = math.sqrt(hx * hx + hy * hy + hz * hz)
+        spec = max(0.0, (nx * hx + ny * hy + nz * hz) / hl) ** gloss
+        rim = (1.0 - nz) ** 3 * 0.20                      # a little light coming round the far edge
+        k = 0.30 + 0.78 * diffuse + rim
+        return tuple(max(0, min(255, int(255 * min(1.0, c * k + hot * spec)))) for c in base)
+
+    # the pole: a cylinder, so its normal only turns from side to side
+    cx, half = 28.0 * ss, 7.0 * ss
+    top, bottom = 16 * ss, (h - 5) * ss
+    for y in range(top, bottom):
+        for x in range(int(cx - half), int(cx + half) + 1):
+            t = (x + 0.5 - cx) / half
+            if abs(t) >= 1.0:
+                continue
+            nz = math.sqrt(1.0 - t * t)
+            r, g, b = shade(t, 0.0, nz, (0.80, 0.82, 0.88), 40.0, 0.85)
+            shadow = 0.62 if y < top + 9 * ss else 1.0    # the ball's shadow down the top of the pole
+            px[x, y] = (int(r * shadow), int(g * shadow), int(b * shadow), 255)
+    # a rounded foot, so it does not end in a sawn-off edge
+    for y in range(bottom, bottom + 3 * ss):
+        k = 1.0 - (y - bottom) / (3.0 * ss)
+        for x in range(int(cx - half * k), int(cx + half * k) + 1):
+            t = (x + 0.5 - cx) / half
+            r, g, b = shade(t, 0.5, math.sqrt(max(0.0, 1.0 - t * t)) * 0.8, (0.62, 0.64, 0.70), 30.0, 0.4)
+            px[x, y] = (r, g, b, 255)
+
+    # the ball: a sphere
+    bx, by, rad = 28.0 * ss, 13.0 * ss, 12.5 * ss
+    for y in range(int(by - rad), int(by + rad) + 1):
+        for x in range(int(bx - rad), int(bx + rad) + 1):
+            dx, dy = (x + 0.5 - bx) / rad, (y + 0.5 - by) / rad
+            d2 = dx * dx + dy * dy
+            if d2 >= 1.0:
+                continue
+            r, g, b = shade(dx, dy, math.sqrt(1.0 - d2), (1.0, 0.76, 0.10), 34.0, 0.95)
+            px[x, y] = (r, g, b, 255)
+    return layer.resize((w, h), Image.LANCZOS)
 
 
 def flag(w=256, h=192):
@@ -48,9 +105,7 @@ def flag(w=256, h=192):
             white = (int(u * cols) + int(v * rows)) % 2 == 0
             c = int((245 if white else 28) * shade)
             px[x, y] = (c, c, c, 255)
-    d = ImageDraw.Draw(img)
-    d.rounded_rectangle((22, 8, 34, h - 6), 5, fill=(215, 215, 225, 255), outline=(60, 60, 70, 255), width=2)
-    d.ellipse((17, 0, 39, 20), fill=(255, 214, 40, 255), outline=(120, 90, 0, 255), width=2)
+    img.alpha_composite(pole_and_ball(w, h))
     return img
 
 
