@@ -181,6 +181,24 @@ NAME = "Marathon_seed%d" % SEED if MARATHON else "Stage%d_seed%d" % (STAGE, SEED
 # The logo, the camera and the animation are the engine's.
 CHECK_RUN_UP = 2            # straights of the zone before the check: 16 frames, clear
 CHECK_PLAYS = 6             # straights after it: 48 frames, for the logo, camera, thumbs up
+# THE RAINBOW ARCH. One arch in the whole section is different: the arch of spheres over the
+# FIRST straight of the ring check. Every sphere on it wears a ring, and the rings cycle
+# through the colours of the rainbow. It is the only place they are seen, so it is how the
+# player knows the check has begun -- the shapes have already stopped by then, and this is
+# what they run under as they go in. The rings face down the track, like every ring, so from
+# where the player is each one is a bright circle round its sphere.
+#   Here: nine rings, each its own colour, so the arch reads as a rainbow standing still.
+#   The CYCLING is the engine's: each ring steps through RAINBOW, one place on from its
+#   neighbour, RAINBOW_STEPS_PER_SECOND times a second. Both are in the .json.
+# The arch itself is gen_halfpipe.py's: nine spheres, 1.6 outside the pipe, from 12 degrees
+# above one rim over the top to 12 above the other, half way along the section.
+ARCH_COUNT, ARCH_FROM_DEG, ARCH_OUT, SPHERE_R = 9, 12.0, 1.6, 1.25
+RAINBOW_RING_SCALE = 1.75   # a ring's hole is 0.76 across the radius; this clears the sphere
+RAINBOW = ((1.00, 0.10, 0.10), (1.00, 0.50, 0.00), (1.00, 0.90, 0.00), (0.30, 0.90, 0.10),
+           (0.00, 0.80, 0.70), (0.10, 0.50, 1.00), (0.35, 0.25, 1.00), (0.75, 0.20, 0.95),
+           (1.00, 0.25, 0.65))
+RAINBOW_STEPS_PER_SECOND = 8.0
+
 CHECK_LENGTH = CHECK_RUN_UP + CHECK_PLAYS        # 8 straights, 64 frames, about 320 units
 
 # THE INTRO and THE ENDING are each as long as a ring check, by the owner's rule, and are
@@ -250,14 +268,14 @@ LIBRARY_TIER = {
     "TriangleWeave": 1, "TwinBombsAndCluster": 1, "Row3": 1, "Slant": 1, "LineDotted": 1,
     "TriangleSnake": 2, "TwinOverhead": 2, "Row4Wide": 2, "Snake": 2, "Across": 2,
     "Spiral": 3, "SpiralSlow": 3, "LineInCorkscrew": 3, "BombSlant": 3,
-    "Row5": 4, "Row5Wide": 4,
+    "Row5": 4, "Row5Wide": 4, "RowWeaveByBombs": 4,
     "HelixUp": 5, "HelixDown": 5, "HelixBounce": 5, "RowAcross": 5, "SpiralLong": 5, "SnakeLong": 5,
     "Slalom": 6, "SnakeWide": 6,
     "BombDotsLong": 7,
 }
 CENTRED = ("Spiral", "SpiralSlow", "SpiralLong", "HelixUp", "HelixDown", "HelixBounce", "RowAcross",
            "Snake", "SnakeLong", "SnakeWide", "Across", "Slalom", "LineInCorkscrew", "TwinOverhead",
-           "TwinBombsAndCluster", "BombDotsLong")
+           "TwinBombsAndCluster", "BombDotsLong", "RowWeaveByBombs")
 WALL_ANGLES = (0, 0, -32, 32, -40, 40, -48, 48)      # where the original puts a small shape
 
 
@@ -543,6 +561,38 @@ def recolour(pieces_in_order, palette_of_piece):
             slot.material = made[key]
 
 
+def rainbow_arch(origin, ring_mesh, tag, coll):
+    """Rings round the spheres of the arch over one straight piece set down at `origin`."""
+    made = []
+    reach = rm.PIPE_RADIUS + ARCH_OUT
+    for i in range(ARCH_COUNT):
+        t = math.radians(ARCH_FROM_DEG + (180.0 - 2.0 * ARCH_FROM_DEG) * i / (ARCH_COUNT - 1))
+        name = "CheckRainbow_%d" % i
+        mat = bpy.data.materials.get(name)
+        if mat is None:
+            mat = bpy.data.materials.new(name)
+            lin = tuple(srgb_to_linear(c) for c in RAINBOW[i % len(RAINBOW)]) + (1.0,)
+            mat.diffuse_color = lin
+            mat.use_nodes = True
+            bsdf = mat.node_tree.nodes.get("Principled BSDF")
+            if bsdf is not None:
+                bsdf.inputs["Base Color"].default_value = lin
+                if "Emission Color" in bsdf.inputs:
+                    bsdf.inputs["Emission Color"].default_value = lin
+                    bsdf.inputs["Emission Strength"].default_value = 1.5
+        ob = bpy.data.objects.new("%s_Rainbow_%d" % (tag, i), ring_mesh)
+        ob.matrix_basis = (origin @ Matrix.Translation((rm.SECTION * 0.5, reach * math.cos(t),
+                                                        rm.PIPE_RADIUS + reach * math.sin(t)))
+                           @ Matrix.Scale(RAINBOW_RING_SCALE, 4))
+        coll.objects.link(ob)
+        # the mesh is every ring's, so the colour goes on the object, as the pipe's does
+        ob.material_slots[0].link = 'OBJECT'
+        ob.material_slots[0].material = mat
+        ob["rainbow_index"] = i
+        made.append(ob)
+    return made
+
+
 def octahedron(name, size, colour):
     bm = bmesh.new()
     v = [bm.verts.new(p) for p in ((size, 0, 0), (-size, 0, 0), (0, size, 0), (0, -size, 0),
@@ -787,6 +837,7 @@ def main():
         done.matrix_basis = chain.frame(ends[k] * rm.STEP)
         done["plays"] = "logo at the top; count; on a pass the camera turns to Sonic, RunThumbsUp"
         coll.objects.link(done)
+        rainbow_arch(origins[zones[k][0]], meshes[rm.RING], "Check_%02d" % (k + 1), coll)
 
         palette_seed = None
         if d["leads_to"] == "PALETTE SHIFT":
@@ -804,6 +855,9 @@ def main():
         data["sections"].append(dict(
             first_frame=starts[k], check_frame=check_at[k], last_frame=ends[k],
             ring_check=dict(first_frame=zone_first[k], check_frame=check_at[k], last_frame=ends[k],
+                            rainbow_arch=dict(piece=zones[k][0], frame=zone_first[k] + 4.0, rings=ARCH_COUNT,
+                                              ring_scale=RAINBOW_RING_SCALE, colours=[list(c) for c in RAINBOW],
+                                              cycles=True, steps_per_second=RAINBOW_STEPS_PER_SECOND),
                             run_up_frames=check_at[k] - zone_first[k], plays_frames=ends[k] - check_at[k]),
             pieces=cuts[k] - (cuts[k - 1] if k else 0),
             difficulty=d["difficulty"], flavour=d["flavour"], forgiveness=d["forgiveness"],
@@ -861,6 +915,15 @@ def main():
         # from where the player stands, at the first shape of the first, middle and last section
         cam.data.type, cam.data.lens = 'PERSP', 16.0
         scene.render.resolution_x, scene.render.resolution_y = 960, 600
+        # the rainbow arch, from the run-in to the first ring check
+        here = chain.frame((zone_first[0] - 6) * rm.STEP)
+        ahead = chain.frame((zone_first[0] + 4) * rm.STEP)
+        pos = here @ Vector((0.0, 0.0, 7.5))
+        cam.location = pos
+        cam.rotation_euler = (ahead @ Vector((0.0, 0.0, 12.0)) - pos).to_track_quat('-Z', 'Y').to_euler()
+        scene.render.filepath = os.path.join(OUT_DIR, "%s_ringcheck.png" % NAME)
+        bpy.ops.render.render(write_still=True)
+
         for k in sorted(set((0, count // 2, count - 1))):
             first = min(f for _, f, _ in sections[k])
             here = chain.frame((first - 7) * rm.STEP)

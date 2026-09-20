@@ -66,6 +66,17 @@ before the next section starts. So every section ends in a **ring check zone**:
 `CHECK_RUN_UP` (2) straights, the check, then `CHECK_PLAYS` (6) straights -- 64 frames, about
 320 units. Lengthen `CHECK_PLAYS` if the real sequence needs longer; it is one number.
 
+**The rainbow arch.** One arch in the whole section is different: the arch of spheres over
+the *first* straight of the ring check. Every sphere on it wears a ring, and the rings cycle
+through the colours of the rainbow. It is the only place they are seen, so it is how the
+player knows the check has begun -- the shapes have already stopped, and this is what they
+run under on the way in. The rings face down the track like every ring, so from where the
+player is each one is a bright circle round its sphere. In the `.blend` they are
+`Check_02_Rainbow_0` ... `_8`, nine rings each its own colour, so the arch reads as a rainbow
+standing still; **the cycling is the engine's**: each ring steps through `RAINBOW`, one place
+on from its neighbour, `RAINBOW_STEPS_PER_SECOND` (8) times a second. The colours, the rate,
+the piece and the frame are in the `.json` under `ring_check.rainbow_arch`.
+
 The script only keeps the room and marks it. The logo, the camera and the animation are
 the engine's. In the `.blend`, per section:
 
@@ -76,6 +87,7 @@ the engine's. In the `.blend`, per section:
 | `CheckLogo_02` | above the pipe there: where the logo belongs |
 | `CheckPass_02` | the end of the zone: the pass plays from the check to here |
 | `RingsToGo_02` | the "rings to go" call, 64 frames before the check |
+| `Check_02_Rainbow_0..8` | the rainbow arch, on the zone's first straight |
 
 and in the `.json` each section has `ring_check` with its first, check and last frame.
 

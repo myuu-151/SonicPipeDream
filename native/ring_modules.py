@@ -301,6 +301,11 @@ MODULES = {
     "HookToWallRight": hook(RING, 8, 4, +1) + [(12, 28, RING)] + put(wall(BOMB), 13),
     "WeaveByBombs":    put(weave(RING, 8), 0, -32) + put(dotted(BOMB, 3, 4), 0),
     "GateAndTriangle": wall(BOMB, gap_at=-8, gap=4) + put(triangle(RING, 4), 6, 32),
+    # Stage 4, from the owner's screenshots: a row of bombs from the centre line up one wall,
+    # then single bombs on down the centre, and the rings weaving along that same wall -- so
+    # the rings are on the side the bombs just closed. It comes on either side (mirrored).
+    "RowWeaveByBombs": (rows(BOMB, (0, 16, 32, 48, 64)) + put(weave(RING, 8), 4, 32)
+                        + [(4, 0, BOMB), (8, 0, BOMB)]),
     "WallThenCluster": wall(BOMB) + put(capsule(RING, 3), 2),      # jump it and land in rings
     "ChevronSlantLeft":  rows(BOMB, (0,), (-8, 8)) + put(slant(RING, 6, -4), 4, -14),
     "ChevronSlantRight": rows(BOMB, (0,), (-8, 8)) + put(slant(RING, 6), 4, 14),

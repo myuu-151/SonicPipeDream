@@ -45,7 +45,9 @@ in threes -- a *zone* -- and after each third check:
 > running on it for as long as the next zone takes to build. Then the zoom lets go, the
 > **palette has shifted** -- new sky, new pipe colours -- and the run resumes.
 
-**The ring check sequence.** Every section ends on a long empty run of straights. On it:
+**The ring check sequence.** Every section ends on a long empty run of straights, entered
+under a **rainbow arch** -- the one arch whose spheres wear rings, cycling through colours,
+seen nowhere else. On the straights:
 the "rings to go" call some way before; at the check a **logo drops in at the top** of the
 screen and the count is taken; on a pass **the camera turns to Sonic and he gives the
 thumbs up** (`RunThumbsUp`); then play resumes. The intro and the ending of a stage are
@@ -62,7 +64,7 @@ nothing, by a set margin. It is enforced, not hoped for.
 |---|---|---|
 | Original data decoded | **done** | track layouts (Nemesis), ring/bomb lists (Kosinski), quotas, palettes |
 | Track pieces | **done** | 3 authored shapes give 5 pieces; baked to one mesh each |
-| Ring and bomb modules | **done** | 93, checked against all seven original stages: 3,250 objects, 0 unexplained |
+| Ring and bomb modules | **done** | 94, checked against all seven original stages: 3,250 objects, 0 unexplained |
 | Ring model, bomb model | **done** | generated; bomb is 4,000 tris (heavy for GameCube) |
 | Laying modules on bent track | **done** | `ChainPath`, `lay()`; all 93 checked on every piece |
 | Stage generator | **done** | sections, checks, guarantee, intro/ring check/ending, variety by tier |
@@ -202,7 +204,8 @@ holds.
 The zone is already marked in the data (`ring_check`, and `Check`, `CheckLogo`,
 `CheckPass`, `RingsToGo` in the `.blend`).
 
-1. `RingsToGo` frame: the "N rings to go" call.
+1. `RingsToGo` frame: the "N rings to go" call. Animate the rainbow arch: each ring steps
+   through `rainbow_arch.colours`, one place on from its neighbour, 8 times a second.
 2. `check_frame`: logo drops in at the top; the count is taken against `quota`.
 3. **Pass:** camera turns to Sonic, `RunThumbsUp`, until `last_frame`; then the next
    section. **Fail:** the stage ends.
