@@ -43,6 +43,7 @@ EMERALDS = {
 }
 PART = "rdmobj01"                   # the outer shell: the one whose UVs fit the facet map
 WIDTH = 3.6                         # how wide the gem is in the game; the model is 10.8
+TEST_MAT = None    # bisecting the black gem; None for its own
 BLEND = 2                           # 0 opaque, 2 translucent
 OPACITY = 0.80
 BRIGHT = 1.0                        # the two textures multiplied come out dim; lift them
@@ -83,9 +84,8 @@ def material(stage, name, ref, dif):
     d += u32(0)                     # Unlit: the reflection IS the lighting
     d += u32(BLEND)                 # BlendMode
     d += u32(1)                     # VertexColorMode::Modulate: the reflection is in the vertices
-    d += u32(1)                     # numTextures
-    d += asset_ref(UUID + 16 * stage + 3, dif) + u8(0) + u8(1)      # the facets, through uv0, modulate
-    for _ in range(3):
+    d += u32(0)                     # numTextures: none. The facet map came out BLACK in this engine
+    for _ in range(4):              # whatever was tried, and the flat facets read as cut without it.
         d += null_ref() + u8(0) + u8(1)
     for _ in range(2):
         d += f32(0) + f32(0) + f32(1) + f32(1)
@@ -139,7 +139,7 @@ def mesh(stage, name, mat, vs, vts, tris, ref_img):
     radius = max(math.sqrt(sum(x * x for x in v[0])) for v in verts)
     d = header(TYPE_STATICMESH, UUID + 16 * stage, name)
     d += u32(len(verts)) + u32(len(idx)) + u32(1)
-    d += asset_ref(UUID + 16 * stage + 1, mat)
+    d += asset_ref(TEST_MAT[0], TEST_MAT[1]) if TEST_MAT else asset_ref(UUID + 16 * stage + 1, mat)
     d += u8(0) + u8(1)                                      # no triangle collision; HAS vertex colour
     for p, uv0, c, n in verts:
         d += f32(p[0]) + f32(p[1]) + f32(p[2]) + f32(uv0[0]) + f32(uv0[1]) + f32(0) + f32(0)
