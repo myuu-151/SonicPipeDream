@@ -1,0 +1,2866 @@
+{
+ "_about": "Measured from Sonic 2 by make_ring_rulebook.py. Do not edit by hand.",
+ "1": {
+  "quota_alone": [
+   30,
+   70,
+   130
+  ],
+  "quota_team": [
+   40,
+   80,
+   140
+  ],
+  "frames": 607,
+  "lead_in": 87,
+  "sections": [
+   {
+    "frames": 190,
+    "rings": 54,
+    "bombs": 0,
+    "asks": 30,
+    "surplus": 1.8
+   },
+   {
+    "frames": 222,
+    "rings": 80,
+    "bombs": 8,
+    "asks": 40,
+    "surplus": 2.0
+   },
+   {
+    "frames": 195,
+    "rings": 72,
+    "bombs": 8,
+    "asks": 60,
+    "surplus": 1.2
+   }
+  ],
+  "density": {
+   "straight": 35.1,
+   "corner": 39.5,
+   "slope": 38.2
+  },
+  "placements": [
+   {
+    "module": "ClusterLonger",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 14
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 32,
+    "on": "corner",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 32,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": -32,
+    "on": "corner",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "corner",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 8
+   },
+   {
+    "module": "Zigzag",
+    "mirrored": false,
+    "run": null,
+    "first_at": -48,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "Zigzag",
+    "mirrored": false,
+    "run": null,
+    "first_at": -48,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "Zigzag",
+    "mirrored": false,
+    "run": null,
+    "first_at": 32,
+    "on": "corner",
+    "objects": 8
+   },
+   {
+    "module": "Zigzag",
+    "mirrored": false,
+    "run": null,
+    "first_at": 32,
+    "on": "slope",
+    "objects": 8
+   },
+   {
+    "module": "Zigzag",
+    "mirrored": false,
+    "run": null,
+    "first_at": 32,
+    "on": "corner",
+    "objects": 8
+   },
+   {
+    "module": "Zigzag",
+    "mirrored": true,
+    "run": null,
+    "first_at": 48,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "BombTwin",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "Triangle",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 6
+   },
+   {
+    "module": "Triangle",
+    "mirrored": false,
+    "run": null,
+    "first_at": 16,
+    "on": "slope",
+    "objects": 6
+   },
+   {
+    "module": "Triangle",
+    "mirrored": false,
+    "run": null,
+    "first_at": 32,
+    "on": "slope",
+    "objects": 6
+   },
+   {
+    "module": "Triangle",
+    "mirrored": false,
+    "run": null,
+    "first_at": 16,
+    "on": "slope",
+    "objects": 6
+   },
+   {
+    "module": "Triangle",
+    "mirrored": false,
+    "run": null,
+    "first_at": -16,
+    "on": "corner",
+    "objects": 6
+   },
+   {
+    "module": "Triangle",
+    "mirrored": false,
+    "run": null,
+    "first_at": -32,
+    "on": "corner",
+    "objects": 6
+   },
+   {
+    "module": "Triangle",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 6
+   },
+   {
+    "module": "Triangle",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 6
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": -64,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 64,
+    "on": "straight",
+    "objects": 4
+   }
+  ]
+ },
+ "2": {
+  "quota_alone": [
+   50,
+   100,
+   140
+  ],
+  "quota_team": [
+   50,
+   100,
+   140
+  ],
+  "frames": 667,
+  "lead_in": 87,
+  "sections": [
+   {
+    "frames": 238,
+    "rings": 80,
+    "bombs": 0,
+    "asks": 50,
+    "surplus": 1.6
+   },
+   {
+    "frames": 207,
+    "rings": 112,
+    "bombs": 48,
+    "asks": 50,
+    "surplus": 2.24
+   },
+   {
+    "frames": 222,
+    "rings": 68,
+    "bombs": 32,
+    "asks": 40,
+    "surplus": 1.7
+   }
+  ],
+  "density": {
+   "straight": 48.0,
+   "corner": 46.2,
+   "slope": 62.7
+  },
+  "placements": [
+   {
+    "module": "ClusterStairsLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "slope",
+    "objects": 24
+   },
+   {
+    "module": "ClusterCascade",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 20
+   },
+   {
+    "module": "ClusterCascade",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 20
+   },
+   {
+    "module": "ClusterCascade",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 20
+   },
+   {
+    "module": "ClusterLongest",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 16
+   },
+   {
+    "module": "ClusterLong12",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 12
+   },
+   {
+    "module": "ClusterStairs",
+    "mirrored": true,
+    "run": null,
+    "first_at": -32,
+    "on": "corner",
+    "objects": 12
+   },
+   {
+    "module": "ClusterLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "ClusterLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": 32,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "ClusterLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": 32,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "ClusterLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": -48,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "ClusterLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "ClusterLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "corner",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 56,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": -24,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "TriangleTrain",
+    "mirrored": false,
+    "run": null,
+    "first_at": 8,
+    "on": "corner",
+    "objects": 9
+   },
+   {
+    "module": "TriangleTrain",
+    "mirrored": false,
+    "run": null,
+    "first_at": 8,
+    "on": "straight",
+    "objects": 9
+   },
+   {
+    "module": "BombTwin",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "BombTwin",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "corner",
+    "objects": 8
+   },
+   {
+    "module": "BombTwin",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "BombTwin",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "BombTwin",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "ClusterSmall",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 4
+   },
+   {
+    "module": "ClusterSmall",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "ClusterSmall",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "ClusterSmall",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "ClusterSmall",
+    "mirrored": false,
+    "run": null,
+    "first_at": -48,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 4
+   },
+   {
+    "module": "BombClusterTight",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombClusterTight",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombClusterTight",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombClusterTight",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombClusterTight",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "TriangleSmall",
+    "mirrored": false,
+    "run": null,
+    "first_at": 8,
+    "on": "slope",
+    "objects": 3
+   },
+   {
+    "module": "TriangleSmall",
+    "mirrored": false,
+    "run": null,
+    "first_at": 24,
+    "on": "slope",
+    "objects": 3
+   },
+   {
+    "module": "TriangleSmall",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "slope",
+    "objects": 3
+   },
+   {
+    "module": "TriangleSmall",
+    "mirrored": false,
+    "run": null,
+    "first_at": 56,
+    "on": "slope",
+    "objects": 3
+   },
+   {
+    "module": "TriangleSmall",
+    "mirrored": false,
+    "run": null,
+    "first_at": 24,
+    "on": "slope",
+    "objects": 3
+   }
+  ]
+ },
+ "3": {
+  "quota_alone": [
+   50,
+   110,
+   160
+  ],
+  "quota_team": [
+   60,
+   110,
+   160
+  ],
+  "frames": 748,
+  "lead_in": 71,
+  "sections": [
+   {
+    "frames": 310,
+    "rings": 86,
+    "bombs": 43,
+    "asks": 50,
+    "surplus": 1.72
+   },
+   {
+    "frames": 231,
+    "rings": 55,
+    "bombs": 143,
+    "asks": 60,
+    "surplus": 0.92
+   },
+   {
+    "frames": 207,
+    "rings": 64,
+    "bombs": 100,
+    "asks": 50,
+    "surplus": 1.28
+   }
+  ],
+  "density": {
+   "straight": 34.8,
+   "corner": 58.0,
+   "slope": 114.7
+  },
+  "placements": [
+   {
+    "module": "BombCorkscrewLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": 64,
+    "on": "slope",
+    "objects": 64
+   },
+   {
+    "module": "HookToWallLeft",
+    "mirrored": false,
+    "run": null,
+    "first_at": -16,
+    "on": "slope",
+    "objects": 29
+   },
+   {
+    "module": "HookToWallLeft",
+    "mirrored": true,
+    "run": null,
+    "first_at": 16,
+    "on": "slope",
+    "objects": 29
+   },
+   {
+    "module": "BombCorkscrew",
+    "mirrored": false,
+    "run": [
+     0,
+     22
+    ],
+    "first_at": 72,
+    "on": "slope",
+    "objects": 23
+   },
+   {
+    "module": "BombFunnel",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "straight",
+    "objects": 20
+   },
+   {
+    "module": "Gauntlet",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 20
+   },
+   {
+    "module": "SweepLeft",
+    "mirrored": false,
+    "run": null,
+    "first_at": -24,
+    "on": "slope",
+    "objects": 16
+   },
+   {
+    "module": "SweepLeft",
+    "mirrored": true,
+    "run": null,
+    "first_at": 24,
+    "on": "slope",
+    "objects": 16
+   },
+   {
+    "module": "BombWall",
+    "mirrored": false,
+    "run": null,
+    "first_at": -64,
+    "on": "straight",
+    "objects": 16
+   },
+   {
+    "module": "BombWall",
+    "mirrored": false,
+    "run": null,
+    "first_at": -64,
+    "on": "slope",
+    "objects": 16
+   },
+   {
+    "module": "BombWall",
+    "mirrored": false,
+    "run": null,
+    "first_at": -64,
+    "on": "slope",
+    "objects": 16
+   },
+   {
+    "module": "BombWall",
+    "mirrored": false,
+    "run": null,
+    "first_at": -64,
+    "on": "slope",
+    "objects": 16
+   },
+   {
+    "module": "BombSpiral",
+    "mirrored": true,
+    "run": null,
+    "first_at": -128,
+    "on": "corner",
+    "objects": 16
+   },
+   {
+    "module": "HookLeft",
+    "mirrored": false,
+    "run": null,
+    "first_at": -4,
+    "on": "slope",
+    "objects": 15
+   },
+   {
+    "module": "Sweep",
+    "mirrored": true,
+    "run": [
+     3,
+     15
+    ],
+    "first_at": -16,
+    "on": "slope",
+    "objects": 13
+   },
+   {
+    "module": "BombTrain",
+    "mirrored": false,
+    "run": null,
+    "first_at": -48,
+    "on": "slope",
+    "objects": 12
+   },
+   {
+    "module": "BombTrain",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "slope",
+    "objects": 12
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 8,
+    "on": "corner",
+    "objects": 10
+   },
+   {
+    "module": "LineLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "LineLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "ClusterBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": -32,
+    "on": "straight",
+    "objects": 9
+   },
+   {
+    "module": "ClusterBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 32,
+    "on": "straight",
+    "objects": 9
+   },
+   {
+    "module": "ChevronSlantLeft",
+    "mirrored": false,
+    "run": null,
+    "first_at": -16,
+    "on": "corner",
+    "objects": 9
+   },
+   {
+    "module": "ChevronSlantLeft",
+    "mirrored": true,
+    "run": null,
+    "first_at": 16,
+    "on": "straight",
+    "objects": 9
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "BombTwin",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "slope",
+    "objects": 8
+   },
+   {
+    "module": "ClusterMedium",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 6
+   },
+   {
+    "module": "Line",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 5
+   },
+   {
+    "module": "ClusterSmall",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "ClusterSmall",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "ClusterSmall",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "ClusterSmall",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "ClusterSmall",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "ClusterSmall",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 4
+   },
+   {
+    "module": "ClusterSmallGapped",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "BombRow3",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 3
+   },
+   {
+    "module": "BombRow3",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 3
+   },
+   {
+    "module": "BombRow3",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 3
+   },
+   {
+    "module": "BombRow3",
+    "mirrored": false,
+    "run": null,
+    "first_at": -32,
+    "on": "straight",
+    "objects": 3
+   },
+   {
+    "module": "BombRow3",
+    "mirrored": false,
+    "run": null,
+    "first_at": 32,
+    "on": "straight",
+    "objects": 3
+   },
+   {
+    "module": "BombChevron",
+    "mirrored": false,
+    "run": null,
+    "first_at": 16,
+    "on": "slope",
+    "objects": 3
+   },
+   {
+    "module": "BombChevron",
+    "mirrored": false,
+    "run": null,
+    "first_at": -16,
+    "on": "slope",
+    "objects": 3
+   }
+  ]
+ },
+ "4": {
+  "quota_alone": [
+   40,
+   110,
+   150
+  ],
+  "quota_team": [
+   40,
+   100,
+   150
+  ],
+  "frames": 781,
+  "lead_in": 64,
+  "sections": [
+   {
+    "frames": 245,
+    "rings": 69,
+    "bombs": 33,
+    "asks": 40,
+    "surplus": 1.73
+   },
+   {
+    "frames": 284,
+    "rings": 114,
+    "bombs": 77,
+    "asks": 70,
+    "surplus": 1.63
+   },
+   {
+    "frames": 252,
+    "rings": 68,
+    "bombs": 32,
+    "asks": 40,
+    "surplus": 1.7
+   }
+  ],
+  "density": {
+   "straight": 41.1,
+   "corner": 67.7,
+   "slope": 46.1
+  },
+  "placements": [
+   {
+    "module": "GateAndTriangle",
+    "mirrored": false,
+    "run": null,
+    "first_at": 32,
+    "on": "corner",
+    "objects": 22
+   },
+   {
+    "module": "TriangleHuge",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 15
+   },
+   {
+    "module": "WeaveByBombs",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 15
+   },
+   {
+    "module": "WeaveByBombs",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 15
+   },
+   {
+    "module": "WeaveByBombs",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 15
+   },
+   {
+    "module": "WeaveByBombs",
+    "mirrored": true,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 15
+   },
+   {
+    "module": "WeaveByBombs",
+    "mirrored": true,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 15
+   },
+   {
+    "module": "WeaveByBombs",
+    "mirrored": true,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 15
+   },
+   {
+    "module": "BombGate",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "corner",
+    "objects": 13
+   },
+   {
+    "module": "BombGate",
+    "mirrored": false,
+    "run": null,
+    "first_at": 64,
+    "on": "corner",
+    "objects": 13
+   },
+   {
+    "module": "Weave",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "straight",
+    "objects": 12
+   },
+   {
+    "module": "Weave",
+    "mirrored": false,
+    "run": null,
+    "first_at": -24,
+    "on": "straight",
+    "objects": 12
+   },
+   {
+    "module": "DottedArrow",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 12
+   },
+   {
+    "module": "BombGateWide",
+    "mirrored": false,
+    "run": null,
+    "first_at": 32,
+    "on": "straight",
+    "objects": 12
+   },
+   {
+    "module": "BombGateWide",
+    "mirrored": false,
+    "run": null,
+    "first_at": 64,
+    "on": "corner",
+    "objects": 12
+   },
+   {
+    "module": "BombGateWide",
+    "mirrored": false,
+    "run": null,
+    "first_at": 32,
+    "on": "corner",
+    "objects": 12
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 8,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 8,
+    "on": "corner",
+    "objects": 10
+   },
+   {
+    "module": "ClusterBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 9
+   },
+   {
+    "module": "ClusterBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": -32,
+    "on": "slope",
+    "objects": 9
+   },
+   {
+    "module": "ClusterBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": -32,
+    "on": "straight",
+    "objects": 9
+   },
+   {
+    "module": "ClusterBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": -32,
+    "on": "slope",
+    "objects": 9
+   },
+   {
+    "module": "ClusterBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 16,
+    "on": "straight",
+    "objects": 9
+   },
+   {
+    "module": "WeaveShort",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "corner",
+    "objects": 9
+   },
+   {
+    "module": "WeaveShort",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "corner",
+    "objects": 9
+   },
+   {
+    "module": "WeaveShort",
+    "mirrored": false,
+    "run": null,
+    "first_at": 56,
+    "on": "slope",
+    "objects": 9
+   },
+   {
+    "module": "WeaveShort",
+    "mirrored": false,
+    "run": null,
+    "first_at": -24,
+    "on": "straight",
+    "objects": 9
+   },
+   {
+    "module": "WeaveShort",
+    "mirrored": false,
+    "run": null,
+    "first_at": 56,
+    "on": "slope",
+    "objects": 9
+   },
+   {
+    "module": "Arrowhead",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 8
+   },
+   {
+    "module": "BombRow5",
+    "mirrored": false,
+    "run": null,
+    "first_at": -32,
+    "on": "corner",
+    "objects": 5
+   },
+   {
+    "module": "BombRow5",
+    "mirrored": false,
+    "run": null,
+    "first_at": 32,
+    "on": "corner",
+    "objects": 5
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "BombDots",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 3
+   },
+   {
+    "module": "BombDots",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 3
+   },
+   {
+    "module": "Bomb",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 1
+   },
+   {
+    "module": "Bomb",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 1
+   },
+   {
+    "module": "Bomb",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 1
+   },
+   {
+    "module": "Bomb",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 1
+   },
+   {
+    "module": "Bomb",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 1
+   },
+   {
+    "module": "Bomb",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 1
+   }
+  ]
+ },
+ "5": {
+  "quota_alone": [
+   50,
+   90,
+   160
+  ],
+  "quota_team": [
+   55,
+   110,
+   200
+  ],
+  "frames": 692,
+  "lead_in": 79,
+  "sections": [
+   {
+    "frames": 262,
+    "rings": 128,
+    "bombs": 28,
+    "asks": 50,
+    "surplus": 2.56
+   },
+   {
+    "frames": 167,
+    "rings": 95,
+    "bombs": 12,
+    "asks": 40,
+    "surplus": 2.38
+   },
+   {
+    "frames": 263,
+    "rings": 178,
+    "bombs": 4,
+    "asks": 70,
+    "surplus": 2.54
+   }
+  ],
+  "density": {
+   "straight": 63.2,
+   "corner": 71.2,
+   "slope": 60.8
+  },
+  "placements": [
+   {
+    "module": "Helix",
+    "mirrored": false,
+    "run": [
+     0,
+     31
+    ],
+    "first_at": 0,
+    "on": "straight",
+    "objects": 60
+   },
+   {
+    "module": "Helix",
+    "mirrored": false,
+    "run": [
+     4,
+     24
+    ],
+    "first_at": -64,
+    "on": "straight",
+    "objects": 39
+   },
+   {
+    "module": "TwinTriangleRims",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "straight",
+    "objects": 20
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 8,
+    "on": "straight",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": -120,
+    "on": "straight",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 8,
+    "on": "straight",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 8,
+    "on": "straight",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 72,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 8,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 8,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": -24,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 8,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": -24,
+    "on": "corner",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 8,
+    "on": "straight",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 56,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": -24,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 56,
+    "on": "corner",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": -24,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 8,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 56,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 8,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": -72,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 8,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 88,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": 8,
+    "on": "slope",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": -72,
+    "on": "corner",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": -120,
+    "on": "straight",
+    "objects": 10
+   },
+   {
+    "module": "TriangleBig",
+    "mirrored": false,
+    "run": null,
+    "first_at": -120,
+    "on": "straight",
+    "objects": 10
+   },
+   {
+    "module": "Helix",
+    "mirrored": false,
+    "run": [
+     0,
+     4
+    ],
+    "first_at": 0,
+    "on": "straight",
+    "objects": 9
+   },
+   {
+    "module": "TwinClusterSmall",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "BombTwin",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "BombTwin",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "Line",
+    "mirrored": false,
+    "run": [
+     0,
+     6
+    ],
+    "first_at": 0,
+    "on": "straight",
+    "objects": 7
+   },
+   {
+    "module": "ClusterSmall",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "ClusterSmall",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   }
+  ]
+ },
+ "6": {
+  "quota_alone": [
+   80,
+   140,
+   210
+  ],
+  "quota_team": [
+   80,
+   140,
+   220
+  ],
+  "frames": 892,
+  "lead_in": 71,
+  "sections": [
+   {
+    "frames": 317,
+    "rings": 105,
+    "bombs": 67,
+    "asks": 80,
+    "surplus": 1.31
+   },
+   {
+    "frames": 270,
+    "rings": 138,
+    "bombs": 52,
+    "asks": 60,
+    "surplus": 2.3
+   },
+   {
+    "frames": 305,
+    "rings": 96,
+    "bombs": 184,
+    "asks": 70,
+    "surplus": 1.37
+   }
+  ],
+  "density": {
+   "straight": 85.9,
+   "corner": 65.0,
+   "slope": 30.3
+  },
+  "placements": [
+   {
+    "module": "HelixLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 90
+   },
+   {
+    "module": "WallThenCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 24
+   },
+   {
+    "module": "SwapWalls",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "straight",
+    "objects": 24
+   },
+   {
+    "module": "SwapThree",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 24
+   },
+   {
+    "module": "SwapThree",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 24
+   },
+   {
+    "module": "Wave",
+    "mirrored": false,
+    "run": [
+     0,
+     20
+    ],
+    "first_at": 0,
+    "on": "straight",
+    "objects": 21
+   },
+   {
+    "module": "BombWall",
+    "mirrored": false,
+    "run": null,
+    "first_at": -64,
+    "on": "corner",
+    "objects": 16
+   },
+   {
+    "module": "BombWall",
+    "mirrored": false,
+    "run": null,
+    "first_at": -64,
+    "on": "straight",
+    "objects": 16
+   },
+   {
+    "module": "BombWall",
+    "mirrored": false,
+    "run": null,
+    "first_at": -64,
+    "on": "corner",
+    "objects": 16
+   },
+   {
+    "module": "BombWall",
+    "mirrored": false,
+    "run": null,
+    "first_at": -64,
+    "on": "corner",
+    "objects": 16
+   },
+   {
+    "module": "BombWall",
+    "mirrored": false,
+    "run": null,
+    "first_at": -64,
+    "on": "corner",
+    "objects": 16
+   },
+   {
+    "module": "BombWall",
+    "mirrored": false,
+    "run": null,
+    "first_at": -64,
+    "on": "corner",
+    "objects": 16
+   },
+   {
+    "module": "BombWall",
+    "mirrored": false,
+    "run": null,
+    "first_at": -64,
+    "on": "corner",
+    "objects": 16
+   },
+   {
+    "module": "BombWall",
+    "mirrored": false,
+    "run": null,
+    "first_at": -64,
+    "on": "straight",
+    "objects": 16
+   },
+   {
+    "module": "BombWall",
+    "mirrored": false,
+    "run": null,
+    "first_at": -64,
+    "on": "corner",
+    "objects": 16
+   },
+   {
+    "module": "BombWall",
+    "mirrored": false,
+    "run": null,
+    "first_at": -64,
+    "on": "straight",
+    "objects": 16
+   },
+   {
+    "module": "BombWall",
+    "mirrored": false,
+    "run": null,
+    "first_at": -64,
+    "on": "corner",
+    "objects": 16
+   },
+   {
+    "module": "ClusterLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 10
+   },
+   {
+    "module": "ClusterLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 10
+   },
+   {
+    "module": "ClusterLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 10
+   },
+   {
+    "module": "Wave",
+    "mirrored": false,
+    "run": [
+     4,
+     13
+    ],
+    "first_at": 32,
+    "on": "straight",
+    "objects": 10
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "slope",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "slope",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "slope",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "slope",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "corner",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "slope",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 48,
+    "on": "slope",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": -48,
+    "on": "corner",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "corner",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "corner",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 8
+   },
+   {
+    "module": "ClusterGapped",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "ClusterGapped",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "ClusterGapped",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "ClusterSparse",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "BombTwinNear",
+    "mirrored": false,
+    "run": null,
+    "first_at": 32,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "BombDiamond",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 8
+   },
+   {
+    "module": "BombDiamond",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 8
+   },
+   {
+    "module": "BombDiamond",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 8
+   },
+   {
+    "module": "ClusterSmall",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "corner",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombChevron",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 3
+   }
+  ]
+ },
+ "7": {
+  "quota_alone": [
+   100,
+   150,
+   190
+  ],
+  "quota_team": [
+   100,
+   190,
+   210
+  ],
+  "frames": 882,
+  "lead_in": 79,
+  "sections": [
+   {
+    "frames": 333,
+    "rings": 156,
+    "bombs": 53,
+    "asks": 100,
+    "surplus": 1.56
+   },
+   {
+    "frames": 238,
+    "rings": 96,
+    "bombs": 96,
+    "asks": 50,
+    "surplus": 1.92
+   },
+   {
+    "frames": 311,
+    "rings": 240,
+    "bombs": 76,
+    "asks": 40,
+    "surplus": 6.0
+   }
+  ],
+  "density": {
+   "straight": 56.7,
+   "corner": 98.3,
+   "slope": 98.3
+  },
+  "placements": [
+   {
+    "module": "Confetti",
+    "mirrored": false,
+    "run": null,
+    "first_at": 22,
+    "on": "slope",
+    "objects": 40
+   },
+   {
+    "module": "Confetti",
+    "mirrored": false,
+    "run": null,
+    "first_at": 22,
+    "on": "slope",
+    "objects": 40
+   },
+   {
+    "module": "Confetti",
+    "mirrored": false,
+    "run": null,
+    "first_at": 22,
+    "on": "slope",
+    "objects": 40
+   },
+   {
+    "module": "Confetti",
+    "mirrored": false,
+    "run": null,
+    "first_at": 22,
+    "on": "slope",
+    "objects": 40
+   },
+   {
+    "module": "Confetti",
+    "mirrored": false,
+    "run": null,
+    "first_at": 22,
+    "on": "slope",
+    "objects": 40
+   },
+   {
+    "module": "Confetti",
+    "mirrored": false,
+    "run": null,
+    "first_at": 22,
+    "on": "slope",
+    "objects": 40
+   },
+   {
+    "module": "BombDots",
+    "mirrored": false,
+    "run": [
+     0,
+     144
+    ],
+    "first_at": 0,
+    "on": "slope",
+    "objects": 37
+   },
+   {
+    "module": "SwapWallsMedium",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "straight",
+    "objects": 24
+   },
+   {
+    "module": "SwapWallsMedium",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "straight",
+    "objects": 24
+   },
+   {
+    "module": "SwapWallsMedium",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "straight",
+    "objects": 24
+   },
+   {
+    "module": "SwapWallsMedium",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "straight",
+    "objects": 24
+   },
+   {
+    "module": "ClusterByBombs",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 22
+   },
+   {
+    "module": "ClusterByBombs",
+    "mirrored": true,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 22
+   },
+   {
+    "module": "BombWall",
+    "mirrored": false,
+    "run": null,
+    "first_at": -64,
+    "on": "slope",
+    "objects": 16
+   },
+   {
+    "module": "BombWall",
+    "mirrored": false,
+    "run": null,
+    "first_at": -64,
+    "on": "slope",
+    "objects": 16
+   },
+   {
+    "module": "ClusterLong12Gapped",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 12
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "slope",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "slope",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "slope",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "slope",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "slope",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "slope",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "slope",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "slope",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "corner",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "Cluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "straight",
+    "objects": 8
+   },
+   {
+    "module": "BombTwinNear",
+    "mirrored": false,
+    "run": null,
+    "first_at": 32,
+    "on": "slope",
+    "objects": 8
+   },
+   {
+    "module": "ClusterMedium",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "slope",
+    "objects": 6
+   },
+   {
+    "module": "ClusterMedium",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "slope",
+    "objects": 6
+   },
+   {
+    "module": "ClusterMedium",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "corner",
+    "objects": 6
+   },
+   {
+    "module": "ClusterMedium",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "straight",
+    "objects": 6
+   },
+   {
+    "module": "ClusterMedium",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "straight",
+    "objects": 6
+   },
+   {
+    "module": "ClusterMedium",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "slope",
+    "objects": 6
+   },
+   {
+    "module": "ClusterMedium",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "slope",
+    "objects": 6
+   },
+   {
+    "module": "ClusterMedium",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "corner",
+    "objects": 6
+   },
+   {
+    "module": "BombClusterLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "slope",
+    "objects": 6
+   },
+   {
+    "module": "BombClusterLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "slope",
+    "objects": 6
+   },
+   {
+    "module": "BombClusterLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "corner",
+    "objects": 6
+   },
+   {
+    "module": "BombClusterLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "straight",
+    "objects": 6
+   },
+   {
+    "module": "BombClusterLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "straight",
+    "objects": 6
+   },
+   {
+    "module": "BombClusterLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "slope",
+    "objects": 6
+   },
+   {
+    "module": "BombClusterLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "slope",
+    "objects": 6
+   },
+   {
+    "module": "BombClusterLong",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "corner",
+    "objects": 6
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": -128,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 40,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": -40,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "BombCluster",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "slope",
+    "objects": 4
+   },
+   {
+    "module": "Bomb",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 1
+   },
+   {
+    "module": "Bomb",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "straight",
+    "objects": 1
+   },
+   {
+    "module": "Bomb",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 1
+   },
+   {
+    "module": "Bomb",
+    "mirrored": false,
+    "run": null,
+    "first_at": 0,
+    "on": "corner",
+    "objects": 1
+   }
+  ]
+ }
+}

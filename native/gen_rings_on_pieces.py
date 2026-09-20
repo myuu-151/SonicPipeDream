@@ -55,12 +55,15 @@ DEMO = [
 class PiecePath:
     """A piece's centre line, measured by distance along it."""
 
-    def __init__(self, curve_ob, samples=24):
-        bps = curve_ob.data.splines[0].bezier_points
-        pts = [bps[0].co.copy()]
-        for a, b in zip(bps, bps[1:]):
-            pts += [p.copy() for p in interpolate_bezier(a.co, a.handle_right, b.handle_left,
-                                                         b.co, samples + 1)[1:]]
+    def __init__(self, curve_ob=None, samples=24, pts=None):
+        """From a curve object, or from points already in the piece's own space (which is
+        how a mirrored corner or a drop travelled backwards gets its path)."""
+        if pts is None:
+            bps = curve_ob.data.splines[0].bezier_points
+            pts = [bps[0].co.copy()]
+            for a, b in zip(bps, bps[1:]):
+                pts += [p.copy() for p in interpolate_bezier(a.co, a.handle_right, b.handle_left,
+                                                             b.co, samples + 1)[1:]]
         self.pts = pts
         self.dist = [0.0]
         for p, q in zip(pts, pts[1:]):
@@ -89,10 +92,13 @@ class ChainPath:
     module begin on one piece and finish on the next. Each piece starts where the last one
     ended, heading the way it was heading -- the same joint the level generator uses."""
 
-    def __init__(self, paths):
+    def __init__(self, paths, origins=None):
+        """`origins`, when given, are where a level generator already put each piece."""
         self.parts = []                   # (start distance, origin matrix, path)
         origin, start = Matrix.Identity(4), 0.0
-        for path in paths:
+        for i, path in enumerate(paths):
+            if origins is not None:
+                origin = origins[i]
             self.parts.append((start, origin.copy(), path))
             origin = origin @ path.frame(path.length)
             start += path.length
@@ -233,4 +239,5 @@ def main():
             bpy.ops.render.render(write_still=True)
 
 
-main()
+if __name__ == "__main__":
+    main()

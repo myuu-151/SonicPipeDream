@@ -1,6 +1,10 @@
 """Draw each original stage's rings and bombs unrolled flat, with the modules named on it.
 
     python native/make_stage_maps.py          -> docs/stage-maps/stage1.png ... stage7.png
+    python native/make_stage_maps.py external/stages/Stage1_seed1.json
+                                              -> the same picture of a GENERATED stage,
+                                                 beside its .json, with its pieces lettered
+                                                 and its three checks drawn in
 
 The second safeguard. check_ring_coverage.py proves every object is accounted for; it
 cannot prove the modules are the shapes a PLAYER sees (it once explained a 48-ring spiral
@@ -43,7 +47,66 @@ def y_of(angle):
     return int(((angle - 0x40 + 128) % 256) * AY)
 
 
+def generated(path):
+    """A stage written by gen_stage.py."""
+    import json
+    data = json.load(open(path, encoding="utf-8"))
+    objects = [(int(f), (a + 0x40) % 256, k) for s in data["sections"] for f, a, k in s["objects"]]
+    total = int(data["sections"][-1]["check_frame"]) + 1
+    bands = (total + PER_ROW - 1) // PER_ROW
+    img = Image.new("RGB", (LEFT + PER_ROW * FX + 20, bands * (BAND + GAP) + 30), BG)
+    d = ImageDraw.Draw(img)
+    d.text((8, 6), "%s (%s): %d rings, %d bombs, checks at %s rings" % (
+        data["name"], data["mode"], sum(o[2] == rm.RING for o in objects),
+        sum(o[2] == rm.BOMB for o in objects),
+        " / ".join(str(sec["quota"]) for sec in data["sections"])), fill=LABEL)
+
+    def at(frame, angle):
+        band, col = divmod(int(frame), PER_ROW)
+        return LEFT + col * FX + FX // 2, 30 + band * (BAND + GAP) + y_of(angle)
+
+    for b in range(bands):
+        top = 30 + b * (BAND + GAP)
+        x1 = LEFT + PER_ROW * FX
+        d.rectangle((LEFT, top, x1, top + y_of(0x80)), fill=SHADE)
+        d.rectangle((LEFT, top + y_of(0x00), x1, top + BAND), fill=SHADE)
+        for ang, name in ((0x80, "rim"), (0x40, "floor"), (0x00, "rim")):
+            d.line((LEFT, top + y_of(ang), x1, top + y_of(ang)), fill=GRID)
+            d.text((2, top + y_of(ang) - 5), name, fill=GRID)
+    # the pieces, lettered: S straight, L R corners, D drop, U rise
+    lengths = {"Straight": 1, "CornerLeft": 3, "CornerRight": 3, "Drop": 6, "Rise": 6}
+    per_section = rm.SECTION / data["step"]
+    start = 0.0
+    for name in data["pieces"]:
+        x, y = at(start, 0xC0)
+        d.line((x - FX // 2, y, x - FX // 2, y + BAND), fill=GRID)
+        d.text((x - FX // 2 + 2, y + BAND + 1), {"Straight": "S", "CornerLeft": "L", "CornerRight": "R",
+                                                 "Drop": "D", "Rise": "U"}[name], fill=GRID)
+        start += lengths[name] * per_section
+    for k, s in enumerate(data["sections"]):
+        x, y = at(s["check_frame"], 0xC0)
+        d.line((x, y, x, y + BAND), fill=(255, 255, 255), width=3)
+        d.text((x - 230, y + 4), "CHECK %d%s: %d rings  (difficulty %.1f, offers %d for the %d asked, x%.2f)" % (
+            k + 1, "" if s["leads_to"] == "on" or s["leads_to"].startswith("section") else " -> " + s["leads_to"],
+            s["quota"], s["difficulty"], s["rings"], s["asks"], s["margin"]), fill=(255, 255, 255))
+    for f, a, k in sorted(objects):
+        x, y = at(f, a)
+        if k == rm.RING:
+            d.ellipse((x - 4, y - 4, x + 4, y + 4), outline=RING, width=2)
+        else:
+            d.rectangle((x - 4, y - 4, x + 4, y + 4), fill=BOMB_FILL, outline=BOMB_X)
+            d.line((x - 3, y - 3, x + 3, y + 3), fill=BOMB_X)
+            d.line((x - 3, y + 3, x + 3, y - 3), fill=BOMB_X)
+    out = os.path.splitext(path)[0] + "_map.png"
+    img.save(out)
+    print("saved", os.path.abspath(out), img.size)
+
+
 def main():
+    if len(sys.argv) > 1:
+        for path in sys.argv[1:]:
+            generated(path)
+        return
     os.makedirs(OUT, exist_ok=True)
     for stage in range(1, 8):
         objects = cc.flatten(stage)
@@ -83,7 +146,7 @@ def main():
                 d.rectangle((x - 4, y - 4, x + 4, y + 4), fill=BOMB_FILL, outline=BOMB_X)
                 d.line((x - 3, y - 3, x + 3, y + 3), fill=BOMB_X)
                 d.line((x - 3, y + 3, x + 3, y - 3), fill=BOMB_X)
-        for label, f, a, n in placed:
+        for label, f, a, n, _ in placed:
             if n < 2:
                 continue
             x, y = at(f, a)

@@ -29,8 +29,10 @@ import bpy
 from mathutils import Matrix, Vector
 from mathutils.geometry import interpolate_bezier
 
-args = sys.argv[sys.argv.index("--") + 1:]
-OUT = args[0]
+# The command line is only this script's when it is the one being run; gen_stage.py
+# imports it for its pieces, its deck and its collision check.
+args = sys.argv[sys.argv.index("--") + 1:] if __name__ == "__main__" and "--" in sys.argv else []
+OUT = args[0] if args else None
 DIFFICULTY = int(args[1]) if len(args) > 1 else 3
 SEED = int(args[2]) if len(args) > 2 else 1
 
@@ -213,14 +215,14 @@ def plan(rules, rng):
     return names + ["Straight"] * gap[-1]
 
 
-def generate(pieces, rules, rng):
-    """Lay the plan. A piece that would run into the level is swapped for the nearest
+def generate(pieces, rules, rng, plan_names=None):
+    """Lay the plan -- this level's own, or a list of piece names handed in. A piece that would run into the level is swapped for the nearest
     thing that fits -- the other corner, a drop to pass underneath, a straight -- and
     the swap is reported, since it changes the mix the plan promised."""
     frame = Matrix.Identity(4)
     laid_pts, names, frames, swaps = [], [], [], []
 
-    for want in plan(rules, rng):
+    for want in (plan_names or plan(rules, rng)):
         options = [want]
         if want.startswith("Corner"):
             options += ["CornerRight" if want == "CornerLeft" else "CornerLeft", "Drop", "Straight"]
@@ -314,4 +316,5 @@ def main():
     print("saved", OUT)
 
 
-main()
+if __name__ == "__main__":
+    main()

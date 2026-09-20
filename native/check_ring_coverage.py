@@ -66,16 +66,17 @@ def shapes():
     for name, module in rm.MODULES.items():
         if len(module) < 2:
             continue
-        for label, m in ((name, module), (name + " (mirrored)", rm.mirrored(module))):
+        for label, m, mir in ((name, module, False), (name + " (mirrored)", rm.mirrored(module), True)):
             m = sorted((f, a % 256, k) for f, a, k in m)
-            out.append((label, m))
+            out.append((label, m, dict(name=name, mirrored=mir, run=None)))
     for name, run in rm.RUNS.items():
         frames = sorted(set(f for f, _, _ in run))
-        for label, r in ((name, run), (name + " (mirrored)", rm.mirrored(run))):
+        for label, r, mir in ((name, run, False), (name + " (mirrored)", rm.mirrored(run), True)):
             for i in range(len(frames)):
                 for j in range(i + MIN_RUN - 1, len(frames)):
                     cut = sorted((f, a % 256, k) for f, a, k in r if frames[i] <= f <= frames[j])
-                    out.append(("%s, a run of %d" % (label, j - i + 1), cut))
+                    out.append(("%s, a run of %d" % (label, j - i + 1), cut,
+                                dict(name=name, mirrored=mir, run=(frames[i], frames[j]))))
     out.sort(key=lambda s: -len(s[1]))
     return out
 
@@ -85,12 +86,14 @@ SHAPES = None
 
 def cover(objects):
     """Greedy, biggest module first; a placement must fit entirely on what is still
-    uncovered. Returns (placements, leftovers)."""
+    uncovered. Returns (placements, leftovers). A placement is (label, frame, angle,
+    objects, meta): the frame and angle of its FIRST object (sorted), and meta naming the
+    module, whether it is mirrored, and for a run which stretch of it."""
     left = set(objects)
     placed = []
     global SHAPES
     SHAPES = SHAPES or shapes()
-    for label, m in SHAPES:
+    for label, m, meta in SHAPES:
         f0, a0, k0 = m[0]
         for (f, a, k) in sorted(left):
             if k != k0 or (f, a, k) not in left:
@@ -98,13 +101,13 @@ def cover(objects):
             want = [(f + mf - f0, (a + ma - a0) % 256, mk) for mf, ma, mk in m]
             if all(w in left for w in want):
                 left.difference_update(want)
-                placed.append((label, f, a, len(want)))
+                placed.append((label, f, a, len(want), dict(meta, first=(f0, a0))))
     # a lone object is fine where it really is alone
     for o in sorted(left):
         if not any(p != o and p[2] == o[2] and abs(p[0] - o[0]) <= NEAR_FRAMES
                    and around(p[1], o[1]) <= NEAR_ANGLE for p in objects):
             left.discard(o)
-            placed.append(("single " + o[2], o[0], o[1], 1))
+            placed.append(("single " + o[2], o[0], o[1], 1, None))
     return placed, left
 
 
@@ -155,7 +158,7 @@ def main():
         objects = flatten(stage)
         placed, left = cover(objects)
         total_left += len(left)
-        for label, _, _, _ in placed:
+        for label, *_ in placed:
             name = label.split(",")[0].replace(" (mirrored)", "")
             used[name] = used.get(name, 0) + 1
         print("stage %d: %3d objects, %3d modules placed, %3d left over"
