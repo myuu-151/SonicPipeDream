@@ -58,6 +58,10 @@ SKIES = [
      [(62, 66, 88), (124, 128, 152), (188, 186, 192), (242, 226, 196), (255, 251, 236)]),
 ]
 
+# Where along a band (0 its middle row, 1 its edge) each colour of a ramp sits, lit end first.
+# Spaced as the classic sky's wide stripe is.
+ROW_AT = (0.00, 0.32, 0.62, 0.86, 1.00)
+
 LEVELS = 16                 # colour steps, where the classic sky has 8
 DRIFT = 0.28                # how far position pulls a diamond's colour; see the painter
 
@@ -68,7 +72,11 @@ def apply(spec):
     sky.SKY_DEEP, sky.SKY_LIFT = horizon, poles
     pat.RAMP_STOPS, pat.SHADOW = stops, shadow
     pat.LEVELS, pat.DRIFT = LEVELS, DRIFT
-    pat.ROW_STOPS = None                # the row gradient belongs to the classic sky alone
+    # The row gradient, as the classic sky has it, out of this sky's OWN ramp: its brightest
+    # colour is the stripe through the middle of each band, and the rows step back down the
+    # ramp to its second colour at the band's edge. A dim diamond fades to the first.
+    pat.ROW_DIM = stops[0]
+    pat.ROW_STOPS = list(zip(ROW_AT, (stops[4], stops[3], stops[2], stops[1], pat.lerp(stops[1], stops[0], 0.35))))
 
 
 def preview(name, star_px, frames):
