@@ -13,7 +13,8 @@ This only stands them up: one lane per module, side by side along Y, each a coll
 line, heading +X, the same joint as a track piece -- with its rings and bombs parented
 to it. Every ring shares the one mesh from external/ring/Ring.blend.
 
-There is no bomb model yet. `Bomb_Placeholder` is a dark ball, there to be replaced.
+Bombs are the model from external/bomb/Bomb.blend (native/gen_bomb.py); if that file is
+not there yet, a dark ball called `Bomb_Placeholder` stands in.
 """
 
 import math
@@ -31,6 +32,7 @@ import ring_modules as rm
 args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 SHEET = "sheet" in args
 
+BOMB_BLEND = os.path.abspath(os.path.join(HERE, "..", "external", "bomb", "Bomb.blend"))
 RING_BLEND = os.path.abspath(os.path.join(HERE, "..", "external", "ring", "Ring.blend"))
 OUT = os.path.abspath(os.path.join(HERE, "..", "external", "ring", "RingModules.blend"))
 PREVIEW = os.path.abspath(os.path.join(HERE, "..", "external", "ring", "preview"))
@@ -72,6 +74,14 @@ def load_ring():
     return dst.meshes[0]
 
 
+def load_bomb():
+    if not os.path.exists(BOMB_BLEND):
+        return make_bomb()
+    with bpy.data.libraries.load(BOMB_BLEND) as (src, dst):
+        dst.meshes = [n for n in src.meshes if n == "Bomb"]
+    return dst.meshes[0]
+
+
 def make_bomb():
     bm = bmesh.new()
     bmesh.ops.create_icosphere(bm, subdivisions=2, radius=BOMB_RADIUS)
@@ -94,7 +104,7 @@ def make_bomb():
 def main():
     pipe = bake_straight()
     ring = load_ring()
-    bomb = make_bomb()
+    bomb = load_bomb()
     for ob in list(bpy.data.objects):
         bpy.data.objects.remove(ob, do_unlink=True)
     scene = bpy.context.scene
