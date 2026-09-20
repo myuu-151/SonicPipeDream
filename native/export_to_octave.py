@@ -80,8 +80,10 @@ UNLIT = ("M_StageMatte",)
 # is turned, so light from above meets itself at every joint. It also suits the shape: the
 # floor is bright and the walls darken toward the rims, so the pipe reads as a bowl.
 BAKE_LIGHT = Vector((0.0, 0.0, 1.0))
-BAKE_AMBIENT = 0.64         # the darkest a face gets: a wall at the rim, facing sideways. (0.50 was
-                            # asked to be a bit lighter.)
+BAKE_AMBIENT = 0.76         # the darkest a face gets: a wall at the rim, facing sideways
+BAKE_BRIGHT = 1.16          # the brightest: the floor, facing straight up. Over 1 on purpose --
+                            # at 1.0 the pipe was only ever its palette colour or darker, and
+                            # read as dull. (0.50-1.0, then 0.64-1.0, were each asked to be lighter.)
 MATERIALS = {
     "M_StageMatte": (UUID_BASE + 0x800, 0.00, 8.0, False, 0.0, 0.60),
     "M_StageGloss": (UUID_BASE + 0x801, 0.85, 48.0, False, 0.0, 0.30),
@@ -166,7 +168,7 @@ def write_mesh(name, index, mesh, colour_of_slot, material="M_StageGloss", keep_
             n = corner_normals[loop] if (corner_normals and tri.use_smooth) else Vector(tri.normal)
             shade = 1.0
             if material in UNLIT:       # no engine light reaches it, so it carries its own
-                shade = BAKE_AMBIENT + (1.0 - BAKE_AMBIENT) * max(0.0, n.dot(BAKE_LIGHT))
+                shade = BAKE_AMBIENT + (BAKE_BRIGHT - BAKE_AMBIENT) * max(0.0, n.dot(BAKE_LIGHT))
             rgb = tuple(max(0, min(255, int(round(255 * c * shade)))) for c in base)
             key = (round(p.x, 4), round(p.y, 4), round(p.z, 4), round(n.x, 3), round(n.y, 3), round(n.z, 3), rgb)
             if key not in index_of:

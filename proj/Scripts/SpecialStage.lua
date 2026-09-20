@@ -21,7 +21,9 @@
 -- nothing but this node. Sky.lua starts it (startSpecialStage) so there is nothing to set
 -- up in the editor either.
 --
--- Placeholder: Sonic is a blue ball.
+-- SONIC is his own model, animated a mesh a frame (native/export_sonic_to_octave.py): he runs
+-- while he is on the pipe, curls into the BALL while he is in the air, as in the original, and
+-- runs with his thumb up for a moment after a check is passed.
 
 Script.Require("SpecialStageUI")
 
@@ -43,6 +45,11 @@ local BOMB_COST = 10            -- rings a bomb takes, as in the original
 local STUN = 0.6                -- seconds of stumbling after a bomb
 local SEE_AHEAD, SEE_BEHIND = 110, 6    -- frames of rings and bombs kept alive round the player
 local START_HOLD = 2.0          -- seconds standing at the start while START plays
+local SONIC_FPS = 42.0          -- his animations were made at 24 frames a second, but at the speed
+                                -- he covers the track that reads as a jog: played faster, by eye
+local SONIC_FRAMES = 16         -- in a run cycle
+local THUMBS_TIME = 2.6         -- seconds of thumbs-up running after a check is passed
+local BALL_RADIUS = 1.7
 
 -- ------------------------------------------------------------------ small vector maths
 local function Add(a, b) return { a[1] + b[1], a[2] + b[2], a[3] + b[3] } end
@@ -219,7 +226,15 @@ function SpecialStage:Build()
     self.emerald = SpawnMesh(world, LoadAsset("SM_Emerald"))
     self.emerald:SetWorldPosition(ToVec(where))
 
-    self.player = SpawnMesh(world, LoadAsset("SM_PlayerBall"))
+    self.meshBall = LoadAsset("SM_PlayerBall")
+    self.sonicRun, self.sonicThumbs = {}, {}
+    for i = 0, SONIC_FRAMES - 1 do
+        self.sonicRun[i] = LoadAsset(string.format("SM_Sonic_Run_%02d", i))
+        self.sonicThumbs[i] = LoadAsset(string.format("SM_Sonic_Thumbs_%02d", i))
+    end
+    self.sonicIdle = LoadAsset("SM_Sonic_Idle_00")
+    self.player = SpawnMesh(world, self.sonicIdle or self.meshBall)
+    self.playerMesh = nil
 
     self.camera = world:GetActiveCamera()
     if (self.camera == nil) then
@@ -259,6 +274,8 @@ function SpecialStage:Restart()
     self.hold = START_HOLD
     self.over = -1.0                -- >= 0: the stage has ended, and this is the countdown to starting again
     self.spin = 0.0
+    self.thumbs = 0.0               -- > 0: running with the thumb up
+    self.runClock = 0.0
     self.emerald:SetVisible(true)
     self.uiReady = false
 end
@@ -324,6 +341,7 @@ function SpecialStage:PassChecks(fromFrame)
     -- the instant he passes under the rainbow arch
     if (self.rings >= section.quota) then
         if (self.uiReady) then TheSpecialStageUI:ShowCool() end
+        self.thumbs = THUMBS_TIME
         if (section.leads_to == "EMERALD") then
             self.emerald:SetVisible(false)
             self.over = 5.0
@@ -400,9 +418,26 @@ function SpecialStage:Tick(deltaTime)
     self:PassChecks(before)
     self:UpdateUI()
 
-    -- Sonic
-    local place, fwd, inward = self:Place(self.frame, self.angle, 1.7 + self.height)
-    self.spin = self.spin + SPEED * dt * 2.2
+    -- Sonic: on the pipe he runs, feet on the surface; in the air he is the ball
+    self.runClock = self.runClock + dt
+    self.thumbs = math.max(0.0, self.thumbs - dt)
+    local airborne = (self.height > 0.0)
+    local mesh
+    if (airborne) then
+        mesh = self.meshBall
+    elseif (self.hold > 0.0) then
+        mesh = self.sonicIdle
+    else
+        local k = math.floor(self.runClock * SONIC_FPS) % SONIC_FRAMES
+        mesh = (self.thumbs > 0.0) and self.sonicThumbs[k] or self.sonicRun[k]
+    end
+    if (mesh == nil) then mesh = self.meshBall end
+    if (mesh ~= self.playerMesh) then
+        self.playerMesh = mesh
+        self.player:SetStaticMesh(mesh)
+    end
+    local lift = airborne and (BALL_RADIUS + self.height) or 0.0
+    local place, fwd, inward = self:Place(self.frame, self.angle, lift)
     self.player:SetWorldPosition(ToVec(place))
     self.player:SetWorldRotationQuat(FacingQuat(fwd, inward))
     self.player:SetVisible(self.stun <= 0.0 or (math.floor(self.stun * 20.0) % 2 == 0))   -- flickers when hit
