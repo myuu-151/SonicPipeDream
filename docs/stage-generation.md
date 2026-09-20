@@ -34,16 +34,119 @@ which asks for a number of rings (cumulative, as the original counts them).
 * A gauntlet stage is **three sections at one difficulty**. The third check leads to the
   emerald.
 * The marathon is sections without end. They come in threes too -- a **zone** -- and after
-  each third check **the palette shifts**: a new sky, new colours on the pipe. *The palettes
-  are not made yet.* The shift points exist already: a `PaletteShift_NN` empty in the
-  `.blend` and a `palette_seed` in the `.json`, one per zone, so the same run shifts the
-  same way every time.
+  each third check **the palette shifts**: a new sky, new colours on the pipe (see Colours,
+  below). Each shift has a `PaletteShift_NN` empty in the `.blend` and a `palette_seed` in
+  the `.json`, so the same run shifts the same way every time.
 
 In the `.blend`: a `Level` collection (the pieces, each tagged with its section, and
 `Level_Path`), then one collection per section -- `Section01` ... -- holding its own spline
 `Section01_Path`, a root empty per module (`S01_M03`, at the module's first frame, with its
 rings and bombs parented to it, so a whole shape moves as one), the check (`Check_01`, or
-`Emerald`), and `RingsToGo_01` where the "rings to go" call comes, 24 frames before it.
+`Emerald`), and the ring check's other markers, below.
+
+## The intro, the ring check, the ending
+
+Three stretches of plain straight track that the deck does not deal; they are laid on
+purpose, and nothing is ever put on them.
+
+**The intro** and **the ending** are each **as long as a ring check** -- the owner's rule --
+and are worked out from `CHECK_LENGTH` in the code, so the three cannot drift apart:
+lengthen the check and they follow. The intro is 8 straights (64 frames, about 320 units)
+laid before anything the deck deals, so a stage never starts on a bend, and nothing is put
+on it. (The original opens on three straight segments and about 80 empty frames.)
+
+**The ring check.** Measured from the original: every one of its checks sits on a run of
+three or four straights, its rings and bombs stop 15-20 frames short, and then there is
+**nothing at all for about 48 frames** (36 to 63). That empty run is not padding -- it is
+where the check *plays*: the logo drops in at the top of the screen, the count is taken,
+and on a pass the camera swings round to Sonic and he gives the thumbs up (`RunThumbsUp`)
+before the next section starts. So every section ends in a **ring check zone**:
+`CHECK_RUN_UP` (2) straights, the check, then `CHECK_PLAYS` (6) straights -- 64 frames, about
+320 units. Lengthen `CHECK_PLAYS` if the real sequence needs longer; it is one number.
+
+The script only keeps the room and marks it. The logo, the camera and the animation are
+the engine's. In the `.blend`, per section:
+
+| Object | What it marks |
+|---|---|
+| `L045_RingCheck02` ... | the zone's pieces, tagged `ring_check` |
+| `Check_02` (or `Emerald`) | where the count is taken |
+| `CheckLogo_02` | above the pipe there: where the logo belongs |
+| `CheckPass_02` | the end of the zone: the pass plays from the check to here |
+| `RingsToGo_02` | the "rings to go" call, 64 frames before the check |
+
+and in the `.json` each section has `ring_check` with its first, check and last frame.
+
+**The ending.** The pipe does not stop at the emerald. The emerald gets a longer approach
+(`EMERALD_RUN_UP`, 3 straights; the original's is 24-39 frames) and the track runs straight
+on past it for a check's length, 8 more, named `L..._Ending`, so a stage ends on track and
+not on a sawn-off pipe. The original's layouts carry about four more segments than their
+object lists for the same reason.
+
+## Colours -- `native/stage_palettes.py`
+
+**Every stage has its own pipe colour**, and they are the original's. `art/palettes/Special
+Stage 1.bin` ... `7.bin` in the disassembly are 32 bytes each: sixteen Mega Drive colours,
+loaded as the fourth palette line over a main palette all seven stages share. Decoded, the
+line has the same plain structure in every stage:
+
+| Slots | What | |
+|---|---|---|
+| 1, 3, 6 | the pipe's own colour: light, mid, dark | differs per stage |
+| 2, 4, 5 | the trim colour (stripes, hoops): light, mid, dark | differs per stage |
+| 7 - F | yellows, greys, white: rings and text | the same in all seven |
+
+so a stage's look is two colours, three shades each:
+
+| Stage | Pipe | Trim | Sky (ours) |
+|---|---|---|---|
+| 1 | cyan `00B6DB` | orange | 0 Classic |
+| 2 | magenta `DB0092` | deep orange | 4 Sunset |
+| 3 | red-orange `DB4900` | orange | 6 Inferno |
+| 4 | cream `DBDBB6` | orange | 2 Dawn |
+| 5 | orange `FF9200` | **green** `00FF49` | 5 Aurora |
+| 6 | green `6DB600` | orange | 3 Pastel |
+| 7 | grey `929292` | lavender `B6B6DB` | 7 Noir |
+
+**What is ours.** The original's pipe is a flat drawing in those six shades; ours is a lit
+3D model with seven materials, so which slot colours which material is a choice -- `ROLES`:
+the pipe takes slot 1, the floor stripes slot 2, the hoop and the arch of spheres slot 4,
+the decks slot 5, the rails the shared yellow, and the paler patch in each stripe is the
+stripe colour lifted toward white. All three shades of both colours are in the `.json`
+(`pipe_shades`, `trim_shades`) in case the engine wants to band the pipe as the original
+does. **The sky is ours entirely** -- the original's is a black starfield in every stage --
+so `SKY` pairs each stage with the one of the project's eight skies (`skies.md`) that sits
+best behind its pipe. It is only *named* in the stage files: the skies are Octave's
+textures, not Blender's. Midnight (1) is left over. Both tables are to be changed by eye.
+
+**How a stage is recoloured.** The five baked piece meshes are shared by every piece in a
+level, so the colour cannot live on the mesh. Each piece's material slots are switched to
+belong to the *object* and pointed at that palette's copy of the material (`HP_Pipe_S2`
+...): one set of copies per palette, however many pieces wear it. That is also how **the
+marathon changes colour zone by zone inside one file**: each zone draws one of the seven
+at random, never the same twice running, and the pieces after a `PaletteShift_NN` wear
+the next. Each section in the `.json` carries its `palette`, and `palettes` holds all seven.
+
+## Variety
+
+The first version dealt a stage only what the original stage of the same number put down,
+and that is very little: **stage 1 has six kinds of shape**, stage 5 has eight and
+twenty-five of its forty-one are the same big triangle, and **29 of the 93 modules could
+never come up at all** -- the single spiral and the snake line among them -- because the
+original never placed them on their own. The owner noticed before any count did. Now:
+
+* **Tier.** Every module has one: the first original stage it appears in, which is the
+  original's own order of teaching shapes. A stage may use every tier up to its own, and a
+  few cards of the *next* tier as a taste of what is coming.
+* **Weight.** The stage's own placements count three times, so it keeps its character;
+  earlier stages' and the next tier's once.
+* **Damping.** A shape the original used *n* times gets about sqrt(*n*) cards, not *n*.
+  Stage 5 is still the big-triangle stage; it is no longer only that.
+* **Library.** Modules the original never placed on their own get a tier by hand
+  (`LIBRARY_TIER`) and are put where the original puts things: the floor, or up either wall.
+
+Stage 1 went from 6 kinds of shape to 19, and the count climbs with the stages to 59 in stage 7. Every run prints the kinds it used, and they are
+in the `.json` as `kinds`.
 
 ## The guarantee
 
@@ -74,20 +177,20 @@ the original seven stages. Nothing in it is a guess:
 wander (its stage 5 is kinder than its stage 2, its quotas climb only 130 to 190, and its
 stage 3 offers 55 rings for a check that asks 60), so these are ours:
 
-| Stage | `QUOTA` (three checks) | `FORGIVENESS` | `RING_RATE` | comes out as |
-|---|---|---|---|---|
-| 1 | 30 / 70 / 130 | x2.2 | 0.34 | 69 pieces, 1,024 frames |
-| 2 | 40 / 90 / 170 | x2.0 | 0.38 | 68 pieces, 1,160 frames |
-| 3 | 50 / 115 / 210 | x1.8 | 0.41 | 79 pieces, 1,488 frames |
-| 4 | 70 / 160 / 290 | x1.6 | 0.45 | 74 pieces, 1,504 frames |
-| 5 | 90 / 210 / 380 | x1.4 | 0.49 | 78 pieces, 1,648 frames |
-| 6 | 110 / 260 / 480 | x1.2 | 0.52 | 91 pieces, 1,952 frames |
-| 7 | 140 / 320 / 600 | x1.05 | 0.56 | 91 pieces, 2,312 frames |
+| Stage | `QUOTA` (three checks) | `FORGIVENESS` | `RING_RATE` | comes out as | kinds of shape |
+|---|---|---|---|---|---|
+| 1 | 30 / 70 / 130 | x2.2 | 0.34 | 105 pieces, 1,368 frames | 19 |
+| 2 | 40 / 90 / 170 | x2.0 | 0.38 | 103 pieces, 1,456 frames | 27 |
+| 3 | 50 / 115 / 210 | x1.8 | 0.41 | 111 pieces, 1,784 frames | 42 |
+| 4 | 70 / 160 / 290 | x1.6 | 0.45 | 106 pieces, 1,760 frames | 41 |
+| 5 | 90 / 210 / 380 | x1.4 | 0.49 | 110 pieces, 1,904 frames | 36 |
+| 6 | 110 / 260 / 480 | x1.2 | 0.52 | 123 pieces, 2,208 frames | 45 |
+| 7 | 140 / 320 / 600 | x1.05 | 0.56 | 123 pieces, 2,568 frames | 59 |
 
 **Length is not set anywhere.** It falls out as quota x forgiveness / ring rate, plus the
 room the bombs take. The quota is steep on purpose: steep enough that length still climbs
 while forgiveness falls. A low stage is roomy because it forgives a lot; a high one is long
-because it asks a lot and spares nothing. (The original stage 1 is 607 frames.) If a curve
+because it asks a lot and spares nothing. (The original stage 1 is 607 frames. About 200 frames of each of ours is intro, ring checks and ending.) If a curve
 is changed, read the printed lengths again: they must still climb.
 
 `QUOTAS = "original"` plays the game's own quotas instead.
@@ -127,8 +230,10 @@ changes character: bomb fields, ring storms, corkscrews, helixes.
 
 * **The engine side**: doing this at runtime in Octave, with only the next few pieces and
   modules alive. The `.json` is the contract.
-* **The palettes** the marathon shifts between: skies (several exist, see `skies.md`) and
-  pipe colours.
+* **The skies at a palette shift** are named per palette but switching them is the
+  engine's: set `sky` on the SkyDome (`skies.md`). Only the seven original palettes exist;
+  a marathon that should never repeat a look will want more, made to the same two-colour,
+  three-shade pattern.
 * **The reachability check**: run the best line through a stage and confirm the rings that
   can actually be *collected* beat the quota. The guarantee above counts rings that exist;
   rings overhead or behind a bomb wall are harder to get than their number says.

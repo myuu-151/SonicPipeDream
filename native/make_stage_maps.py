@@ -52,7 +52,7 @@ def generated(path):
     import json
     data = json.load(open(path, encoding="utf-8"))
     objects = [(int(f), (a + 0x40) % 256, k) for s in data["sections"] for f, a, k in s["objects"]]
-    total = int(data["sections"][-1]["check_frame"]) + 1
+    total = int(data["sections"][-1]["last_frame"]) + 1
     bands = (total + PER_ROW - 1) // PER_ROW
     img = Image.new("RGB", (LEFT + PER_ROW * FX + 20, bands * (BAND + GAP) + 30), BG)
     d = ImageDraw.Draw(img)
@@ -83,6 +83,10 @@ def generated(path):
         d.text((x - FX // 2 + 2, y + BAND + 1), {"Straight": "S", "CornerLeft": "L", "CornerRight": "R",
                                                  "Drop": "D", "Rise": "U"}[name], fill=GRID)
         start += lengths[name] * per_section
+    for s in data["sections"]:                        # the ring check zone: a paler run of track
+        for f in range(int(s["ring_check"]["first_frame"]), int(s["ring_check"]["last_frame"])):
+            x, y = at(f, 0xC0)
+            d.rectangle((x - FX // 2, y + y_of(0x00), x + FX // 2, y + y_of(0x80)), fill=(44, 56, 96))
     for k, s in enumerate(data["sections"]):
         x, y = at(s["check_frame"], 0xC0)
         d.line((x, y, x, y + BAND), fill=(255, 255, 255), width=3)

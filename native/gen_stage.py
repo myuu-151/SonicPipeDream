@@ -16,11 +16,14 @@
        (python native/make_stage_maps.py external/stages/<name>.json draws it flat)
 
 EVERYTHING IS MADE OF SECTIONS. A section is a stretch of track that ends at a CHECK, which
-asks for a number of rings. A gauntlet stage is three sections at one difficulty, and its
+asks for a number of rings, and the check has its own empty run of straights to play out on
+(see THE RING CHECK below). A gauntlet stage is three sections at one difficulty, and its
 third check leads to the emerald. The marathon is sections without end, each a little
 harder than the last; they come in threes too -- a ZONE -- and after each third check the
-PALETTE SHIFTS: a new sky, new colours on the pipe. (The palettes are not made yet. The
-shift points and a seed for each are in the .blend and the .json, waiting for them.)
+PALETTE SHIFTS: a new sky, new colours on the pipe. The pipe colours are the original's
+seven (stage_palettes.py): a gauntlet stage wears its own, a marathon zone draws one at
+random, never the same twice running. The SKY is only named here -- which of the project's
+skies goes with the palette -- since the skies are Octave's textures, not Blender's.
 
 THE GUARANTEE. A section always holds enough rings to pass its own check, from nothing,
 and by a margin: rings on offer >= rings it newly asks for x its forgiveness. The generator
@@ -56,6 +59,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import gen_random_level as grl
 import ring_modules as rm
+import stage_palettes
 from gen_rings_on_pieces import BOMB_BLEND, RING_BLEND, ChainPath, PiecePath, lay
 
 args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
@@ -153,13 +157,40 @@ if SEED is None:
     SEED = random.SystemRandom().randrange(1, 1000000) if MARATHON else GAUNTLET_SEED[STAGE]
 NAME = "Marathon_seed%d" % SEED if MARATHON else "Stage%d_seed%d" % (STAGE, SEED)
 
+# THE RING CHECK is its own stretch of track, as it is in the original: every one of the
+# original's checks sits on a run of three or four straights, with its rings and bombs
+# stopping 15-20 frames short of it and nothing at all for about 48 frames after (measured:
+# 36 to 63). That empty run is not padding. It is where the check PLAYS: the logo drops in
+# at the top of the screen, the count is taken, and on a pass the camera swings round to
+# Sonic and he gives the thumbs up (RunThumbsUp) before the next section starts. So each
+# section ends in a RING CHECK ZONE of straights with nothing on them, and the check itself
+# comes a little way into it. All the script does is keep the room and mark it:
+#     Check_NN / Emerald   where the count is taken
+#     CheckLogo_NN         above the pipe there, where the logo belongs
+#     CheckPass_NN         the end of the zone: the pass plays from Check to here
+# The logo, the camera and the animation are the engine's.
+CHECK_RUN_UP = 2            # straights of the zone before the check: 16 frames, clear
+CHECK_PLAYS = 6             # straights after it: 48 frames, for the logo, camera, thumbs up
+CHECK_LENGTH = CHECK_RUN_UP + CHECK_PLAYS        # 8 straights, 64 frames, about 320 units
+
+# THE INTRO and THE ENDING are each as long as a ring check, by the owner's rule, and are
+# worked out from it so the three can never drift apart. Lengthen the check and they follow.
+#   intro    a stage opens on this many straights with nothing on them, laid before anything
+#            the deck deals, so however the track is dealt it never starts on a bend. (The
+#            original opens on three straight segments and about 80 empty frames.)
+#   ending   the pipe does not stop at the emerald: it runs straight on past it for a check's
+#            length, so the stage ends on track and not on a sawn-off pipe. (The original's
+#            layouts carry four more segments than their object lists.)
+INTRO_STRAIGHTS = CHECK_LENGTH
+EMERALD_RUN_UP = 3          # the original gives the emerald a longer approach (24-39 frames)
+EMERALD_PLAYS = CHECK_LENGTH
+
 # Frames (ring_modules.STEP apart) kept empty, so nothing is sprung on the player:
-LEAD_IN = 16                # at the very start
-BEFORE_CHECK = 12           # the run-up to a check: count, don't dodge
-AFTER_CHECK = 8             # and a breath after it
+LEAD_IN = INTRO_STRAIGHTS * 8           # at the very start: the whole intro (a straight is 8 frames)
 BEFORE_CORNER = 4           # no shape STARTS just before a corner: the original leaves
                             # the run-up to a turn nearly empty, so the turn can be seen
-RINGS_TO_GO = 24            # the "rings to go" call, this many frames before its check
+RINGS_TO_GO = 64            # the "rings to go" call, this many frames before its check
+                            # (the original's comes two to five segments ahead)
 GRID = 4                    # shapes start on a beat, as the original's do (0 or 8)
 
 ON = {"Straight": "straight", "CornerLeft": "corner", "CornerRight": "corner",
@@ -169,6 +200,73 @@ LETTER = {"Straight": "S", "CornerLeft": "L", "CornerRight": "R", "Drop": "D", "
 
 def signed(a):
     return ((a + 128) % 256) - 128
+
+
+# ---------------------------------------------------------------------------- decks --
+# VARIETY. The first version dealt a stage only what the original stage of the same number
+# put down, and that is very little: stage 1 has six kinds of shape, stage 5 has eight and
+# twenty-five of its forty-one are the same big triangle, and 29 of the 93 modules -- the
+# single spiral and the snake line among them -- could never come up at all, because the
+# original never used them on their own. So a stage's deck is now built like this:
+#
+#   TIER     every module has one: the first original stage it appears in. That is the
+#            original's own order of teaching shapes. A stage may use every tier up to its
+#            own, and a few cards of the NEXT tier, as a taste of what is coming.
+#   WEIGHT   the stage's own placements count most, so it keeps its character; earlier
+#            stages' less; the next tier's least.
+#   DAMPING  a shape the original used n times gets about sqrt(n) cards, not n. Stage 5 is
+#            still the big-triangle stage; it is no longer only that.
+#   LIBRARY  modules the original never placed on their own get a tier by hand, below, and
+#            are put where the original puts things: the floor, or up either wall.
+OWN_WEIGHT, EARLIER_WEIGHT, NEXT_WEIGHT, LIBRARY_WEIGHT = 3, 1, 1, 2
+
+LIBRARY_TIER = {
+    "TriangleWeave": 1, "TwinBombsAndCluster": 1, "Row3": 1, "Slant": 1, "LineDotted": 1,
+    "TriangleSnake": 2, "TwinOverhead": 2, "Row4Wide": 2, "Snake": 2, "Across": 2,
+    "Spiral": 3, "SpiralSlow": 3, "LineInCorkscrew": 3, "BombSlant": 3,
+    "Row5": 4, "Row5Wide": 4,
+    "HelixUp": 5, "HelixDown": 5, "HelixBounce": 5, "RowAcross": 5, "SpiralLong": 5, "SnakeLong": 5,
+    "Slalom": 6, "SnakeWide": 6,
+    "BombDotsLong": 7,
+}
+CENTRED = ("Spiral", "SpiralSlow", "SpiralLong", "HelixUp", "HelixDown", "HelixBounce", "RowAcross",
+           "Snake", "SnakeLong", "SnakeWide", "Across", "Slalom", "LineInCorkscrew", "TwinOverhead",
+           "TwinBombsAndCluster", "BombDotsLong")
+WALL_ANGLES = (0, 0, -32, 32, -40, 40, -48, 48)      # where the original puts a small shape
+
+
+def build_cards(rulebook, flavour):
+    """{kind of track: [card, ...]} for a section that takes its flavour from this original
+    stage. A card is a rulebook placement, or one made up for a library module."""
+    first_seen = {}
+    for st in range(1, 8):
+        for pl in rulebook[str(st)]["placements"]:
+            first_seen.setdefault(pl["module"], st)
+
+    cards = {"straight": [], "corner": [], "slope": []}
+    for st in range(1, min(7, flavour + 1) + 1):
+        weight = OWN_WEIGHT if st == flavour else NEXT_WEIGHT if st > flavour else EARLIER_WEIGHT
+        groups = {}
+        for pl in rulebook[str(st)]["placements"]:
+            if st > flavour and first_seen[pl["module"]] != st:
+                continue                              # of the next stage, only what is NEW in it
+            groups.setdefault((pl["module"], pl["on"]), []).append(pl)
+        for (module, on), same in sorted(groups.items()):
+            keep = int(math.ceil(math.sqrt(len(same)))) * weight
+            for i in range(keep):
+                cards[on].append(same[i % len(same)])
+
+    for module, tier in sorted(LIBRARY_TIER.items()):
+        if tier > flavour + 1:
+            continue
+        m = rm.MODULES[module]
+        first = min(m, key=lambda o: (o[0], o[1] % 256))
+        for on in cards:
+            for i in range(LIBRARY_WEIGHT if tier <= flavour else 1):
+                at = 0 if module in CENTRED else WALL_ANGLES[(i * 3 + tier + len(module)) % len(WALL_ANGLES)]
+                cards[on].append(dict(module=module, mirrored=False, run=None, on=on,
+                                      first_at=signed(first[1] + at), objects=len(m)))
+    return cards
 
 
 # ------------------------------------------------------------------------- modules --
@@ -218,7 +316,6 @@ def plan_section(rules, rng, need_frames, paths, extra):
     n = rules["pieces"] + extra
     while True:
         names = grl.plan(dict(rules, pieces=n), rng)
-        names += ["Straight"]                        # a check is taken on the flat
         if sum(frames_of(p, paths) for p in names) >= need_frames:
             return names
         n += 2
@@ -241,7 +338,7 @@ def steer(names, rng):
 
 
 # ------------------------------------------------------------------------- objects --
-def fill(window, pieces_at, book, rate, rng, decks):
+def fill(window, pieces_at, book, rate, rng, decks, pool):
     """Lay modules along one section. Returns [(objects, first frame, angle put at)].
 
     Walks the section beat by beat. On each beat it looks at what is under the player --
@@ -249,10 +346,7 @@ def fill(window, pieces_at, book, rate, rng, decks):
     the section's ring rate; the module itself is dealt from what the original put on
     that kind of track in the stage this section takes its flavour from."""
     f0, f1 = window
-    pool = {}
-    for p in book["placements"]:
-        pool.setdefault(p["on"], []).append(p)
-    everything = book["placements"]
+    everything = [c for on in sorted(pool) for c in pool[on]]
 
     # DEALT, NOT ROLLED, for the reason the track is: a stage 1 straight has three bomb
     # shapes in seventeen, and rolled independently one stage in ten came out with no bombs
@@ -304,7 +398,8 @@ def fill(window, pieces_at, book, rate, rng, decks):
         # this a bomb shape, costing no ring allowance, is dealt again and again: stage 6
         # came out with 1,175 bombs against the original's 304. One wall is sixteen.
         for _ in range(12):
-            m, at = module_of(deal(on), rng)
+            card = deal(on)
+            m, at = module_of(card, rng)
             new_bombs = sum(k == rm.BOMB for _, _, k in m)
             if not new_bombs or bombs + new_bombs <= 8 + bombs_per_ring * sum(put.values()):
                 break
@@ -317,6 +412,7 @@ def fill(window, pieces_at, book, rate, rng, decks):
             continue
         bombs += new_bombs
         laid.append((m, f, at))
+        USED[card["module"]] = USED.get(card["module"], 0) + 1
         put[on] = put.get(on, 0) + sum(k == rm.RING for _, _, k in m)
         step = length + rng.choice((2, 4, 4, 6))
         seen[on] = seen.get(on, 0) + step - GRID
@@ -324,10 +420,10 @@ def fill(window, pieces_at, book, rate, rng, decks):
     return laid
 
 
-def top_up(laid, window, book, target, rng):
+def top_up(laid, window, pool, target, rng):
     """Short of the target? Put ring-only shapes into the longest empty stretches."""
     f0, f1 = window
-    ring_only = [p for p in book["placements"] if p["module"] != "Ring" and p["objects"] >= 4]
+    ring_only = [p for on in sorted(pool) for p in pool[on] if p["module"] != "Ring" and p["objects"] >= 4]
     ring_only = [p for p in ring_only if all(k == rm.RING for _, _, k in module_of(p, random.Random(0))[0])]
     for _ in range(200):
         if rings_in(laid) >= target or not ring_only:
@@ -363,6 +459,9 @@ def trim(laid, target, rng):
         laid.remove(rng.choice(loose))
 
 
+USED = {}                   # module -> times laid, for the report; reset each try
+
+
 def rings_in(laid):
     return sum(k == rm.RING for m, _, _ in laid for _, _, k in m)
 
@@ -372,6 +471,40 @@ def bombs_in(laid):
 
 
 # ------------------------------------------------------------------------- building --
+def srgb_to_linear(c):
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def recolour(pieces_in_order, palette_of_piece):
+    """Give every piece the colours of the palette it belongs to.
+
+    Every stage has its own pipe colour, from the original (stage_palettes.py). The five
+    baked meshes are shared by every piece in the level, so the colour cannot live on the
+    mesh: each piece's material slots are switched to belong to the OBJECT, and pointed at
+    that palette's copy of the material. One set of copies per palette, however many pieces
+    use it -- which is also how a marathon changes colour zone by zone in one file."""
+    made = {}
+    for ob, stage in zip(pieces_in_order, palette_of_piece):
+        colours = stage_palettes.palette(stage)["materials"]
+        for slot in ob.material_slots:
+            base = slot.material
+            if base is None or base.name.split(".")[0] not in colours:
+                continue
+            name = base.name.split(".")[0]
+            key = (stage, name)
+            if key not in made:
+                mat = base.copy()
+                mat.name = "%s_S%d" % (name, stage)
+                lin = tuple(srgb_to_linear(c) for c in colours[name]) + (1.0,)
+                mat.diffuse_color = lin
+                bsdf = mat.node_tree.nodes.get("Principled BSDF") if mat.node_tree else None
+                if bsdf is not None:
+                    bsdf.inputs["Base Color"].default_value = lin
+                made[key] = mat
+            slot.link = 'OBJECT'
+            slot.material = made[key]
+
+
 def octahedron(name, size, colour):
     bm = bmesh.new()
     v = [bm.verts.new(p) for p in ((size, 0, 0), (-size, 0, 0), (0, size, 0), (0, -size, 0),
@@ -418,15 +551,19 @@ def main():
         d["per_frame"] = d["ring_rate"] * (1.0 - 0.5 * bomb_share)     # bombs take room too
     pieces = grl.load_pieces()
     paths = piece_paths()
+    pools = {}
 
     extra = [0] * count
     for attempt in range(60):
         rng = random.Random("%s/%d" % (NAME, attempt))
-        names, cuts = [], []
+        names, cuts, zones = ["Straight"] * INTRO_STRAIGHTS, [], []
         for k, d in enumerate(plan):
-            clear = (LEAD_IN if k == 0 else AFTER_CHECK) + BEFORE_CHECK
-            need = d["target"] / d["per_frame"] * 1.05 + clear
+            need = d["target"] / d["per_frame"] * 1.05 + (LEAD_IN if k == 0 else 0)
             names += plan_section(d["rules"], rng, need, paths, extra[k])
+            emerald = d["leads_to"] == "EMERALD"
+            run_up, plays = (EMERALD_RUN_UP, EMERALD_PLAYS) if emerald else (CHECK_RUN_UP, CHECK_PLAYS)
+            zones.append((len(names), len(names) + run_up))      # first piece of the zone, piece of the check
+            names += ["Straight"] * (run_up + plays)             # THE RING CHECK ZONE
             cuts.append(len(names))
         names = steer(names, rng)
         laid_names, origins, laid_pts, swaps = grl.generate(pieces, plan[0]["rules"], rng, plan_names=names)
@@ -441,14 +578,17 @@ def main():
             f += frames_of(n, paths)
         ends = [pieces_at[c - 1][1] for c in cuts]
         starts = [0.0] + ends[:-1]
+        zone_first = [pieces_at[z][0] for z, _ in zones]
+        check_at = [pieces_at[c][0] for _, c in zones]
 
         sections, short, decks = [], None, {}
+        USED.clear()
         for k, d in enumerate(plan):
-            window = (int(math.ceil(starts[k])) + (LEAD_IN if k == 0 else AFTER_CHECK),
-                      int(ends[k]) - BEFORE_CHECK)
+            window = (int(math.ceil(starts[k])) + (LEAD_IN if k == 0 else 0), int(zone_first[k]))
             book = book_of(d["flavour"])
-            laid = fill(window, pieces_at, book, d["ring_rate"], rng, decks)
-            laid = trim(top_up(laid, window, book, d["target"], rng), d["target"], rng)
+            pool = pools.setdefault(d["flavour"], build_cards(rulebook, d["flavour"]))
+            laid = fill(window, pieces_at, book, d["ring_rate"], rng, decks, pool)
+            laid = trim(top_up(laid, window, pool, d["target"], rng), d["target"], rng)
             sections.append(laid)
             if rings_in(laid) < d["target"] and short is None:
                 short = k
@@ -475,12 +615,34 @@ def main():
         meshes[kind] = dst.meshes[0]
     gem = octahedron("Emerald", 2.2, (0.10, 0.85, 0.95, 1.0))
 
+    # ---- colours: a gauntlet stage wears its own; a marathon changes at each palette shift
+    zone_palette = []
+    for z in range((count + SECTIONS_PER_ZONE - 1) // SECTIONS_PER_ZONE):
+        if not MARATHON:
+            zone_palette.append(STAGE)
+        else:
+            zone_palette.append(rng.choice([p for p in range(1, 8) if not zone_palette or p != zone_palette[-1]]))
+
     level = bpy.data.collections["Level"]
-    for i, ob in enumerate(o for o in level.objects if o.type == 'MESH'):
-        ob["section"] = 1 + sum(i >= c for c in cuts[:-1])
+    level_pieces = sorted((o for o in level.objects if o.type == 'MESH'),
+                          key=lambda o: int(o.name[1:].split("_")[0]))     # in track order
+    section_of_piece = [sum(i >= c for c in cuts[:-1]) for i in range(len(level_pieces))]
+    recolour(level_pieces, [zone_palette[k // SECTIONS_PER_ZONE] for k in section_of_piece])
+
+    for i, ob in enumerate(level_pieces):
+        k = sum(i >= c for c in cuts[:-1])
+        ob["section"] = k + 1
+        if i < INTRO_STRAIGHTS:
+            ob["intro"] = True
+            ob.name = "L%03d_Intro" % i
+        elif i >= zones[k][0]:
+            ob["ring_check"] = k + 1
+            ending = plan[k]["leads_to"] == "EMERALD" and i > zones[k][1]
+            ob.name = ("L%03d_Ending" % i) if ending else "L%03d_RingCheck%02d" % (i, k + 1)
 
     data = dict(name=NAME, mode="marathon" if MARATHON else "gauntlet", stage=STAGE, seed=SEED,
-                step=rm.STEP, pieces=laid_names, sections=[])
+                step=rm.STEP, pieces=laid_names, sections=[],
+                palettes={str(st): stage_palettes.palette(st) for st in range(1, 8)})
     if MARATHON:
         # What the engine needs to carry the run on past the last section built here.
         data["marathon_rules"] = dict(
@@ -514,7 +676,7 @@ def main():
 
         emerald = d["leads_to"] == "EMERALD"
         check = bpy.data.objects.new("Emerald" if emerald else "Check_%02d" % (k + 1), gem if emerald else None)
-        check.matrix_basis = chain.frame(ends[k] * rm.STEP) @ Matrix.Translation((0, 0, rm.PIPE_RADIUS * 0.6))
+        check.matrix_basis = chain.frame(check_at[k] * rm.STEP) @ Matrix.Translation((0, 0, rm.PIPE_RADIUS * 0.6))
         if not emerald:
             check.empty_display_type, check.empty_display_size = 'CIRCLE', rm.PIPE_RADIUS
             check.rotation_euler.rotate_axis('Y', math.pi / 2)
@@ -522,8 +684,17 @@ def main():
         coll.objects.link(check)
         call = bpy.data.objects.new("RingsToGo_%02d" % (k + 1), None)
         call.empty_display_type, call.empty_display_size = 'PLAIN_AXES', 4.0
-        call.matrix_basis = chain.frame((ends[k] - RINGS_TO_GO) * rm.STEP)
+        call.matrix_basis = chain.frame((check_at[k] - RINGS_TO_GO) * rm.STEP)
         coll.objects.link(call)
+        logo = bpy.data.objects.new("CheckLogo_%02d" % (k + 1), None)
+        logo.empty_display_type, logo.empty_display_size = 'CUBE', 3.0
+        logo.matrix_basis = chain.frame(check_at[k] * rm.STEP) @ Matrix.Translation((0, 0, rm.PIPE_RADIUS * 2.4))
+        coll.objects.link(logo)
+        done = bpy.data.objects.new("CheckPass_%02d" % (k + 1), None)
+        done.empty_display_type, done.empty_display_size = 'SINGLE_ARROW', 6.0
+        done.matrix_basis = chain.frame(ends[k] * rm.STEP)
+        done["plays"] = "logo at the top; count; on a pass the camera turns to Sonic, RunThumbsUp"
+        coll.objects.link(done)
 
         palette_seed = None
         if d["leads_to"] == "PALETTE SHIFT":
@@ -532,16 +703,20 @@ def main():
             palette_seed = rng.randrange(1, 1000000)
             shift = bpy.data.objects.new("PaletteShift_%02d" % ((k + 1) // SECTIONS_PER_ZONE), None)
             shift.empty_display_type, shift.empty_display_size = 'SPHERE', rm.PIPE_RADIUS * 1.5
-            shift.matrix_basis = chain.frame(ends[k] * rm.STEP)
+            shift.matrix_basis = chain.frame(ends[k] * rm.STEP)       # as the pass finishes
             shift["palette_seed"] = palette_seed
             coll.objects.link(shift)
 
         rings, bombs = rings_in(sections[k]), bombs_in(sections[k])
         data["sections"].append(dict(
-            first_frame=starts[k], check_frame=ends[k], pieces=cuts[k] - (cuts[k - 1] if k else 0),
+            first_frame=starts[k], check_frame=check_at[k], last_frame=ends[k],
+            ring_check=dict(first_frame=zone_first[k], check_frame=check_at[k], last_frame=ends[k],
+                            run_up_frames=check_at[k] - zone_first[k], plays_frames=ends[k] - check_at[k]),
+            pieces=cuts[k] - (cuts[k - 1] if k else 0),
             difficulty=d["difficulty"], flavour=d["flavour"], forgiveness=d["forgiveness"],
             ring_rate=d["ring_rate"], quota=asked_so_far, asks=d["asks"], rings=rings, bombs=bombs,
             margin=round(rings / float(d["asks"]), 2), leads_to=d["leads_to"],
+            palette=zone_palette[k // SECTIONS_PER_ZONE],
             palette_seed=palette_seed, objects=sorted(objects)))
     scene["quota"] = [s["quota"] for s in data["sections"]]
 
@@ -550,11 +725,17 @@ def main():
     for k, s in enumerate(data["sections"]):
         a, b = (cuts[k - 1] if k else 0), cuts[k]
         print("  section %2d  difficulty %4.1f  %2d pieces %4.0f frames  %s"
-              % (k + 1, s["difficulty"], b - a, s["check_frame"] - s["first_frame"],
+              % (k + 1, s["difficulty"], b - a, s["last_frame"] - s["first_frame"],
                  " ".join(LETTER[n] for n in laid_names[a:b])))
         print("              check: %4d rings%s | newly asks %3d | on offer %3d rings (x%.2f, promised x%.2f), %3d bombs"
               % (s["quota"], "" if s["leads_to"] in ("on",) or s["leads_to"].startswith("section") else " -> " + s["leads_to"],
                  s["asks"], s["rings"], s["margin"], s["forgiveness"], s["bombs"]))
+    print("  colours: " + ", ".join("%s%s (sky %s)" % (
+        "zone %d " % (z + 1) if MARATHON else "", stage_palettes.NAMES[pal], stage_palettes.SKY[pal][1])
+        for z, pal in enumerate(zone_palette)))
+    print("  %d kinds of shape: %s" % (len(USED), ", ".join(
+        "%s x%d" % kv for kv in sorted(USED.items(), key=lambda kv: -kv[1]))))
+    data["kinds"] = dict(USED)
     print("  padded %s pieces beyond the deck to keep the promise; %d tries" % (extra, attempt + 1))
     for line in swaps:
         print("  swapped to avoid the level running into itself -- " + line)
