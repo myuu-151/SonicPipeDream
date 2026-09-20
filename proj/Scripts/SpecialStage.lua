@@ -293,7 +293,14 @@ function SpecialStage:Acquire(o)
     node:SetStaticMesh(o.bomb and self.meshBomb or self.meshRing)
     local place, fwd, inward = self:Place(o.frame, o.angle, self.data.hover)
     node:SetWorldPosition(ToVec(place))
-    node:SetWorldRotationQuat(FacingQuat(fwd, inward))
+    if (o.bomb) then
+        node:SetWorldRotationQuat(FacingQuat(fwd, inward))      -- a bomb stands square to the pipe under it
+    else
+        -- A ring's gold is a reflection PAINTED onto it, sky side up, so it keeps the track's
+        -- own up wherever it is round the pipe. (A ring looks the same rolled; the paint does not.)
+        local _, _, up = self:TrackAt(o.frame)
+        node:SetWorldRotationQuat(FacingQuat(fwd, up))
+    end
     node:SetVisible(true)
     o.node = node
 end

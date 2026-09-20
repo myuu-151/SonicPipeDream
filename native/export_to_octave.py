@@ -26,7 +26,7 @@ vertex colour, and the game adds a sun:
                    plain glossy highlight, as the spheres have in Blender. NO FRESNEL -- a rim
                    was tried and the owner did not want it: just glossy.
     M_StageGlow    the rainbow arch: gloss, and lit from within
-    M_StageGold    the rings: metal -- a broad, strong highlight that comes out gold
+    (the rings)    take no light either: their gold is PAINTED on, a reflection and all. See gold().
 A mesh has one material, so each track piece is two meshes set down at the same place:
 SM_Piece_<Name>_P<N> (matte) and SM_Piece_<Name>_Gloss_P<N>.
 
@@ -152,9 +152,11 @@ def linear_to_srgb(c):
     return 12.92 * c if c <= 0.0031308 else 1.055 * (c ** (1.0 / 2.4)) - 0.055
 
 
-def write_mesh(name, index, mesh, colour_of_slot, material="M_StageGloss", keep_slot=None):
+def write_mesh(name, index, mesh, colour_of_slot, material="M_StageGloss", keep_slot=None, paint=None):
     """One StaticMesh with vertex colours. colour_of_slot(slot index) -> (r, g, b) sRGB.
-    keep_slot(slot index) -> bool picks which faces go in: how a piece is split in two."""
+    keep_slot(slot index) -> bool picks which faces go in: how a piece is split in two.
+    paint(normal) -> (r, g, b), when given, colours each vertex by which way it faces and
+    nothing else: a whole look painted on, for a material that takes no light."""
     mesh.calc_loop_triangles()
     corner_normals = [Vector(n.vector) for n in mesh.corner_normals] if hasattr(mesh, "corner_normals") else None
     verts, index_of, idx = [], {}, []
@@ -170,6 +172,8 @@ def write_mesh(name, index, mesh, colour_of_slot, material="M_StageGloss", keep_
             if material in UNLIT:       # no engine light reaches it, so it carries its own
                 shade = BAKE_AMBIENT + (BAKE_BRIGHT - BAKE_AMBIENT) * max(0.0, n.dot(BAKE_LIGHT))
             rgb = tuple(max(0, min(255, int(round(255 * c * shade)))) for c in base)
+            if paint is not None:
+                rgb = tuple(max(0, min(255, int(round(255 * c)))) for c in paint(n))
             key = (round(p.x, 4), round(p.y, 4), round(p.z, 4), round(n.x, 3), round(n.y, 3), round(n.z, 3), rgb)
             if key not in index_of:
                 index_of[key] = len(verts)
@@ -197,6 +201,63 @@ def write_mesh(name, index, mesh, colour_of_slot, material="M_StageGloss", keep_
     open(os.path.join(ASSETS, name + ".oct"), "wb").write(d)
     print("  %-30s %-13s %6d verts %6d tris %7.1f KB" % (name, material, len(verts), len(idx) // 3, len(d) / 1024.0))
     return True
+
+
+# --- gold ---------------------------------------------------------------------------------
+# WHY THE RINGS ARE PAINTED, NOT LIT. The engine's simple material has one highlight and
+# nothing else, and one highlight is plastic. Metal reads as metal because it REFLECTS: a
+# bright sky above, a dark line at the horizon, warm light coming back up off the ground, and
+# a hard hotspot. That banding is the whole effect. It cannot be got from the material, but it
+# does not need to be: a ring is only ever seen from one side -- from up the track, looking
+# down it -- so the reflection can be painted straight onto the ring, each vertex coloured by
+# which way it faces, as a matcap does in Blender. The material takes no light at all.
+# (So the game must not roll a ring to the pipe under it, or the painted sky rolls with it: it
+# keeps the track's own up. A ring looks the same rolled or not; its reflection does not.)
+# GOLD_DEEP is the darkest the gold ever gets, and it is still gold: at (0.30, 0.16, 0.01) the
+# horizon line and the underside went nearly brown-black and the rings read as dark.
+GOLD_DEEP, GOLD, GOLD_PALE, GOLD_HOT = (0.66, 0.40, 0.03), (1.0, 0.70, 0.07), (1.0, 0.92, 0.46), (1.0, 1.0, 0.88)
+GOLD_HOTSPOT = Vector((-0.45, 0.32, 0.83)).normalized()     # Blender's axes; -X is toward the player
+
+
+def mix(a, b, t):
+    t = max(0.0, min(1.0, t))
+    return tuple(x + (y - x) * t for x, y in zip(a, b))
+
+
+def smooth(e0, e1, x):
+    t = max(0.0, min(1.0, (x - e0) / (e1 - e0)))
+    return t * t * (3.0 - 2.0 * t)
+
+
+def gold(n):
+    """The colour of gold facing n: sky, horizon, ground and hotspot, by height of the normal."""
+    up = n.z
+    if up >= 0.0:
+        c = mix(GOLD_DEEP, GOLD, smooth(0.01, 0.14, up))        # the horizon line, thin, then gold
+        c = mix(c, GOLD_PALE, smooth(0.45, 0.95, up))           # brightening toward the sky
+    else:
+        c = mix(GOLD_DEEP, GOLD, smooth(0.03, 0.40, -up) * 0.92)    # light off the ground: warm, nearly as bright
+        c = mix(c, GOLD_DEEP, smooth(0.75, 1.0, -up) * 0.30)        # and a little darker right underneath
+    c = mix(c, GOLD_HOT, max(0.0, n.dot(GOLD_HOTSPOT)) ** 26)       # the hard hotspot
+    return mix(c, GOLD_PALE, 0.35 * (1.0 - abs(n.x)) ** 3)          # a pale edge where it turns away
+
+
+def torus(bm, around=36, across=16, radius=1.0, tube=0.24):
+    """The ring again (gen_ring.py's size), with a finer tube: the bands need the vertices."""
+    grid = []
+    for i in range(around):
+        a = 2.0 * math.pi * i / around
+        loop = []
+        for j in range(across):
+            t = 2.0 * math.pi * j / across
+            r = radius + tube * math.cos(t)
+            loop.append(bm.verts.new((tube * math.sin(t), r * math.cos(a), r * math.sin(a))))
+        grid.append(loop)
+    for i in range(around):
+        for j in range(across):
+            bm.faces.new((grid[i][j], grid[i][(j + 1) % across], grid[(i + 1) % around][(j + 1) % across],
+                          grid[(i + 1) % around][j]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
 
 
 def simple(name, build):
@@ -263,7 +324,7 @@ def main():
         return dst.meshes[0]
 
     ring, bomb = load(RING_BLEND, "Ring"), load(BOMB_BLEND, "Bomb")
-    write_mesh("SM_Ring", 200, ring, lambda k: (1.0, 0.72, 0.10), material="M_StageGold")
+    write_mesh("SM_Ring", 200, simple("GoldRing", torus), lambda k: GOLD, material="M_StageMatte", paint=gold)
     from gen_stage import RAINBOW
     for i, c in enumerate(RAINBOW):
         write_mesh("SM_RingRainbow_%d" % i, 210 + i, ring, lambda k, c=c: c, material="M_StageGlow")
