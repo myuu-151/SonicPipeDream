@@ -48,7 +48,17 @@ local START_HOLD = 2.0          -- seconds standing at the start while START pla
 local SONIC_FPS = 42.0          -- his animations were made at 24 frames a second, but at the speed
                                 -- he covers the track that reads as a jog: played faster, by eye
 local SONIC_FRAMES = 16         -- in a run cycle
-local THUMBS_TIME = 2.6         -- seconds of thumbs-up running after a check is passed
+local THUMBS_TIME = 2.8         -- seconds of thumbs-up running after a check is passed. The ring
+                                -- check leaves 44 empty frames past the arch: 2.9 s at this speed.
+local ORBIT_TIME = 0.75         -- of that, seconds the camera takes to swing round to his front, and back
+local ORBIT_RADIUS = 6.5        -- how far from him it orbits. It has to stay INSIDE the pipe: at 11 the
+                                -- camera was through the wall (which is about 8 out at that height) and
+                                -- saw only pipe. With ORBIT_LIFT this keeps it 8.9 from the axis, of 10.
+local ORBIT_LIFT = 1.5          -- and how far above his chest, toward the pipe's axis
+local ORBIT_DEGREES = 135.0     -- how far round him the camera goes, on his LEFT (the way he turns his
+                                -- head in RunThumbsUp). 135 is a three-quarter view: ahead of him and to
+                                -- the side, so his FACE shows. Tried first: 180, dead ahead (not wanted),
+                                -- and 90, beside him (a side profile, no face).
 local BALL_RADIUS = 1.7
 
 -- ------------------------------------------------------------------ small vector maths
@@ -269,6 +279,10 @@ function SpecialStage:Restart()
     self.height = 0.0               -- off the pipe's surface
     self.rise = 0.0
     self.rings = 0
+    -- For testing the checks without playing to them: set S2_TEST_RINGS in the environment.
+    if (os ~= nil and os.getenv ~= nil and os.getenv("S2_TEST_RINGS") ~= nil) then
+        self.rings = tonumber(os.getenv("S2_TEST_RINGS")) or 0
+    end
     self.section = 1
     self.stun = 0.0
     self.hold = START_HOLD
@@ -452,12 +466,45 @@ function SpecialStage:Tick(deltaTime)
     -- the camera rides the centre line behind him: it follows the TRACK, not the player,
     -- so steering moves Sonic round the screen as it does in the original
     local back = self:TrackAt(self.frame - 3.2)
-    local _, _, upHere = self:TrackAt(self.frame)
+    local herePos, fwdHere, upHere = self:TrackAt(self.frame)
     local ahead = self:TrackAt(self.frame + 6.0)
     local eye = Add(back, Scale(upHere, 7.6))
-    local look = Normalize(Add(Add(ahead, Scale(upHere, 4.2)), Scale(eye, -1.0)))
+    local target = Add(ahead, Scale(upHere, 4.2))
+
+    -- THE PASS. When a check is passed the camera ORBITS round to Sonic's side, so he is seen
+    -- running past with his thumb up; holds there; and swings back behind him before the next
+    -- section's shapes arrive. `swing` is how far round it is: 0 behind, 1 all the way.
+    -- It is blended with the ordinary camera rather than cut to, so it leaves from exactly
+    -- where the camera was and comes back to exactly where it will be.
+    local swing = 0.0
+    if (self.thumbs > 0.0) then
+        local t = THUMBS_TIME - self.thumbs
+        if (t < ORBIT_TIME) then
+            swing = t / ORBIT_TIME
+        elseif (self.thumbs < ORBIT_TIME) then
+            swing = self.thumbs / ORBIT_TIME
+        else
+            swing = 1.0
+        end
+        swing = swing * swing * (3.0 - 2.0 * swing)             -- ease in and out
+    end
+    if (swing > 0.0) then
+        -- In SONIC'S OWN frame, not the track's: his left, and his up (toward the pipe's axis).
+        -- So wherever he is round the pipe the camera is beside him and inside it, and he is
+        -- upright on the screen.
+        local chest = Add(place, Scale(inward, 2.4))
+        local left = Cross(inward, fwdHere)
+        local phi = swing * math.rad(ORBIT_DEGREES)
+        local orbit = Add(chest, Add(Scale(fwdHere, -math.cos(phi) * ORBIT_RADIUS),
+                                     Add(Scale(left, math.sin(phi) * ORBIT_RADIUS), Scale(inward, ORBIT_LIFT))))
+        eye = Add(Scale(eye, 1.0 - swing), Scale(orbit, swing))
+        local aim = Add(chest, Scale(inward, 1.6))              -- a little over his chest: he sits low, the emblem above him
+        target = Add(Scale(target, 1.0 - swing), Scale(aim, swing))
+    end
+    local look = Normalize(Add(target, Scale(eye, -1.0)))
+    local camUp = Normalize(Add(Scale(upHere, 1.0 - swing), Scale(inward, swing)))
     self.camera:SetWorldPosition(ToVec(eye))
-    self.camera:SetWorldRotationQuat(CameraQuat(look, upHere))
+    self.camera:SetWorldRotationQuat(CameraQuat(look, camUp))
 
     -- the rainbow arches: each ring steps through the colours, one on from its neighbour
     self.clock = (self.clock or 0.0) + dt

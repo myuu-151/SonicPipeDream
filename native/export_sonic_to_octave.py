@@ -149,11 +149,18 @@ def write_frame(name, index, mesh, world, cell_of_slot, fix):
     inset = 0.5 / SHEET
     for tri in mesh.loop_triangles:
         cx, cy = cell_of_slot.get(tri.material_index, (0, 0))
-        for corner, loop in zip(tri.vertices, tri.loops):
+        # A face whose UVs lie outside 0-1 is moved back as a WHOLE, by whole numbers, so its
+        # three corners stay the same distance apart. Wrapping each corner on its own (u % 1)
+        # was the first version, and it turns an exact 1.0 into 0.0: his shoes are mapped 0 to 1
+        # edge to edge, so every shoe face collapsed onto one column of its texture, which is
+        # red, and the white strap and the buckle were gone.
+        tri_uv = [tuple(uv[loop].uv) if uv else (0.0, 0.0) for loop in tri.loops]
+        shift_u = math.floor(min(t[0] for t in tri_uv) + 1e-6)
+        shift_v = math.floor(min(t[1] for t in tri_uv) + 1e-6)
+        for (corner, loop), (u, v) in zip(zip(tri.vertices, tri.loops), tri_uv):
             p = fix @ (world @ mesh.vertices[corner].co)
             n = (rot @ (normals[loop] if tri.use_smooth else Vector(tri.normal))).normalized()
-            u, v = (uv[loop].uv if uv else (0.0, 0.0))
-            u, v = u % 1.0, v % 1.0
+            u, v = u - shift_u, v - shift_v
             su = (cx + min(max(u, 0.0), 1.0)) * CELL / SHEET
             sv = (cy + (1.0 - min(max(v, 0.0), 1.0))) * CELL / SHEET         # the sheet's top row is first
             su = min(max(su, cx * CELL / SHEET + inset), (cx + 1) * CELL / SHEET - inset)
@@ -203,8 +210,9 @@ def main():
         shown = body.evaluated_get(dg)
         return shown.to_mesh(), shown.matrix_world.copy(), shown
 
-    # Which way he faces, and how big he is, from him standing: the eyes are in FRONT of the
-    # middle of his head, and his height is his height.
+    # Which way he faces, and how big he is, from him standing. Sonic_06 and Sonic_07 are his
+    # SHOES (not, as first assumed, his eyes -- which is how the shoe bug went unseen): his
+    # toes are in front of the middle of him, where his quills are behind it.
     mesh, world, shown = pose("Idle", 1)
     pts = [world @ v.co for v in mesh.vertices]
     lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
