@@ -264,10 +264,40 @@ HOLD = CYCLE
 XFADE = CYCLE
 
 
-def diamond(draw, cx, cy, hw, hh, colour):
+# BEVEL. A diamond is a flat face with four sloping facets round it, lit from the upper left:
+# the two facets that face the light are lighter than the face, the two that face away are
+# darker, and the pair on the left are a step lighter than the pair on the right. It is what
+# makes a diamond read as a cut stone standing off the sky rather than a patch of colour.
+BEVEL = 0.30                    # the facets' width, as a share of the diamond's half-size
+BEVEL_MIN = 4.0                 # below this half-size, in pixels, there is no room for facets
+FACETS = (                      # (which two corners, lift toward white (+) or fall toward black (-))
+    ((0, 3), +0.42),            # top-left: faces the light
+    ((0, 1), +0.20),            # top-right
+    ((3, 2), -0.20),            # bottom-left
+    ((1, 2), -0.40),            # bottom-right: faces away
+)
+
+
+def shade(colour, k):
+    rgb, rest = colour[:3], tuple(colour[3:])
+    if k >= 0:
+        return tuple(int(round(c + (255 - c) * k)) for c in rgb) + rest
+    return tuple(int(round(c * (1.0 + k))) for c in rgb) + rest
+
+
+def diamond(draw, cx, cy, hw, hh, colour, flat=False):
+    """flat=True is for the drop shadows, which are flat however the diamond is cut."""
     if hw < 0.6 or hh < 0.6:
         return
-    draw.polygon([(cx, cy - hh), (cx + hw, cy), (cx, cy + hh), (cx - hw, cy)], fill=colour)
+    outer = [(cx, cy - hh), (cx + hw, cy), (cx, cy + hh), (cx - hw, cy)]     # top, right, bottom, left
+    if flat or min(hw, hh) < BEVEL_MIN:
+        draw.polygon(outer, fill=colour)
+        return
+    k = 1.0 - BEVEL
+    inner = [(cx, cy - hh * k), (cx + hw * k, cy), (cx, cy + hh * k), (cx - hw * k, cy)]
+    for (a, b), lift in FACETS:
+        draw.polygon([outer[a], outer[b], inner[b], inner[a]], fill=shade(colour, lift))
+    draw.polygon(inner, fill=colour)
 
 
 def paint(shapes, bg):
@@ -280,7 +310,7 @@ def paint(shapes, bg):
         ox = rep * TILE_W
         for oy in (-TILE_H, 0, TILE_H):
             for cx, cy, hw, hh, _ in shapes:
-                diamond(draw, ox + cx + 3, oy + cy + 3, hw, hh, SHADOW)
+                diamond(draw, ox + cx + 3, oy + cy + 3, hw, hh, SHADOW, flat=True)
     for rep in range(-1, REPEATS + 1):
         ox = rep * TILE_W
         for oy in (-TILE_H, 0, TILE_H):
@@ -299,7 +329,7 @@ def paint_rgba(shapes):
     wraps = [(ox, oy) for ox in (-TILE_W, 0, TILE_W) for oy in (-TILE_H, 0, TILE_H)]
     for cx, cy, hw, hh, _ in shapes:
         for ox, oy in wraps:
-            diamond(draw, ox + cx + 3, oy + cy + 3, hw, hh, SHADOW + (255,))
+            diamond(draw, ox + cx + 3, oy + cy + 3, hw, hh, SHADOW + (255,), flat=True)
     for cx, cy, hw, hh, level in shapes:
         colour = ramp(drifted(level, cx, cy)) + (255,)
         for ox, oy in wraps:
