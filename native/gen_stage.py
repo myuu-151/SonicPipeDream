@@ -185,6 +185,22 @@ INTRO_STRAIGHTS = CHECK_LENGTH
 EMERALD_RUN_UP = 3          # the original gives the emerald a longer approach (24-39 frames)
 EMERALD_PLAYS = CHECK_LENGTH
 
+# THE HOLD. After a marathon zone's third check the camera zooms in on Sonic, thumbs up,
+# running on plain straight pipe -- and he KEEPS running on it, the same straight laid under
+# him again and again, for as long as the next zone takes to build. Then the zoom lets go
+# and the run resumes. So building a zone never has a deadline, and the wait reads as a
+# victory lap, not a loading screen. It works because of three things this script keeps true:
+#   * a zone ENDS on the ring check's long empty straights and BEGINS on straights, so the
+#     held straight is the same track as both its neighbours and there is no join to see;
+#   * a zone ends HEADING THE WAY IT BEGAN (even_corners), so the track just carries on;
+#   * a zone is built FROM NOTHING BUT (the run's seed, the zone's number) -- build_part()
+#     takes no random stream, no decks and no position from the zone before. The engine can
+#     throw the old zone away, move everything back to the origin (a run is tens of
+#     thousands of units long; this is where to shed them) and build the next from its key.
+# The zoom also hides the palette shift. The preview .blend sets the zones down end to end
+# only so they can be looked at together; in the game there is never more than one.
+ZONE_LEAD_IN = 16           # frames before a later zone's first shape: the run has resumed
+
 # Frames (ring_modules.STEP apart) kept empty, so nothing is sprung on the player:
 LEAD_IN = INTRO_STRAIGHTS * 8           # at the very start: the whole intro (a straight is 8 frames)
 BEFORE_CORNER = 4           # no shape STARTS just before a corner: the original leaves
@@ -319,6 +335,18 @@ def plan_section(rules, rng, need_frames, paths, extra):
         if sum(frames_of(p, paths) for p in names) >= need_frames:
             return names
         n += 2
+
+
+def even_corners(names):
+    """A marathon zone ends heading the way it began. steer() only ever lets the track go a
+    quarter turn out and then back, so that is simply an even number of corners: an odd one
+    out is dealt as a straight instead. It is what lets the hold's straight pipe, and then
+    the next zone, carry straight on from wherever this one stopped."""
+    corners = [i for i, n in enumerate(names) if n.startswith("Corner")]
+    if len(corners) % 2:
+        names = list(names)
+        names[corners[-1]] = "Straight"
+    return names
 
 
 def steer(names, rng):
@@ -553,52 +581,102 @@ def main():
     paths = piece_paths()
     pools = {}
 
-    extra = [0] * count
-    for attempt in range(60):
-        rng = random.Random("%s/%d" % (NAME, attempt))
-        names, cuts, zones = ["Straight"] * INTRO_STRAIGHTS, [], []
-        for k, d in enumerate(plan):
-            need = d["target"] / d["per_frame"] * 1.05 + (LEAD_IN if k == 0 else 0)
-            names += plan_section(d["rules"], rng, need, paths, extra[k])
-            emerald = d["leads_to"] == "EMERALD"
-            run_up, plays = (EMERALD_RUN_UP, EMERALD_PLAYS) if emerald else (CHECK_RUN_UP, CHECK_PLAYS)
-            zones.append((len(names), len(names) + run_up))      # first piece of the zone, piece of the check
-            names += ["Straight"] * (run_up + plays)             # THE RING CHECK ZONE
-            cuts.append(len(names))
-        names = steer(names, rng)
-        laid_names, origins, laid_pts, swaps = grl.generate(pieces, plan[0]["rules"], rng, plan_names=names)
-        if len(laid_names) < len(names):
-            print("  try %d: boxed itself in, dealing again" % (attempt + 1))
-            continue
+    def build_part(part, key, first):
+        """Build some sections as ONE piece of track, at the origin, from nothing but `key`.
+        Returns everything about it in its own frames and its own space. Nothing is carried
+        in from outside: not the random stream, not the decks, not where the last part ended.
+        That is what lets the engine build a marathon zone on the fly -- see THE HOLD."""
+        extra = [0] * len(part)
+        lead = LEAD_IN if first else ZONE_LEAD_IN
+        for attempt in range(60):
+            rng = random.Random("%s/%d" % (key, attempt))
+            names, cuts, zones = ["Straight"] * (INTRO_STRAIGHTS if first else 0), [], []
+            for k, d in enumerate(part):
+                need = d["target"] / d["per_frame"] * 1.05 + (lead if k == 0 else 0)
+                names += plan_section(d["rules"], rng, need, paths, extra[k])
+                emerald = d["leads_to"] == "EMERALD"
+                run_up, plays = (EMERALD_RUN_UP, EMERALD_PLAYS) if emerald else (CHECK_RUN_UP, CHECK_PLAYS)
+                zones.append((len(names), len(names) + run_up))  # first piece of the zone, piece of the check
+                names += ["Straight"] * (run_up + plays)         # THE RING CHECK ZONE
+                cuts.append(len(names))
+            if MARATHON:
+                names = even_corners(names)
+            names = steer(names, rng)
+            laid_names, origins, laid_pts, swaps = grl.generate(pieces, part[0]["rules"], rng, plan_names=names)
+            if len(laid_names) < len(names):
+                print("  %s try %d: boxed itself in, dealing again" % (key, attempt + 1))
+                continue
 
-        # where each piece sits, in frames from the start
-        pieces_at, f = [], 0.0
-        for n in laid_names:
-            pieces_at.append((f, f + frames_of(n, paths), n))
-            f += frames_of(n, paths)
-        ends = [pieces_at[c - 1][1] for c in cuts]
-        starts = [0.0] + ends[:-1]
-        zone_first = [pieces_at[z][0] for z, _ in zones]
-        check_at = [pieces_at[c][0] for _, c in zones]
+            # where each piece sits, in frames from the start of this part
+            pieces_at, f = [], 0.0
+            for n in laid_names:
+                pieces_at.append((f, f + frames_of(n, paths), n))
+                f += frames_of(n, paths)
+            ends = [pieces_at[c - 1][1] for c in cuts]
+            starts = [0.0] + ends[:-1]
+            zone_first = [pieces_at[z][0] for z, _ in zones]
+            check_at = [pieces_at[c][0] for _, c in zones]
 
-        sections, short, decks = [], None, {}
-        USED.clear()
-        for k, d in enumerate(plan):
-            window = (int(math.ceil(starts[k])) + (LEAD_IN if k == 0 else 0), int(zone_first[k]))
-            book = book_of(d["flavour"])
-            pool = pools.setdefault(d["flavour"], build_cards(rulebook, d["flavour"]))
-            laid = fill(window, pieces_at, book, d["ring_rate"], rng, decks, pool)
-            laid = trim(top_up(laid, window, pool, d["target"], rng), d["target"], rng)
-            sections.append(laid)
-            if rings_in(laid) < d["target"] and short is None:
-                short = k
-        if short is None:
-            break
-        print("  try %d: section %d offers %d rings of the %d promised; padding it"
-              % (attempt + 1, short + 1, rings_in(sections[short]), plan[short]["target"]))
-        extra[short] += 2                             # pad that section, and deal again
+            sections, short, decks = [], None, {}
+            USED.clear()
+            for k, d in enumerate(part):
+                window = (int(math.ceil(starts[k])) + (lead if k == 0 else 0), int(zone_first[k]))
+                book = book_of(d["flavour"])
+                pool = pools.setdefault(d["flavour"], build_cards(rulebook, d["flavour"]))
+                laid = fill(window, pieces_at, book, d["ring_rate"], rng, decks, pool)
+                laid = trim(top_up(laid, window, pool, d["target"], rng), d["target"], rng)
+                sections.append(laid)
+                if rings_in(laid) < d["target"] and short is None:
+                    short = k
+            if short is None:
+                break
+            print("  %s try %d: section %d offers %d rings of the %d promised; padding it"
+                  % (key, attempt + 1, short + 1, rings_in(sections[short]), part[short]["target"]))
+            extra[short] += 2                         # pad that section, and deal again
+        else:
+            raise SystemExit("could not build %s to its guarantee in 60 tries" % key)
+        return dict(names=laid_names, origins=origins, pts=laid_pts, swaps=swaps, cuts=cuts, zones=zones,
+                    starts=starts, ends=ends, zone_first=zone_first, check_at=check_at,
+                    sections=sections, used=dict(USED), extra=extra, tries=attempt + 1, key=key)
+
+    # A gauntlet stage is one part. A marathon is a part per zone, each built on its own and
+    # then set down where the last one ended -- in the game the last one is gone by then.
+    if MARATHON:
+        parts = [build_part(plan[z * SECTIONS_PER_ZONE:(z + 1) * SECTIONS_PER_ZONE],
+                            "%d/zone%d" % (SEED, z), first=(z == 0)) for z in range(ZONES)]
     else:
-        raise SystemExit("could not build %s to its guarantee in 60 tries" % NAME)
+        parts = [build_part(plan, NAME, first=True)]
+
+    laid_names, origins, laid_pts, swaps, cuts, zones = [], [], [], [], [], []
+    starts, ends, zone_first, check_at, sections, extra = [], [], [], [], [], []
+    used_all, tries, zone_info = {}, 0, []
+    here, frame0 = Matrix.Identity(4), 0.0
+    for z, part in enumerate(parts):
+        n0 = len(laid_names)
+        zone_info.append(dict(index=z, key=part["key"], first_piece=n0, pieces=len(part["names"]),
+                              first_frame=frame0, last_frame=frame0 + part["ends"][-1]))
+        laid_names += part["names"]
+        origins += [here @ o for o in part["origins"]]
+        laid_pts += [[here @ pt for pt in world] for world in part["pts"]]
+        swaps += part["swaps"]
+        cuts += [n0 + c for c in part["cuts"]]
+        zones += [(n0 + a, n0 + c) for a, c in part["zones"]]
+        starts += [frame0 + v for v in part["starts"]]
+        ends += [frame0 + v for v in part["ends"]]
+        zone_first += [frame0 + v for v in part["zone_first"]]
+        check_at += [frame0 + v for v in part["check_at"]]
+        sections += [[(m, first + int(round(frame0)), at) for m, first, at in laid] for laid in part["sections"]]
+        extra += part["extra"]
+        tries += part["tries"]
+        for k, v in part["used"].items():
+            used_all[k] = used_all.get(k, 0) + v
+        local = ChainPath([paths[n] for n in part["names"]], part["origins"])
+        here = here @ local.frame(local.length)
+        frame0 += part["ends"][-1]
+    USED.clear()
+    USED.update(used_all)
+    attempt = tries - 1
+    rng = random.Random(NAME + "/shifts")
 
     # ---- the guarantee, checked rather than assumed --------------------------------
     for k, d in enumerate(plan):
@@ -621,7 +699,10 @@ def main():
         if not MARATHON:
             zone_palette.append(STAGE)
         else:
-            zone_palette.append(rng.choice([p for p in range(1, 8) if not zone_palette or p != zone_palette[-1]]))
+            pick = random.Random("%d/zone%d/palette" % (SEED, z)).randrange(1, 8)
+            if zone_palette and pick == zone_palette[-1]:
+                pick = pick % 7 + 1                   # never the same look twice running
+            zone_palette.append(pick)
 
     level = bpy.data.collections["Level"]
     level_pieces = sorted((o for o in level.objects if o.type == 'MESH'),
@@ -705,6 +786,7 @@ def main():
             shift.empty_display_type, shift.empty_display_size = 'SPHERE', rm.PIPE_RADIUS * 1.5
             shift.matrix_basis = chain.frame(ends[k] * rm.STEP)       # as the pass finishes
             shift["palette_seed"] = palette_seed
+            shift["hold"] = "zoom on Sonic, RunThumbsUp, on looping straight pipe until the next zone is built"
             coll.objects.link(shift)
 
         rings, bombs = rings_in(sections[k]), bombs_in(sections[k])
@@ -717,8 +799,16 @@ def main():
             ring_rate=d["ring_rate"], quota=asked_so_far, asks=d["asks"], rings=rings, bombs=bombs,
             margin=round(rings / float(d["asks"]), 2), leads_to=d["leads_to"],
             palette=zone_palette[k // SECTIONS_PER_ZONE],
-            palette_seed=palette_seed, objects=sorted(objects)))
+            palette_seed=palette_seed,
+            hold=(dict(piece="Straight", animation="RunThumbsUp", camera="zoom to Sonic",
+                       until="the next zone is built", then="palette shift; resume")
+                  if d["leads_to"] == "PALETTE SHIFT" else None),
+            objects=sorted(objects)))
     scene["quota"] = [s["quota"] for s in data["sections"]]
+    if MARATHON:
+        for z, info in enumerate(zone_info):
+            info["palette"] = zone_palette[z]
+        data["zones"] = zone_info
 
     # ---- say what was made ---------------------------------------------------------
     print("\n%s: %d pieces, %.0f frames, %.0f units" % (NAME, len(laid_names), ends[-1], ends[-1] * rm.STEP))

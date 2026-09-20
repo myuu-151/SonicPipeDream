@@ -83,6 +83,41 @@ on past it for a check's length, 8 more, named `L..._Ending`, so a stage ends on
 not on a sawn-off pipe. The original's layouts carry about four more segments than their
 object lists for the same reason.
 
+## The hold: how the marathon builds its next zone
+
+After a marathon zone's third check the camera **zooms in on Sonic, thumbs up, running on
+plain straight pipe -- and he keeps running on it**, the same straight laid under him again
+and again, for as long as the next zone takes to build. Then the zoom lets go, the palette
+has shifted, and the run resumes. So building a zone never has a deadline -- a GameCube can
+take as long as it needs -- and the wait reads as a victory lap, not a loading screen. (The
+original hides its own sleight of hand the same way: it only flips the track on frames
+where the pipe is drawn head-on.)
+
+It works because of three things `gen_stage.py` keeps true:
+
+* **A zone ends on straights and begins on straights.** It ends on the ring check's long
+  empty run and opens on the deck's own straights, so the held straight is the same track
+  as both its neighbours and there is no join to see, going in or coming out.
+* **A zone ends heading the way it began.** `steer()` only ever lets the track go a quarter
+  turn out and then back, so this is simply an even number of corners; `even_corners()`
+  deals an odd one out as a straight.
+* **A zone is built from nothing but its key** -- `"<run seed>/zone<number>"`. `build_part()`
+  takes no random stream, no decks and no position from the zone before, and the palette
+  comes from the same key. **Checked:** zone 1 built alone is piece for piece and object
+  for object the zone 1 of a three-zone run.
+
+So at the hold the engine can throw the finished zone away, **move everything back to the
+origin** (a run is tens of thousands of units long -- the three-zone preview is 25,000 --
+and this is where to shed them before positions start to jitter), and build the next zone
+from its key. A zone can never run into the one before it, because by then there is no one
+before it. The preview `.blend` sets the zones down end to end only so they can be looked
+at together; in the game there is never more than one.
+
+In the `.json`: `zones` lists each zone's key, pieces, frames and palette; a section whose
+check `leads_to` `"PALETTE SHIFT"` carries `hold` (piece, animation, camera, until, then);
+and `marathon_rules` has every constant needed to design section N. In the `.blend` the
+`PaletteShift_NN` empty sits where the hold happens.
+
 ## Colours -- `native/stage_palettes.py`
 
 **Every stage has its own pipe colour**, and they are the original's. `art/palettes/Special
@@ -229,7 +264,9 @@ changes character: bomb fields, ring storms, corkscrews, helixes.
 ## Not done yet
 
 * **The engine side**: doing this at runtime in Octave, with only the next few pieces and
-  modules alive. The `.json` is the contract.
+  modules alive -- a port of `build_part()` and what it calls (`plan`, `steer`, `fill`,
+  `top_up`, `trim`), fed by the rulebook, the modules and the palettes as data. The `.json`
+  is the contract, and "same key, same zone" is the test the port has to pass.
 * **The skies at a palette shift** are named per palette but switching them is the
   engine's: set `sky` on the SkyDome (`skies.md`). Only the seven original palettes exist;
   a marathon that should never repeat a look will want more, made to the same two-colour,
