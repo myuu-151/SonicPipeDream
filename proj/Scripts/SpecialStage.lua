@@ -158,13 +158,28 @@ function SpecialStage:Build()
     for i = 0, self.data.arch.rings - 1 do self.meshRainbow[i] = LoadAsset("SM_RingRainbow_" .. i) end
 
     -- the track: every piece, once. (The engine culls what is out of sight.)
+    -- A piece is two meshes at the same place: the matte pipe, and the glossy spheres and rails.
     local loaded = {}
     for _, piece in ipairs(self.data.pieces) do
-        if (loaded[piece.mesh] == nil) then loaded[piece.mesh] = LoadAsset(piece.mesh) end
-        local node = SpawnMesh(world, loaded[piece.mesh])
-        node:SetWorldPosition(Vec(piece.pos[1], piece.pos[2], piece.pos[3]))
-        node:SetWorldRotationQuat(Vec(piece.quat[1], piece.quat[2], piece.quat[3], piece.quat[4]))
+        for _, name in ipairs({ piece.mesh, piece.gloss }) do
+            if (loaded[name] == nil) then loaded[name] = LoadAsset(name) end
+            local node = SpawnMesh(world, loaded[name])
+            node:SetWorldPosition(Vec(piece.pos[1], piece.pos[2], piece.pos[3]))
+            node:SetWorldRotationQuat(Vec(piece.quat[1], piece.quat[2], piece.quat[3], piece.quat[4]))
+        end
     end
+
+    -- The light, for the glossy things only (the pipe is unlit and carries its own shading).
+    -- The light. The meshes carry their colours but not their shading: a sun from above and a
+    -- little ahead, so the spheres catch a highlight. It is GENTLE on purpose -- ambient and sun
+    -- add up to about 1, so the pipe keeps the colour it was given instead of burning out to
+    -- white, which the first, brighter setting did.
+    local sun = world:SpawnNode("DirectionalLight3D")
+    sun:SetName("StageSun")
+    sun:SetDirection(Vec(0.35, -1.0, -0.25))
+    sun:SetColor(Vec(1.0, 0.98, 0.94, 1.0))
+    sun:SetIntensity(0.45)
+    world:SetAmbientLightColor(Vec(0.62, 0.62, 0.66, 1.0))
 
     -- every ring and bomb in one list, in the order they are met
     self.objects = {}

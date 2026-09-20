@@ -12,10 +12,23 @@ engine assets (the same way gen_s2sky_assets.py writes the sky, no import step):
                       SM_PlayerBall.oct, SM_Emerald.oct
     proj/Scripts/StageData<N>.lua                the stage itself, as a Lua table
 
-EVERY COLOUR IS IN THE VERTICES. One unlit material that shows vertex colour; each mesh has
-its colours, and a little shading from a fixed light, baked into its vertices. So the scene
-needs no lights, a GameCube could draw it, and a stage's palette is just which set of piece
-meshes it uses. (The ring's gold and the bomb's glow are placeholders in the same spirit.)
+EVERY COLOUR IS IN THE VERTICES, and a stage's palette is just which set of piece meshes it
+uses. What the vertices do NOT carry is the light: the first version baked a little shading
+in and drew everything unlit, and it looked flat -- the spheres did not shine as they do in
+Blender, because nothing was there to shine. So there are three LIT materials, all showing
+vertex colour, and the game adds a sun:
+    M_StageMatte   the pipe, its decks, stripes, hoops and rails: UNLIT. Lit, it burned out
+                   -- cyan to pure cyan, the brown decks to yellow -- whatever the sun was set
+                   to, so the pipe does not take the engine's light at all: a little soft
+                   shading from a fixed light is baked into its vertex colours instead, which
+                   cannot burn out and looks the same in every scene.
+    M_StageGloss   the arch of spheres, and the rings, bombs, Sonic's ball and the emerald: a
+                   plain glossy highlight, as the spheres have in Blender. NO FRESNEL -- a rim
+                   was tried and the owner did not want it: just glossy.
+    M_StageGlow    the rainbow arch: gloss, and lit from within
+    M_StageGold    the rings: metal -- a broad, strong highlight that comes out gold
+A mesh has one material, so each track piece is two meshes set down at the same place:
+SM_Piece_<Name>_P<N> (matte) and SM_Piece_<Name>_Gloss_P<N>.
 
 Blender is Z up, Octave is Y up: a point (x, y, z) goes to (x, z, -y), a rotation, so
 nothing is mirrored and no face needs turning. A quaternion's axis goes the same way.
@@ -57,7 +70,29 @@ STAGES = os.path.abspath(os.path.join(HERE, "..", "external", "stages"))
 MAGIC, VERSION = 0x4F435421, 13
 TYPE_STATICMESH, TYPE_MATERIALLITE = 0xD41D0D1D, 0xA3ED4C6F
 UUID_BASE = 0x51C0FFEE00003000          # clear of the sky's and the UI's
-UUID_MAT = UUID_BASE
+# name: (uuid, specular, shininess, fresnel, emission, wrap lighting)
+UNLIT = ("M_StageMatte",)
+# The baked light comes from STRAIGHT ABOVE, and that is not a matter of taste. The shading is
+# baked into each piece in the piece's own space, and the pieces are then turned every which
+# way to make a level. Light from one side was tried: a corner's far end faces a different way
+# from its start, so its shading did not match the next piece's and every joint showed as a
+# hard curved edge across the pipe. "Up" is the one direction every piece agrees on however it
+# is turned, so light from above meets itself at every joint. It also suits the shape: the
+# floor is bright and the walls darken toward the rims, so the pipe reads as a bowl.
+BAKE_LIGHT = Vector((0.0, 0.0, 1.0))
+BAKE_AMBIENT = 0.64         # the darkest a face gets: a wall at the rim, facing sideways. (0.50 was
+                            # asked to be a bit lighter.)
+MATERIALS = {
+    "M_StageMatte": (UUID_BASE + 0x800, 0.00, 8.0, False, 0.0, 0.60),
+    "M_StageGloss": (UUID_BASE + 0x801, 0.85, 48.0, False, 0.0, 0.30),
+    "M_StageGlow":  (UUID_BASE + 0x802, 0.60, 40.0, False, 0.70, 0.30),
+    # Gold, as a metal: the engine multiplies a highlight by the surface's own colour, so a
+    # gold ring's highlight IS gold -- which is what metal does, and plastic does not. Metal is
+    # little diffuse and a lot of highlight, broad rather than pin-sharp (Blender's roughness
+    # about 0.3), with a touch of emission so a ring in shadow is still a ring.
+    "M_StageGold":  (UUID_BASE + 0x803, 2.60, 20.0, False, 0.18, 0.10),
+}
+GLOSSY_SLOTS = ("HP_Sphere",)               # of the half-pipe's seven materials, only the arch of spheres
 
 
 def u8(v): return struct.pack("<B", v)
@@ -84,32 +119,29 @@ def null_ref():
     return u8(1) + u64(0) + s("")
 
 
-def write_material():
-    d = header(TYPE_MATERIALLITE, UUID_MAT, "M_StageVertex")
-    d += u32(0)                     # numParameters
-    d += u32(0)                     # Unlit
-    d += u32(0)                     # Opaque
-    d += u32(1)                     # VertexColorMode::Modulate
-    d += u32(0)                     # numTextures
-    for _ in range(4):
-        d += null_ref() + u8(0) + u8(1)
-    for _ in range(2):
-        d += f32(0) + f32(0) + f32(1) + f32(1)
-    d += f32(1) + f32(1) + f32(1) + f32(1)      # colour
-    d += f32(1) + f32(0) + f32(0) + f32(0)      # fresnel colour
-    d += f32(1.0) + f32(0.0) + f32(0.0) + f32(0.0)   # fresnelPower, emission, wrapLighting, specular
-    d += u32(2) + f32(1.0) + f32(0.5) + f32(32.0)    # toonSteps, opacity, maskCutoff, shininess
-    d += i32(0)                     # sortPriority
-    d += u8(0) + u8(0) + u8(1)      # disableDepthTest, fresnelEnabled, applyFog
-    d += u8(0)                      # CullMode::None: the pipe is seen from inside and out
-    open(os.path.join(ASSETS, "M_StageVertex.oct"), "wb").write(d)
+def write_materials():
+    for name, (uuid, specular, shininess, fresnel, emission, wrap) in MATERIALS.items():
+        d = header(TYPE_MATERIALLITE, uuid, name)
+        d += u32(0)                     # numParameters
+        d += u32(0 if name in UNLIT else 1)     # ShadingModel: Unlit, or Lit
+        d += u32(0)                     # Opaque
+        d += u32(1)                     # VertexColorMode::Modulate
+        d += u32(0)                     # numTextures
+        for _ in range(4):
+            d += null_ref() + u8(0) + u8(1)
+        for _ in range(2):
+            d += f32(0) + f32(0) + f32(1) + f32(1)
+        d += f32(1) + f32(1) + f32(1) + f32(1)          # colour
+        d += f32(0.85) + f32(0.92) + f32(1.0) + f32(1)  # fresnel colour: a cool rim, like sky on glass
+        d += f32(2.6) + f32(emission) + f32(wrap) + f32(specular)
+        d += u32(2) + f32(1.0) + f32(0.5) + f32(shininess)   # toonSteps, opacity, maskCutoff, shininess
+        d += i32(0)                     # sortPriority
+        d += u8(0) + u8(1 if fresnel else 0) + u8(1)    # disableDepthTest, fresnelEnabled, applyFog
+        d += u8(0)                      # CullMode::None: the pipe is seen from inside and out
+        open(os.path.join(ASSETS, name + ".oct"), "wb").write(d)
 
 
 # --- meshes ---------------------------------------------------------------------------
-LIGHT = Vector((0.35, 0.25, 1.0)).normalized()      # in Blender's axes: mostly from above
-AMBIENT = 0.62
-
-
 def to_octave(v):
     return (v[0], v[2], -v[1])
 
@@ -118,20 +150,24 @@ def linear_to_srgb(c):
     return 12.92 * c if c <= 0.0031308 else 1.055 * (c ** (1.0 / 2.4)) - 0.055
 
 
-def write_mesh(name, index, mesh, colour_of_slot, shine=0.0, scale=1.0):
-    """One StaticMesh with vertex colours. colour_of_slot(slot index) -> (r, g, b) sRGB."""
+def write_mesh(name, index, mesh, colour_of_slot, material="M_StageGloss", keep_slot=None):
+    """One StaticMesh with vertex colours. colour_of_slot(slot index) -> (r, g, b) sRGB.
+    keep_slot(slot index) -> bool picks which faces go in: how a piece is split in two."""
     mesh.calc_loop_triangles()
     corner_normals = [Vector(n.vector) for n in mesh.corner_normals] if hasattr(mesh, "corner_normals") else None
     verts, index_of, idx = [], {}, []
     lo, hi = Vector((1e9,) * 3), Vector((-1e9,) * 3)
     for tri in mesh.loop_triangles:
+        if keep_slot is not None and not keep_slot(tri.material_index):
+            continue
         base = colour_of_slot(tri.material_index)
         for corner, loop in zip(tri.vertices, tri.loops):
-            p = mesh.vertices[corner].co * scale
+            p = mesh.vertices[corner].co
             n = corner_normals[loop] if (corner_normals and tri.use_smooth) else Vector(tri.normal)
-            shade = AMBIENT + (1.0 - AMBIENT) * max(0.0, n.dot(LIGHT))
-            glint = shine * max(0.0, n.dot(LIGHT)) ** 12
-            rgb = tuple(max(0, min(255, int(round(255 * min(1.0, c * shade + glint))))) for c in base)
+            shade = 1.0
+            if material in UNLIT:       # no engine light reaches it, so it carries its own
+                shade = BAKE_AMBIENT + (1.0 - BAKE_AMBIENT) * max(0.0, n.dot(BAKE_LIGHT))
+            rgb = tuple(max(0, min(255, int(round(255 * c * shade)))) for c in base)
             key = (round(p.x, 4), round(p.y, 4), round(p.z, 4), round(n.x, 3), round(n.y, 3), round(n.z, 3), rgb)
             if key not in index_of:
                 index_of[key] = len(verts)
@@ -139,12 +175,14 @@ def write_mesh(name, index, mesh, colour_of_slot, shine=0.0, scale=1.0):
                 for k in range(3):
                     lo[k], hi[k] = min(lo[k], to_octave(p)[k]), max(hi[k], to_octave(p)[k])
             idx.append(index_of[key])
+    if not verts:
+        return False
 
     centre = (lo + hi) * 0.5
     radius = max((Vector(v[0]) - centre).length for v in verts)
     d = header(TYPE_STATICMESH, UUID_BASE + 1 + index, name)
     d += u32(len(verts)) + u32(len(idx)) + u32(1)
-    d += asset_ref(UUID_MAT, "M_StageVertex")
+    d += asset_ref(MATERIALS[material][0], material)
     d += u8(0) + u8(1)                                  # no triangle collision; HAS vertex colour
     for p, n, rgb in verts:
         d += f32(p[0]) + f32(p[1]) + f32(p[2]) + f32(0) + f32(0) + f32(0) + f32(0)
@@ -155,7 +193,8 @@ def write_mesh(name, index, mesh, colour_of_slot, shine=0.0, scale=1.0):
     d += u8(0) + u32(0)                                 # no collision shapes
     d += f32(centre.x) + f32(centre.y) + f32(centre.z) + f32(radius)
     open(os.path.join(ASSETS, name + ".oct"), "wb").write(d)
-    print("  %-26s %6d verts %6d tris %7.1f KB" % (name, len(verts), len(idx) // 3, len(d) / 1024.0))
+    print("  %-30s %-13s %6d verts %6d tris %7.1f KB" % (name, material, len(verts), len(idx) // 3, len(d) / 1024.0))
+    return True
 
 
 def simple(name, build):
@@ -202,12 +241,19 @@ def main():
     palette = stage_palettes.palette(STAGE)
 
     print("\nmeshes -> %s" % ASSETS)
-    write_material()
+    write_materials()
+    for stale in ("M_StageVertex.oct",):
+        if os.path.exists(os.path.join(ASSETS, stale)):
+            os.remove(os.path.join(ASSETS, stale))
     pieces = grl.load_pieces()
     for i, (piece, p) in enumerate(pieces.items()):
         slots = [m.name.split(".")[0] if m else "" for m in p["mesh"].materials]
         colours = [palette["materials"].get(n, (1.0, 0.0, 1.0)) for n in slots]
-        write_mesh("SM_Piece_%s_P%d" % (piece, STAGE), 16 * STAGE + i, p["mesh"], lambda k, c=colours: c[k])
+        glossy = [n in GLOSSY_SLOTS for n in slots]
+        write_mesh("SM_Piece_%s_P%d" % (piece, STAGE), 16 * STAGE + i, p["mesh"], lambda k, c=colours: c[k],
+                   material="M_StageMatte", keep_slot=lambda k, g=glossy: not g[k])
+        write_mesh("SM_Piece_%s_Gloss_P%d" % (piece, STAGE), 16 * STAGE + 8 + i, p["mesh"], lambda k, c=colours: c[k],
+                   material="M_StageGloss", keep_slot=lambda k, g=glossy: g[k])
 
     def load(blend, mesh):
         with bpy.data.libraries.load(blend) as (src, dst):
@@ -215,15 +261,15 @@ def main():
         return dst.meshes[0]
 
     ring, bomb = load(RING_BLEND, "Ring"), load(BOMB_BLEND, "Bomb")
-    write_mesh("SM_Ring", 200, ring, lambda k: (1.0, 0.78, 0.08), shine=0.55)
+    write_mesh("SM_Ring", 200, ring, lambda k: (1.0, 0.72, 0.10), material="M_StageGold")
     from gen_stage import RAINBOW
     for i, c in enumerate(RAINBOW):
-        write_mesh("SM_RingRainbow_%d" % i, 210 + i, ring, lambda k, c=c: c, shine=0.4)
+        write_mesh("SM_RingRainbow_%d" % i, 210 + i, ring, lambda k, c=c: c, material="M_StageGlow")
     bomb_colours = [tuple(linear_to_srgb(x) for x in m.diffuse_color[:3]) for m in bomb.materials]
-    write_mesh("SM_Bomb", 220, bomb, lambda k: bomb_colours[k], shine=0.25)
+    write_mesh("SM_Bomb", 220, bomb, lambda k: bomb_colours[k])
     write_mesh("SM_PlayerBall", 221, simple("Ball", lambda bm: bmesh.ops.create_icosphere(bm, subdivisions=3, radius=1.7)),
-               lambda k: (0.12, 0.30, 0.95), shine=0.5)
-    write_mesh("SM_Emerald", 222, simple("Emerald", octahedron), lambda k: (0.10, 0.85, 0.95), shine=0.6)
+               lambda k: (0.12, 0.30, 0.95))
+    write_mesh("SM_Emerald", 222, simple("Emerald", octahedron), lambda k: (0.10, 0.85, 0.95))
 
     # The track: where each piece goes, and the centre line frame by frame.
     paths = piece_paths()
@@ -231,7 +277,8 @@ def main():
     piece_list = []
     for piece, (start, origin, path) in zip(data["pieces"], chain.parts):
         q = origin.to_quaternion()
-        piece_list.append(dict(mesh="SM_Piece_%s_P%d" % (piece, STAGE), pos=list(to_octave(origin.translation)),
+        piece_list.append(dict(mesh="SM_Piece_%s_P%d" % (piece, STAGE),
+                               gloss="SM_Piece_%s_Gloss_P%d" % (piece, STAGE), pos=list(to_octave(origin.translation)),
                                quat=[q.x, q.z, -q.y, q.w], first_frame=start / rm.STEP))
     frames = int(math.floor(chain.length / rm.STEP)) + 1
     path_list = []

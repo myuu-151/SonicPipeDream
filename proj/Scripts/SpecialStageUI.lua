@@ -174,6 +174,15 @@ end
 
 function SpecialStageUI:Layout()
     local width, height = self:WindowSize()
+
+    -- A Canvas is 100 x 100 in the corner unless told otherwise, and it CLIPS its children to
+    -- that: the first version laid everything out correctly and showed none of it, because
+    -- all of it was outside that little square. Fill the window.
+    if (self.SetDimensions ~= nil) then
+        self:SetAnchorMode(AnchorMode.TopLeft)
+        self:SetPosition(0.0, 0.0)
+        self:SetDimensions(width, height)
+    end
     self.layoutHeight = height
     self.k = height / SCREEN_H
     self.left = (width - SCREEN_W * self.k) * 0.5
