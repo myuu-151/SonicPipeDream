@@ -13,7 +13,7 @@ THE PIECES ARE MODULAR, so three authored shapes give five:
     Corner right             as authored
     Corner left              the same piece mirrored
     Drop                     as authored
-    Rise                     the drop piece travelled backwards
+    Rise                     the drop's curve turned upside down, with the pipe bent along it
 
 and an S-bend is nothing more than a left corner followed by a right one.
 
@@ -112,6 +112,41 @@ def variant(mesh, name, matrix, flip):
     return me
 
 
+def make_rise(drop):
+    """The rise as a piece of its own: the drop's curve turned upside down, and the same pipe,
+    rails and arches bent along it.
+
+    It used to be the baked drop turned round and travelled backwards, which is the same
+    SHAPE -- and wrong in everything that has a direction. The floor's arrows pointed at the
+    player instead of away, and each section's rail was at its near end instead of its far
+    one. No turning or mirroring of that mesh can fix it: the markings are part of it, and
+    they point down the drop. So the rise is built the way every piece is built, forwards.
+
+    Made here, in memory; the pack file is read, never written."""
+    curve = drop.data.copy()
+    curve.name = "TP_Rise"
+    for spline in curve.splines:
+        for bp in spline.bezier_points:
+            for attr in ("co", "handle_left", "handle_right"):
+                v = getattr(bp, attr)
+                v.z = -v.z
+    rise = drop.copy()
+    rise.data = curve
+    rise.name = "TP_Rise"
+    bpy.context.scene.collection.objects.link(rise)
+    for child in drop.children:
+        model = child.copy()                          # the same mesh, its own modifiers
+        model.name = child.name.replace("LongDrop", "Rise")
+        bpy.context.scene.collection.objects.link(model)
+        model.parent = rise
+        model.matrix_parent_inverse = child.matrix_parent_inverse.copy()
+        for mod in model.modifiers:
+            if mod.type == 'CURVE' and mod.object == drop:
+                mod.object = rise
+    bpy.context.view_layer.update()
+    return rise
+
+
 def load_pieces():
     raw = {}
     for ob in bpy.data.objects:
@@ -134,11 +169,10 @@ def load_pieces():
     ob, pts, yaw = raw["TP_LongDrop"]
     drop = bake(ob, "PM_Drop")
     pieces["Drop"] = dict(mesh=drop, pts=pts, yaw=yaw)
-    # The rise is the drop travelled backwards: put its far end at the origin and
-    # turn it to face the other way. A rotation, so no faces need turning.
-    back = Matrix.Rotation(math.pi, 4, 'Z') @ Matrix.Translation(-pts[-1])
-    pieces["Rise"] = dict(mesh=variant(drop, "PM_Rise", back, False),
-                          pts=[back @ p for p in reversed(pts)], yaw=-yaw)
+    # The rise is a piece of its own, built forwards: see make_rise().
+    rise = make_rise(ob)
+    rise_pts, rise_yaw = curve_points(rise)
+    pieces["Rise"] = dict(mesh=bake(rise, "PM_Rise"), pts=rise_pts, yaw=rise_yaw)
 
     for p in pieces.values():
         p["end"] = p["pts"][-1].copy()

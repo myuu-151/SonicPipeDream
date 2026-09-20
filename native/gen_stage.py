@@ -179,21 +179,28 @@ NAME = "Marathon_seed%d" % SEED if MARATHON else "Stage%d_seed%d" % (STAGE, SEED
 #     CheckLogo_NN         above the pipe there, where the logo belongs
 #     CheckPass_NN         the end of the zone: the pass plays from Check to here
 # The logo, the camera and the animation are the engine's.
-CHECK_RUN_UP = 2            # straights of the zone before the check: 16 frames, clear
-CHECK_PLAYS = 6             # straights after it: 48 frames, for the logo, camera, thumbs up
-# THE RAINBOW ARCH. One arch in the whole section is different: the arch of spheres over the
-# FIRST straight of the ring check. Every sphere on it wears a ring, and the rings cycle
-# through the colours of the rainbow. It is the only place they are seen, so it is how the
-# player knows the check has begun -- the shapes have already stopped by then, and this is
-# what they run under as they go in. The rings face down the track, like every ring, so from
-# where the player is each one is a bright circle round its sphere.
+CHECK_RUN_UP = 2            # straights of bare track before the check's piece: he runs
+                            # straight for a bit first, as in the original (20 frames to the arch)
+CHECK_PLAYS = 6             # the check's piece and those after it: 44 frames past the arch,
+                            # for the logo, the camera and the thumbs up
+# THE RAINBOW ARCH IS THE CHECK. As in the original, Sonic runs straight for a bit with
+# nothing on the track -- the run-up -- and then passes under one arch that is different from
+# every other: each sphere on it wears a ring, and the rings cycle through the colours of the
+# rainbow. THE COUNT IS TAKEN THE INSTANT HE PASSES IT. It is seen nowhere else, so there is
+# no mistaking it. The check's marker (Check_NN, "the dummy") stands exactly under it: they
+# are the same place, and `check_frame` in the .json is the frame of the arch.
+#   A ring is the size of its sphere and sits on the sphere's front face, toward the player,
+#   like a rim -- the owner's own placement, read back from a ring he moved by hand in
+#   Stage1_seed1.blend (scale 1.029, 0.72 back along the track).
 #   Here: nine rings, each its own colour, so the arch reads as a rainbow standing still.
 #   The CYCLING is the engine's: each ring steps through RAINBOW, one place on from its
 #   neighbour, RAINBOW_STEPS_PER_SECOND times a second. Both are in the .json.
 # The arch itself is gen_halfpipe.py's: nine spheres, 1.6 outside the pipe, from 12 degrees
 # above one rim over the top to 12 above the other, half way along the section.
 ARCH_COUNT, ARCH_FROM_DEG, ARCH_OUT, SPHERE_R = 9, 12.0, 1.6, 1.25
-RAINBOW_RING_SCALE = 1.75   # a ring's hole is 0.76 across the radius; this clears the sphere
+RAINBOW_RING_SCALE = 1.03   # the ring's outer edge meets the sphere's (1.28 against 1.25)
+RAINBOW_RING_TOWARD_PLAYER = 0.72   # back along the track from the sphere's centre
+ARCH_FRAME = 4.0            # the arch is half way along its straight, and a straight is 8 frames
 RAINBOW = ((1.00, 0.10, 0.10), (1.00, 0.50, 0.00), (1.00, 0.90, 0.00), (0.30, 0.90, 0.10),
            (0.00, 0.80, 0.70), (0.10, 0.50, 1.00), (0.35, 0.25, 1.00), (0.75, 0.20, 0.95),
            (1.00, 0.25, 0.65))
@@ -337,16 +344,15 @@ def module_of(p, rng):
 # --------------------------------------------------------------------------- track --
 def piece_paths():
     """A fine centre line for each of the five pieces, made the way load_pieces() makes
-    the pieces themselves: the left corner mirrored, the rise a drop travelled backwards."""
+    the pieces themselves: the left corner mirrored, the rise the drop turned upside down."""
     fine = {n: PiecePath(bpy.data.objects[n]).pts for n in ("TP_Straight", "TP_Corner", "TP_LongDrop")}
     mirror = Matrix.Scale(-1.0, 4, (0.0, 1.0, 0.0))
-    back = Matrix.Rotation(math.pi, 4, 'Z') @ Matrix.Translation(-fine["TP_LongDrop"][-1])
     return {
         "Straight":    PiecePath(pts=fine["TP_Straight"]),
         "CornerRight": PiecePath(pts=fine["TP_Corner"]),
         "CornerLeft":  PiecePath(pts=[mirror @ p for p in fine["TP_Corner"]]),
         "Drop":        PiecePath(pts=fine["TP_LongDrop"]),
-        "Rise":        PiecePath(pts=[back @ p for p in reversed(fine["TP_LongDrop"])]),
+        "Rise":        PiecePath(pts=[Vector((p.x, p.y, -p.z)) for p in fine["TP_LongDrop"]]),
     }
 
 
@@ -581,7 +587,8 @@ def rainbow_arch(origin, ring_mesh, tag, coll):
                     bsdf.inputs["Emission Color"].default_value = lin
                     bsdf.inputs["Emission Strength"].default_value = 1.5
         ob = bpy.data.objects.new("%s_Rainbow_%d" % (tag, i), ring_mesh)
-        ob.matrix_basis = (origin @ Matrix.Translation((rm.SECTION * 0.5, reach * math.cos(t),
+        ob.matrix_basis = (origin @ Matrix.Translation((rm.SECTION * 0.5 - RAINBOW_RING_TOWARD_PLAYER,
+                                                        reach * math.cos(t),
                                                         rm.PIPE_RADIUS + reach * math.sin(t)))
                            @ Matrix.Scale(RAINBOW_RING_SCALE, 4))
         coll.objects.link(ob)
@@ -676,7 +683,7 @@ def main():
             ends = [pieces_at[c - 1][1] for c in cuts]
             starts = [0.0] + ends[:-1]
             zone_first = [pieces_at[z][0] for z, _ in zones]
-            check_at = [pieces_at[c][0] for _, c in zones]
+            check_at = [pieces_at[c][0] + ARCH_FRAME for _, c in zones]       # under the rainbow arch
 
             sections, short, decks = [], None, {}
             USED.clear()
@@ -837,7 +844,7 @@ def main():
         done.matrix_basis = chain.frame(ends[k] * rm.STEP)
         done["plays"] = "logo at the top; count; on a pass the camera turns to Sonic, RunThumbsUp"
         coll.objects.link(done)
-        rainbow_arch(origins[zones[k][0]], meshes[rm.RING], "Check_%02d" % (k + 1), coll)
+        rainbow_arch(origins[zones[k][1]], meshes[rm.RING], "Check_%02d" % (k + 1), coll)
 
         palette_seed = None
         if d["leads_to"] == "PALETTE SHIFT":
@@ -855,7 +862,7 @@ def main():
         data["sections"].append(dict(
             first_frame=starts[k], check_frame=check_at[k], last_frame=ends[k],
             ring_check=dict(first_frame=zone_first[k], check_frame=check_at[k], last_frame=ends[k],
-                            rainbow_arch=dict(piece=zones[k][0], frame=zone_first[k] + 4.0, rings=ARCH_COUNT,
+                            rainbow_arch=dict(piece=zones[k][1], frame=check_at[k], rings=ARCH_COUNT,
                                               ring_scale=RAINBOW_RING_SCALE, colours=[list(c) for c in RAINBOW],
                                               cycles=True, steps_per_second=RAINBOW_STEPS_PER_SECOND),
                             run_up_frames=check_at[k] - zone_first[k], plays_frames=ends[k] - check_at[k]),
@@ -916,8 +923,8 @@ def main():
         cam.data.type, cam.data.lens = 'PERSP', 16.0
         scene.render.resolution_x, scene.render.resolution_y = 960, 600
         # the rainbow arch, from the run-in to the first ring check
-        here = chain.frame((zone_first[0] - 6) * rm.STEP)
-        ahead = chain.frame((zone_first[0] + 4) * rm.STEP)
+        here = chain.frame((check_at[0] - 10) * rm.STEP)
+        ahead = chain.frame(check_at[0] * rm.STEP)
         pos = here @ Vector((0.0, 0.0, 7.5))
         cam.location = pos
         cam.rotation_euler = (ahead @ Vector((0.0, 0.0, 12.0)) - pos).to_track_quat('-Z', 'Y').to_euler()

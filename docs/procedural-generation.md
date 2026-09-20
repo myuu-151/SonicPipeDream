@@ -43,7 +43,7 @@ Because the pieces are modular, those three give the generator five:
 | CornerRight | as authored |
 | CornerLeft | CornerRight mirrored, with its faces turned back the right way |
 | Drop | as authored |
-| Rise | the drop piece travelled backwards: its far end moved to the origin, turned about |
+| Rise | the drop's curve turned upside down, with the pipe bent along it afresh |
 
 An S-bend is not a piece. It is a left corner followed by a right one.
 
@@ -139,9 +139,11 @@ the start. The pack file is read, never written.
 
 ## Known rough edges
 
-* **Rails on a rise.** Each piece owns the rail at the *end* of each of its sections. A
-  rise is a drop reversed, so its rail is at its start: it doubles up with the previous
-  piece's, and its own far end has none.
+* **The rise used to be the baked drop travelled backwards**, which is the same shape and
+  wrong in everything that has a direction: the floor's arrows pointed at the player, and
+  each section's rail was at its near end. No turning or mirroring of that mesh can fix it --
+  the markings are part of it. `make_rise()` now turns the drop's *curve* upside down and
+  bends the pipe along it like any other piece, in memory (the pack is never written).
 * **Triangles.** A straight is 3,536 and a drop 21,216, most of it the sphere arches at
   864 each. Fine on Windows; the first thing to thin for a GameCube.
 * **One corner angle.** 90 degrees only. A gentler corner is one more shape in the pack

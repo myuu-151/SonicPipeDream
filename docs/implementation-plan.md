@@ -45,9 +45,10 @@ in threes -- a *zone* -- and after each third check:
 > running on it for as long as the next zone takes to build. Then the zoom lets go, the
 > **palette has shifted** -- new sky, new pipe colours -- and the run resumes.
 
-**The ring check sequence.** Every section ends on a long empty run of straights, entered
-under a **rainbow arch** -- the one arch whose spheres wear rings, cycling through colours,
-seen nowhere else. On the straights:
+**The ring check sequence.** Every section ends on a long empty run of straights. Sonic
+runs straight for a bit, then passes under the **rainbow arch** -- the one arch whose spheres
+wear rings, cycling through colours, seen nowhere else -- and **the count is taken the
+instant he passes it**. Around it:
 the "rings to go" call some way before; at the check a **logo drops in at the top** of the
 screen and the count is taken; on a pass **the camera turns to Sonic and he gives the
 thumbs up** (`RunThumbsUp`); then play resumes. The intro and the ending of a stage are
