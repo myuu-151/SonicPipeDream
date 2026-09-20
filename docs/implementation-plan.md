@@ -74,7 +74,8 @@ nothing, by a set margin. It is enforced, not hoped for.
 | Sky | **done in Octave** | eight skies, switchable at runtime (`skies.md`) |
 | Sonic | **model, rig, 3 animations** | Idle, Run, RunThumbsUp; not in a scene that plays |
 | Music | **done in Octave** | intro and loop |
-| **Anything playable** | **not started** | no player, no track in-engine, no rings, no HUD |
+| Placeholder UI | **written, not yet run** | `SpecialStageUI.lua`: HUD, START dropping in and scattering, COOL ! with the emblem; a demo loop until there is a game |
+| **Anything playable** | **not started** | no player, no track in-engine, no rings |
 | Engine data export | not started | phase 1 |
 | Runtime generator (for the marathon) | not started | phase 6 |
 | Ring check sequence, hold, menus, saves | not started | phases 4, 5, 7 |
@@ -215,6 +216,14 @@ The zone is already marked in the data (`ring_check`, and `Check`, `CheckLogo`,
 
 **Done when:** stage 1 can be won and lost, and each check plays its sequence on the empty
 straights with nothing arriving mid-cutscene.
+
+**The placeholder UI exists already** -- `proj/Scripts/SpecialStageUI.lua`, with placeholder
+art from `native/gen_ui_assets.py` (`T_UI_Flag`, `T_UI_Emblem`; the words are Text widgets).
+Attach it to a Canvas in the scene; it builds its own widgets. With `demo` on it loops
+START, rings counting, COOL ! by itself. The game turns `demo` off and calls
+`TheSpecialStageUI:ShowStart()`, `:SetRings(n)`, `:SetTotal(n)`, `:ShowCool()`.
+`external/ui/_mockup.png` is what it is meant to look like. **It has been syntax-checked
+but never run**: the first time it is opened in the editor is its first test.
 
 ### Phase 5 -- the gauntlet
 
