@@ -120,13 +120,42 @@ The game also pairs shapes in one segment often enough that the pairs are module
 | `WeaveByBombs` | a `Weave` on one wall, single bombs down the centre line | stage 4 |
 | `GateAndTriangle` | a `BombGateWide`, then a `TriangleBig` off to one side of the gap | stage 4 |
 
-`put(module, frame, angle)` moves a module along and round, and modules add with `+`, so
-a new pairing is one line.
+| `WallThenCluster` | a `BombWall` with a `Cluster` two frames behind it: jump, and land in rings | stages 3, 6 |
+| `ChevronSlantLeft`, `-Right` | a `BombChevron`, then a `Slant` of rings leading away from it | stage 3 |
+| `TwinBombsAndCluster` | `BombTwin` on the walls, a `Cluster` between them | stage 1's one hazard |
+| `Gauntlet` | a long cluster down the floor with `BombTwin` closing in beside it | stage 3 |
+| `SwapWalls`, `SwapWallsMedium` | rings on one wall and bombs on the other, then they change places | stages 6, 7 |
+| `SwapThree` | bomb, ring, bomb abreast; then ring, bomb, ring | stage 6 |
+| `ClusterByBombs` | clusters on alternate walls, single bombs down the centre every 4 frames | most of early stage 7 |
 
-`native/s2_objects.py` plus the matcher used to find these (group touching objects, compare
-with every module, list what is left) accounts for every shape in the seven stages: what
-remains unmatched is only other lengths of `Line`, `Hook` and `ClusterLong`, and clusters
-with one frame left empty.
+### Arrangements
+
+A second pass, reading all 135 distinct segments by eye rather than trusting the matcher,
+showed that much of what makes a stage look like Sonic 2 is not a new shape but the same
+shape **placed more than once**. These are modules too:
+
+| Module | What it is | From |
+|---|---|---|
+| `TwinClusterSmall`, `BombTwin` | the same small cluster on both walls at once (`$10` and `$70`); `BombTwin` is used 12 times | all stages |
+| `BombTwinNear` | the same, closer in (`$20` and `$60`) | stage 6 |
+| `TwinOverhead` | a pair up over the pipe (`$A0` and `$E0`): only a jump reaches them | stage 2 |
+| `ClusterCascade` | floor, then both walls, then overhead, 4 frames apart | stage 2 |
+| `TwinTriangleRims` | a `TriangleBig` on each rim | stage 5 |
+| `ClusterStairsLong` | six small clusters stepping right across the pipe | stage 2 |
+| `TriangleTrain`, `TriangleSnake` | `TriangleSmall` every 4 frames; straight, or snaking out to the wall and back | stage 2 |
+| `TriangleWeave` | three `Triangle`s 8 frames apart, alternating sides | stage 1 |
+| `BombTrain`, `BombDots` | bomb clusters every 8 frames; single bombs every 4 | stages 2, 4, 7 |
+| `ClusterGapped`, `ClusterSparse` | a `Cluster` with a frame left empty after its first ring, or between every row | stages 3, 6, 7 |
+| `BombClusterTight` | stage 2's own bomb cluster, `40 / 38 44 / 40`, lopsided as the game has it | stage 2 |
+| `DottedArrow` | dotted line, two rows of three, one: stage 4's opening shape | stage 4 |
+
+`twin(module, apart)`, `train(shape, angles, every)` and `put(module, frame, angle)` build
+these, and modules add with `+`, so a new arrangement is one line. 77 modules in all.
+
+What is deliberately *not* a module: a shape simply put somewhere else (a `TriangleBig` on
+a wall, or overhead as in stage 5), which is the `at` angle's job when a level is laid; other
+lengths of `Line`, `Hook` and `ClusterLong`; and one skewed bomb cluster in stage 7 that
+looks like a slip in the original data.
 
 Things worth knowing when laying them:
 

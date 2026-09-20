@@ -158,6 +158,17 @@ def put(module, frame=0, angle=0):
     return [(f + frame, ((a + angle + 128) % 256) - 128, k) for f, a, k in module]
 
 
+def twin(module, apart=48):
+    """The same shape on both walls at once. 48 is the game's usual ($10 and $70);
+    64 is the rims, 96 is up over the pipe where only a jump reaches."""
+    return put(module, 0, -apart) + put(module, 0, apart)
+
+
+def train(shape, angles, every=4):
+    """The same shape again and again, at the angles given."""
+    return [o for n, a in enumerate(angles) for o in put(shape, n * every, a)]
+
+
 # Stage 7's ring storm: twenty rings over ten frames, thrown all round the pipe, and
 # repeated. Too irregular to make from a rule, so it is kept as the angles themselves.
 CONFETTI = [(0, -59, RING), (0, 22, RING), (1, 35, RING), (1, 112, RING), (2, -43, RING),
@@ -177,11 +188,23 @@ MODULES = {
     "ClusterLongest":  capsule(RING, 7),        # 16   stage 2
     "ClusterBig":      diamond(RING, 3),        #  9   x7
     "ClusterStairs":   stairs(capsule(RING, 1), 3),   # 12   stage 2: small ones stepping across
+    "ClusterStairsLong": train(capsule(RING, 1), (48, 48, 32, 16, 0, -16)),   # 24   stage 2
+    "ClusterGapped":   rows(RING, (0,), (), (-8, 8), (-8, 8), (-8, 8), (0,)),   # 8   x5: a beat's rest
+    "ClusterSparse":   rows(RING, (0,), (-8, 8), (), (-8, 8), (), (-8, 8), (0,)),   # 8   stage 6
+    # --- rings: the same shape in two places ----------------------------------------
+    "TwinClusterSmall": twin(capsule(RING, 1)),        #  8   both walls at once
+    "TwinOverhead":    twin(capsule(RING, 1), 96),     #  8   up over the pipe: jump for them
+    "ClusterCascade":  (put(capsule(RING, 1), 0) + put(twin(capsule(RING, 1)), 4)
+                        + put(twin(capsule(RING, 1), 96), 8)),   # 20   stage 2: floor, walls, overhead
+    "TwinTriangleRims": twin(triangle(RING, 4), 64),   # 20   stage 5: one on each rim
     # --- rings: triangles -----------------------------------------------------------
     "TriangleSmall":   triangle(RING, 2),       #  3   x13
     "Triangle":        triangle(RING, 3),       #  6   x8
     "TriangleBig":     triangle(RING, 4),       # 10   x33
     "TriangleHuge":    triangle(RING, 5),       # 15   stage 4's finale
+    "TriangleTrain":   train(triangle(RING, 2), (0, 0, 0)),              #  9   stage 2
+    "TriangleSnake":   train(triangle(RING, 2), (0, 16, 32, 48, 32, 16)),   # 18   stage 2
+    "TriangleWeave":   train(triangle(RING, 3), (-16, 16, -16), 8),      # 18   stage 1
     "Arrowhead":       rows(RING, (0,), (-8, 8), (-16, -8, 0, 8, 16)),   # 8   stage 4
     # --- rings: rows ----------------------------------------------------------------
     "Zigzag":          zigzag(RING, 8),         #  8   stage 1 is mostly these
@@ -190,6 +213,8 @@ MODULES = {
     "WeaveShort":      weave(RING, 6),          #  9   x5
     "LineLong":        line(RING, 10),          # 10
     "LineDotted":      dotted(RING, 5),         #  5   every other frame; stage 4
+    "DottedArrow":     (dotted(RING, 5) + put(rows(RING, (-8, 0, 8)), 10)
+                        + put(rows(RING, (-8, 0, 8)), 12) + [(14, 0, RING)]),   # 12   stage 4's opener
     "Row3":            rows(RING, (-8, 0, 8)),  #  3   abreast
     # --- rings: curves and spirals --------------------------------------------------
     "SweepLeft":       sweep(RING, 6, 4, -1),   # 16   stage 3, in left/right pairs
@@ -207,6 +232,11 @@ MODULES = {
     "Bomb":            line(BOMB, 1),           #  1   x83
     "BombCluster":     capsule(BOMB, 1),        #  4   x78, the staple
     "BombClusterLong": capsule(BOMB, 2),        #  6   x16
+    "BombClusterTight": rows(BOMB, (0,), (-8, 4), (0,)),   # 4   stage 2's own, lopsided as the game has it
+    "BombTrain":       train(capsule(BOMB, 1), (0, 0, 0), 8),    # 12   stage 2
+    "BombDots":        dotted(BOMB, 3, 4),      #  3   down the centre line, every 4 frames
+    "BombTwin":        twin(capsule(BOMB, 1)),  #  8   x12: both walls, the floor is the way through
+    "BombTwinNear":    twin(capsule(BOMB, 1), 32),   # 8   stage 6
     "BombDiamond":     diamond(BOMB, 3, True),  #  8   hollow
     "BombRow3":        rows(BOMB, (-16, 0, 16)),
     "BombRow5":        rows(BOMB, (-32, -16, 0, 16, 32)),
@@ -225,6 +255,21 @@ MODULES = {
     "HookToWallRight": hook(RING, 8, 4, +1) + put(wall(BOMB), 13),
     "WeaveByBombs":    put(weave(RING, 8), 0, -32) + put(dotted(BOMB, 3, 4), 0),
     "GateAndTriangle": wall(BOMB, gap_at=-8, gap=4) + put(triangle(RING, 4), 6, 32),
+    "WallThenCluster": wall(BOMB) + put(capsule(RING, 3), 2),      # jump it and land in rings
+    "ChevronSlantLeft":  rows(BOMB, (0,), (-8, 8)) + put(slant(RING, 6, -4), 4, -14),
+    "ChevronSlantRight": rows(BOMB, (0,), (-8, 8)) + put(slant(RING, 6), 4, 14),
+    "TwinBombsAndCluster": twin(capsule(BOMB, 1)) + put(capsule(RING, 3), 0),   # stage 1's one hazard
+    "Gauntlet":        (put(capsule(RING, 5), 0) + put(twin(capsule(BOMB, 1)), 4)),   # stage 3
+    # One wall is rings and the other bombs, and then they change places.
+    "SwapWalls":       (put(capsule(BOMB, 1), 0, -40) + put(capsule(RING, 3), 0, 40)
+                        + put(capsule(RING, 3), 8, -40) + put(capsule(BOMB, 1), 8, 40)),   # stage 6
+    "SwapWallsMedium": (put(capsule(BOMB, 2), 0, -40) + put(capsule(RING, 2), 0, 40)
+                        + put(capsule(RING, 2), 8, -40) + put(capsule(BOMB, 2), 8, 40)),   # stage 7
+    "SwapThree":       (twin(capsule(BOMB, 1), 40) + put(capsule(RING, 1), 0)
+                        + put(twin(capsule(RING, 1), 40), 8) + put(capsule(BOMB, 1), 8)),  # stage 6
+    # Clusters on alternate walls, single bombs down the centre line between them.
+    "ClusterByBombs":  (put(capsule(RING, 3), 0, -40) + put(capsule(RING, 3), 12, 40)
+                        + [(f, 0, BOMB) for f in (0, 4, 8, 12, 16, 20)]),   # stage 7
 }
 
 

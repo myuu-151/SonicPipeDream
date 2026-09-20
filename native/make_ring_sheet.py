@@ -14,7 +14,7 @@ import ring_modules as rm
 
 SRC = os.path.join(HERE, "..", "external", "ring", "preview")
 OUT = os.path.join(HERE, "..", "external", "ring", "RingModules_sheet.png")
-COLS, W, H, LABEL = 6, 300, 225, 22
+COLS, W, H, LABEL = 7, 256, 192, 20
 
 names = list(rm.MODULES)
 rows = (len(names) + COLS - 1) // COLS
