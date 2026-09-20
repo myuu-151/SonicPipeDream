@@ -41,6 +41,8 @@ local GRAVITY = 42.0            -- back onto it
 local REACH_FRAMES = 0.55       -- a hit: within this far along the track...
 local REACH_ANGLE = 11.0        -- ...this far round it (256ths)...
 local REACH_HEIGHT = 2.6        -- ...and no higher off the surface than this
+local RING_SPIN_FRAMES = 12     -- meshes in half a turn of a ring (export_to_octave.py writes them)
+local RING_SPIN_FPS = 20.0      -- steps a second: a full turn to the eye every 0.6 s
 local BOMB_COST = 10            -- rings a bomb takes, as in the original
 local STUN = 0.6                -- seconds of stumbling after a bomb
 local SEE_AHEAD, SEE_BEHIND = 110, 6    -- frames of rings and bombs kept alive round the player
@@ -170,6 +172,12 @@ function SpecialStage:Build()
     self.data = _G["StageData" .. self.stage]
 
     self.meshRing = LoadAsset("SM_Ring")
+    -- the ring, turned a little further in each: half a turn in all, which is a whole one to look at
+    self.meshRingSpin = {}
+    for i = 0, RING_SPIN_FRAMES - 1 do
+        self.meshRingSpin[i] = LoadAsset(string.format("SM_Ring_%02d", i)) or self.meshRing
+    end
+    self.ringStep = 0
     self.meshBomb = LoadAsset("SM_Bomb")
     self.meshRainbow = {}
     for i = 0, self.data.arch.rings - 1 do self.meshRainbow[i] = LoadAsset("SM_RingRainbow_" .. i) end
@@ -236,9 +244,16 @@ function SpecialStage:Build()
 
     -- the emerald, past the last check
     local last = self.data.sections[#self.data.sections]
-    local where = self:Place(last.check_frame + 10.0, 0.0, 4.0)
-    self.emerald = SpawnMesh(world, LoadAsset("SM_Emerald"))
+    -- SM_Emerald_<stage>: each stage has its own chaos emerald (native/export_emeralds.py).
+    -- Its reflection is fixed to the gem and drawn to be seen along its X, so it is turned to
+    -- face back down the track, as a ring is.
+    local emeraldFrame = last.check_frame + 10.0
+    -- For looking at the emerald without playing to it: S2_TEST_EMERALD puts it just past the start.
+    if (os ~= nil and os.getenv ~= nil and os.getenv("S2_TEST_EMERALD") ~= nil) then emeraldFrame = 16.0 end
+    local where, emeraldFwd, emeraldUp = self:Place(emeraldFrame, 0.0, 4.0)
+    self.emerald = SpawnMesh(world, LoadAsset("SM_Emerald_" .. self.data.stage) or LoadAsset("SM_Emerald"))
     self.emerald:SetWorldPosition(ToVec(where))
+    self.emerald:SetWorldRotationQuat(FacingQuat(emeraldFwd, emeraldUp))
 
     self.meshBall = LoadAsset("SM_PlayerBall")
     self.sonicRun, self.sonicThumbs = {}, {}
@@ -308,7 +323,7 @@ end
 function SpecialStage:Acquire(o)
     local node = table.remove(self.pool)
     if (node == nil) then node = self:GetWorld():SpawnNode("StaticMesh3D") end
-    node:SetStaticMesh(o.bomb and self.meshBomb or self.meshRing)
+    node:SetStaticMesh(o.bomb and self.meshBomb or self.meshRingSpin[self.ringStep])
     local place, fwd, inward = self:Place(o.frame, o.angle, self.data.hover)
     node:SetWorldPosition(ToVec(place))
     if (o.bomb) then
@@ -367,7 +382,8 @@ function SpecialStage:PassChecks(fromFrame)
     if (section == nil or self.frame < section.check_frame or fromFrame >= section.check_frame) then return end
     -- the instant he passes under the rainbow arch
     if (self.rings >= section.quota) then
-        if (self.uiReady) then TheSpecialStageUI:ShowCool() end
+        -- COOL ! and the thumbs-up emblem are for a CHECK. The emerald has its own words.
+        if (self.uiReady and section.leads_to ~= "EMERALD") then TheSpecialStageUI:ShowCool() end
         self.thumbs = THUMBS_TIME
         self:Sound((section.leads_to == "EMERALD") and "GetEmerald" or "Checkpoint")
         if (section.leads_to == "EMERALD") then
@@ -391,7 +407,7 @@ function SpecialStage:UpdateUI()
     end
     local section = self.data.sections[math.min(self.section, #self.data.sections)]
     TheSpecialStageUI:SetRings(self.rings)
-    TheSpecialStageUI:SetTotal(math.max(0, section.quota - self.rings))
+    TheSpecialStageUI:SetTotal(section.quota)      -- what this round ASKS for: it does not count down
 end
 
 -- ------------------------------------------------------------------ sounds
@@ -559,8 +575,18 @@ function SpecialStage:Tick(deltaTime)
     self.camera:SetWorldPosition(ToVec(eye))
     self.camera:SetWorldRotationQuat(CameraQuat(look, camUp))
 
-    -- the rainbow arches: each ring steps through the colours, one on from its neighbour
+    -- the rings spin: every ring in sight steps to the next mesh of the turn, all together
     self.clock = (self.clock or 0.0) + dt
+    local ringStep = math.floor(self.clock * RING_SPIN_FPS) % RING_SPIN_FRAMES
+    if (ringStep ~= self.ringStep) then
+        self.ringStep = ringStep
+        local mesh = self.meshRingSpin[ringStep]
+        for _, o in ipairs(self.objects) do
+            if (o.node ~= nil and not o.bomb) then o.node:SetStaticMesh(mesh) end
+        end
+    end
+
+    -- the rainbow arches: each ring steps through the colours, one on from its neighbour
     local step = math.floor(self.clock * self.data.arch.steps_per_second)
     if (step ~= self.rainbowStep) then
         self.rainbowStep = step

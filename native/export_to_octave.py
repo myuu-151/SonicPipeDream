@@ -242,8 +242,15 @@ def gold(n):
     return mix(c, GOLD_PALE, 0.35 * (1.0 - abs(n.x)) ** 3)          # a pale edge where it turns away
 
 
-def torus(bm, around=36, across=16, radius=1.0, tube=0.24):
-    """The ring again (gen_ring.py's size), with a finer tube: the bands need the vertices."""
+RING_SPIN_FRAMES = 12       # meshes in half a turn of a ring; the other half looks the same
+
+
+def torus(bm, around=36, across=16, radius=1.0, tube=0.24, spin=0.0):
+    """The ring again (gen_ring.py's size), with a finer tube: the bands need the vertices.
+    `spin` turns it about its upright axis, in radians. THE RINGS SPIN BY SWAPPING MESHES: the
+    gold is a reflection painted on by which way each vertex faces, so a ring turned by the game
+    would carry its sky round with it. Turned HERE, before the paint goes on, the ring turns and
+    the reflection stays where it is, which is what a real one does."""
     grid = []
     for i in range(around):
         a = 2.0 * math.pi * i / around
@@ -257,6 +264,8 @@ def torus(bm, around=36, across=16, radius=1.0, tube=0.24):
         for j in range(across):
             bm.faces.new((grid[i][j], grid[i][(j + 1) % across], grid[(i + 1) % around][(j + 1) % across],
                           grid[(i + 1) % around][j]))
+    if spin != 0.0:
+        bmesh.ops.rotate(bm, verts=bm.verts, cent=(0.0, 0.0, 0.0), matrix=Matrix.Rotation(spin, 3, "Z"))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
 
 
@@ -330,6 +339,9 @@ def main():
 
     ring, bomb = load(RING_BLEND, "Ring"), load(BOMB_BLEND, "Bomb")
     write_mesh("SM_Ring", 200, simple("GoldRing", torus), lambda k: GOLD, material="M_StageMatte", paint=gold)
+    for i in range(RING_SPIN_FRAMES):
+        turned = simple("GoldRing%d" % i, lambda bm, a=math.pi * i / RING_SPIN_FRAMES: torus(bm, spin=a))
+        write_mesh("SM_Ring_%02d" % i, 230 + i, turned, lambda k: GOLD, material="M_StageMatte", paint=gold)
     from gen_stage import RAINBOW
     for i, c in enumerate(RAINBOW):
         write_mesh("SM_RingRainbow_%d" % i, 210 + i, ring, lambda k, c=c: c, material="M_StageGlow")

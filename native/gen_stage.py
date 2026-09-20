@@ -218,7 +218,8 @@ CHECK_LENGTH = CHECK_RUN_UP + CHECK_PLAYS        # 8 straights, 64 frames, about
 #            layouts carry four more segments than their object lists.)
 INTRO_STRAIGHTS = CHECK_LENGTH
 EMERALD_RUN_UP = 3          # the original gives the emerald a longer approach (24-39 frames)
-EMERALD_PLAYS = CHECK_LENGTH
+EMERALD_PLAYS = CHECK_LENGTH * 3       # the pipe past the emerald: he runs on down it while EMERALD GET shows,
+                                       # and at one check length he reached the end of it first
 
 # THE HOLD. After a marathon zone's third check the camera zooms in on Sonic, thumbs up,
 # running on plain straight pipe -- and he KEEPS running on it, the same straight laid under
