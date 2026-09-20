@@ -59,6 +59,25 @@ RAMP_STOPS = None
 DRIFT = 0.0
 
 
+# THE ROW GRADIENT, as Sonic 2 itself colours its diamonds. There the colour does not belong
+# to a diamond at all: it belongs to the ROW of the screen, and runs straight through every
+# diamond it crosses -- sea green at the top and bottom, through green and lime to a yellow
+# stripe with a pale lavender core across the middle. A list of (distance, colour), distance
+# 0 at the middle row of the tile and 1 at its top and bottom edge; None turns it off, and
+# every diamond is one flat colour off the ramp below. With it on, a diamond's LEVEL no longer
+# picks its colour, only how far it has come up out of ROW_DIM toward the colours of its rows.
+ROW_STOPS = None
+ROW_DIM = (0x1B, 0x5E, 0x85)
+
+
+def row_colour(y):
+    v = abs((y % TILE_H) - TILE_H / 2.0) / (TILE_H / 2.0)
+    for (v0, c0), (v1, c1) in zip(ROW_STOPS, ROW_STOPS[1:]):
+        if v <= v1:
+            return lerp(c0, c1, (v - v0) / (v1 - v0))
+    return ROW_STOPS[-1][1]
+
+
 def ramp(level):
     level = max(0.0, min(1.0, level))
     q = round(level * (LEVELS - 1)) / float(LEVELS - 1)
@@ -270,6 +289,24 @@ def diamond(draw, cx, cy, hw, hh, colour):
     draw.polygon([(cx, cy - hh), (cx + hw, cy), (cx, cy + hh), (cx - hw, cy)], fill=colour)
 
 
+def fill(draw, cx, cy, hw, hh, level, y_shift=0.0, alpha=None):
+    """A lit diamond. Flat off the ramp, or -- with ROW_STOPS -- one scanline at a time, each
+    the colour of the row it is on. y_shift is where row 0 of the tile sits, for wrapped copies."""
+    tail = () if alpha is None else (alpha,)
+    if not ROW_STOPS:
+        diamond(draw, cx, cy, hw, hh, ramp(level) + tail)
+        return
+    if hw < 0.6 or hh < 0.6:
+        return
+    k = max(0.0, min(1.0, level))
+    k = 0.18 + 0.82 * round(k * (LEVELS - 1)) / float(LEVELS - 1)
+    for y in range(int(math.ceil(cy - hh)), int(math.floor(cy + hh)) + 1):
+        half = hw * (1.0 - abs(y - cy) / hh)
+        if half < 0.5:
+            continue
+        draw.line([(cx - half, y), (cx + half, y)], fill=lerp(ROW_DIM, row_colour(y - y_shift), k) + tail)
+
+
 def paint(shapes, bg):
     im = bg.copy()
     draw = ImageDraw.Draw(im)
@@ -285,7 +322,7 @@ def paint(shapes, bg):
         ox = rep * TILE_W
         for oy in (-TILE_H, 0, TILE_H):
             for cx, cy, hw, hh, level in shapes:
-                diamond(draw, ox + cx, oy + cy, hw, hh, ramp(drifted(level, cx, cy)))
+                fill(draw, ox + cx, oy + cy, hw, hh, drifted(level, cx, cy), oy)
     return im
 
 
@@ -301,9 +338,9 @@ def paint_rgba(shapes):
         for ox, oy in wraps:
             diamond(draw, ox + cx + 3, oy + cy + 3, hw, hh, SHADOW + (255,))
     for cx, cy, hw, hh, level in shapes:
-        colour = ramp(drifted(level, cx, cy)) + (255,)
         for ox, oy in wraps:
-            diamond(draw, ox + cx, oy + cy, hw, hh, colour)
+            if -hw <= ox + cx <= TILE_W + hw and -hh <= oy + cy <= TILE_H + hh:
+                fill(draw, ox + cx, oy + cy, hw, hh, drifted(level, cx, cy), oy, 255)
     return im
 
 

@@ -68,6 +68,7 @@ def apply(spec):
     sky.SKY_DEEP, sky.SKY_LIFT = horizon, poles
     pat.RAMP_STOPS, pat.SHADOW = stops, shadow
     pat.LEVELS, pat.DRIFT = LEVELS, DRIFT
+    pat.ROW_STOPS = None                # the row gradient belongs to the classic sky alone
 
 
 def preview(name, star_px, frames):
