@@ -1,0 +1,23 @@
+# Blender MTL File: 'Work (2).blend'
+# Material Count: 2
+
+newmtl event_rock_km_emeraldbg01_ref
+Ns 998.039216
+Ka 0.000000 0.000000 0.000000
+Kd 0.640000 0.640000 0.640000
+Ks 1.000000 1.000000 1.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd chr_obj_emeraldB02_ref.png
+
+newmtl event_rock_km_emeraldbg_dif
+Ns 1000.000000
+Ka 0.000000 0.000000 0.000000
+Kd 0.800000 0.800000 0.800000
+Ks 1.000000 1.000000 1.000000
+Ni 1.000000
+d 0.000000
+illum 2
+map_Kd event_rock_km_emeraldbg_dif.png
+map_d event_rock_km_emeraldbg_dif.png

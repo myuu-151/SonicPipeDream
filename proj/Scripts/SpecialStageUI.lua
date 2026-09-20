@@ -1,5 +1,5 @@
 -- SpecialStageUI.lua
--- PLACEHOLDER UI for the special stage, after the original's:
+-- The special stage's UI, after the original's:
 --
 --     SONIC                 +-TOTAL-+
 --     RINGS 0               |   0   |
@@ -13,9 +13,9 @@
 --                           COOL !                   the middle, holds, fades
 --
 -- Attach to a Canvas (or any node) in the scene. It builds its own widgets as children, so
--- there is nothing to lay out in the editor. The words are Text widgets in the engine's own
--- font; the flag and the emblem are T_UI_Flag and T_UI_Emblem, drawn by
--- native/gen_ui_assets.py -- replace those two textures with real art and nothing here changes.
+-- there is nothing to lay out in the editor. The labels, START, the flag and the emblem are
+-- pictures: the art in external/ui/, made into T_UI_* textures by native/gen_ui_assets.py.
+-- Only the NUMBERS, COOL ! and the banner are Text widgets, in the engine's own font.
 --
 -- There is no game to drive it yet, so `demo` (on by default) plays it on a loop: START,
 -- rings counting up, COOL !, again. The game will turn `demo` off and call:
@@ -41,14 +41,20 @@ local BOX     = Vec(1.00, 1.00, 1.00, 1.0)
 
 -- START: how long each part of it takes, in seconds.
 local DROP_TIME, HOLD_TIME, SCATTER_TIME = 0.45, 1.10, 0.60
-local START_Y = 150.0                           -- where it comes to rest, on the 224-high screen
-local LETTERS = { "S", "T", "A", "R", "T" }
-local LETTER_SIZE, LETTER_STEP = 44.0, 30.0
-local FLAG_W, FLAG_H = 56.0, 42.0
+local START_Y = 118.0                           -- where it comes to rest, on the 224-high screen
+-- START is five textures, a letter each, so that they can part company. These are the
+-- columns each was cut from in the art (START_CUTS in gen_ui_assets.py): they overlap by the
+-- outline the letters share, and putting each back at its own column rebuilds the word exactly.
+local START_CUTS = { 0, 54, 97, 148, 199 }
+local START_ART_W = 256.0                       -- the word, in the art's pixels
+local LETTER_W, LETTER_H = 64.0, 128.0          -- the texture of one letter, in the same
+local START_SCALE = 0.6                         -- art pixels to pixels of the 320 screen
+local FLAG_W, FLAG_H = 44.0, 44.0
 
 -- COOL !
 local COOL_POP, COOL_HOLD, COOL_FADE = 0.30, 1.60, 0.40
-local EMBLEM_SIZE = 110.0
+local EMBLEM_W, EMBLEM_H = 150.0, 75.0          -- the winged disc: twice as wide as tall
+local THUMB_SIZE = 50.0                         -- the glove, on the disc
 
 function SpecialStageUI:Create()
     self.demo = true
@@ -79,7 +85,18 @@ end
 
 function SpecialStageUI:SetTotal(n)
     self.total = n
-    if (self.built) then self.totalNumber:SetText(tostring(n)) end
+    if (self.built) then
+        self.totalNumber:SetText(tostring(n))
+        self:PlaceTotal()
+    end
+end
+
+-- The number sits in the MIDDLE of the box however many digits it has: a digit of this font
+-- is about 6.6 wide on the 320 screen at the size it is shown.
+function SpecialStageUI:PlaceTotal()
+    if (self.totalAt == nil) then return end
+    local digits = #tostring(self.total)
+    self:Place(self.totalNumber, self.totalAt.x - digits * 6.6, self.totalAt.y)
 end
 
 function SpecialStageUI:ShowStart()
@@ -100,6 +117,10 @@ end
 -- ------------------------------------------------------------------ building
 local function MakeText(parent, text, colour)
     local t = parent:CreateChild("Text")
+    -- F_SonicUI: the Sonic font with its outline and drop shadow baked into the glyphs
+    -- (native/gen_ui_font.py), so white text is the finished look and a colour only tints the face.
+    local font = LoadAsset("F_SonicUI")
+    if (font ~= nil) then t:SetFont(font) end
     t:SetAnchorMode(AnchorMode.TopLeft)
     t:SetText(text)
     t:SetColor(colour)
@@ -116,29 +137,21 @@ local function MakeQuad(parent, texture, colour)
 end
 
 function SpecialStageUI:Build()
-    self.nameText    = MakeText(self, self.playerName, NAME)
-    self.ringsLabel  = MakeText(self, "RINGS", YELLOW)
+    self.ringsLabel  = MakeQuad(self, LoadAsset("T_UI_SonicRings"), WHITE)      -- SONIC over RINGS
     self.ringsNumber = MakeText(self, tostring(self.rings), WHITE)
-
-    -- the TOTAL box: four thin bars, open at the top where the word sits
-    self.boxBars = {}
-    for i = 1, 5 do self.boxBars[i] = MakeQuad(self, nil, BOX) end
-    self.totalLabel  = MakeText(self, "TOTAL", WHITE)
+    self.totalBox    = MakeQuad(self, LoadAsset("T_UI_Total"), WHITE)           -- the frame, word and all
     self.totalNumber = MakeText(self, tostring(self.total), WHITE)
 
-    local flag = LoadAsset("T_UI_Flag")
-    self.flagLeft  = MakeQuad(self, flag, WHITE)
-    self.flagRight = MakeQuad(self, flag, WHITE)
-    -- The texture's pole is on its left, so it is the right-hand flag as drawn: pole beside
-    -- the word, cloth flying outward. The left-hand one is the same picture mirrored.
-    self.flagLeft:SetUvScale(Vec(-1.0, 1.0))
-    self.flagLeft:SetUvOffset(Vec(1.0, 0.0))
+    self.flagLeft  = MakeQuad(self, LoadAsset("T_UI_FlagLeft"), WHITE)
+    self.flagRight = MakeQuad(self, LoadAsset("T_UI_Flag"), WHITE)
+    -- The pole is beside the word and the cloth flies outward, so the left one is a mirrored picture.
     self.letters = {}
-    for i = 1, #LETTERS do self.letters[i] = MakeText(self, LETTERS[i], WHITE) end
+    for i = 1, #START_CUTS do self.letters[i] = MakeQuad(self, LoadAsset("T_UI_Start_" .. i), WHITE) end
 
     self.banner   = MakeText(self, self.bannerText or "", YELLOW)
     self.banner:SetVisible(false)
     self.emblem   = MakeQuad(self, LoadAsset("T_UI_Emblem"), WHITE)
+    self.thumb    = MakeQuad(self, LoadAsset("T_UI_Thumb"), WHITE)
     self.coolText = MakeText(self, "COOL !", WHITE)
 
     self.built = true
@@ -154,6 +167,7 @@ end
 
 function SpecialStageUI:ShowCoolParts(visible)
     self.emblem:SetVisible(visible)
+    self.thumb:SetVisible(visible)
     self.coolText:SetVisible(visible)
 end
 
@@ -187,26 +201,18 @@ function SpecialStageUI:Layout()
     self.k = height / SCREEN_H
     self.left = (width - SCREEN_W * self.k) * 0.5
 
-    self.nameText:SetTextSize(13.0 * self.k)
-    self.ringsLabel:SetTextSize(16.0 * self.k)
-    self.ringsNumber:SetTextSize(16.0 * self.k)
-    self:Place(self.nameText, 26.0, 8.0)
-    self:Place(self.ringsLabel, 12.0, 21.0)
-    self:Place(self.ringsNumber, 72.0, 21.0)
+    -- SONIC / RINGS: the picture is 2:1, RINGS its lower half; the count goes beside RINGS
+    self:Place(self.ringsLabel, 8.0, 6.0, 68.0, 34.0)
+    self.ringsNumber:SetTextSize(17.0 * self.k)
+    self:Place(self.ringsNumber, 80.0, 17.0)
 
-    -- the box, 60 x 34, centred; its top edge is two stubs either side of TOTAL
-    local bx, by, bw, bh, t = 130.0, 16.0, 60.0, 34.0, 2.0
-    self:Place(self.boxBars[1], bx, by, 10.0, t)
-    self:Place(self.boxBars[2], bx + bw - 10.0, by, 10.0, t)
-    self:Place(self.boxBars[3], bx, by, t, bh)
-    self:Place(self.boxBars[4], bx + bw - t, by, t, bh)
-    self:Place(self.boxBars[5], bx, by + bh - t, bw, t)
-    self.totalLabel:SetTextSize(11.0 * self.k)
-    self.totalNumber:SetTextSize(20.0 * self.k)
-    self:Place(self.totalLabel, bx + 13.0, by - 7.0)
-    self:Place(self.totalNumber, bx + 24.0, by + 9.0)
-
-    for i = 1, #self.letters do self.letters[i]:SetTextSize(LETTER_SIZE * self.k) end
+    -- TOTAL: the frame, centred, and the number in the middle of it. The texture is square
+    -- and the art is its top 160 rows of 256, so the box on screen is bw wide and bw * 160/256 tall.
+    local bx, by, bw = 122.0, 5.0, 76.0
+    self:Place(self.totalBox, bx, by, bw, bw)
+    self.totalNumber:SetTextSize(19.0 * self.k)
+    self.totalAt = { x = bx + bw * 0.5, y = by + 15.0 }
+    self:PlaceTotal()
     self.coolText:SetTextSize(26.0 * self.k)
     self.banner:SetTextSize(22.0 * self.k)
 end
@@ -226,16 +232,19 @@ end
 local function StartParts(self)
     local parts = {}
     local mid = SCREEN_W * 0.5
-    local first = mid - LETTER_STEP * (#LETTERS - 1) * 0.5 - 12.0
+    local wordW = START_ART_W * START_SCALE
+    local first = mid - wordW * 0.5
     for i = 1, #self.letters do
-        local x = first + LETTER_STEP * (i - 1)
+        local x = first + (START_CUTS[i] - START_CUTS[1]) * START_SCALE
         local dir = 0.0
         if (i < 3) then dir = -1.0 elseif (i > 3) then dir = 1.0 end
-        parts[#parts + 1] = { widget = self.letters[i], x = x, y = START_Y, dx = dir, dy = (dir == 0.0) and -1.0 or -0.25 }
+        parts[#parts + 1] = { widget = self.letters[i], x = x, y = START_Y, dx = dir, dy = (dir == 0.0) and -1.0 or -0.25,
+                              w = LETTER_W * START_SCALE, h = LETTER_H * START_SCALE }
     end
-    parts[#parts + 1] = { widget = self.flagLeft,  x = first - FLAG_W - 6.0, y = START_Y + 4.0, dx = -1.0, dy = 0.15,
+    local flagY = START_Y + 17.0
+    parts[#parts + 1] = { widget = self.flagLeft,  x = first - FLAG_W - 4.0, y = flagY, dx = -1.0, dy = 0.15,
                           w = FLAG_W, h = FLAG_H, spin = -40.0 }
-    parts[#parts + 1] = { widget = self.flagRight, x = first + LETTER_STEP * #LETTERS + 4.0, y = START_Y + 4.0, dx = 1.0, dy = 0.15,
+    parts[#parts + 1] = { widget = self.flagRight, x = first + wordW + 4.0, y = flagY, dx = 1.0, dy = 0.15,
                           w = FLAG_W, h = FLAG_H, spin = 40.0 }
     return parts
 end
@@ -261,7 +270,7 @@ function SpecialStageUI:TickStart(deltaTime)
     end
 
     for _, p in ipairs(StartParts(self)) do
-        local y = -70.0 + (p.y + 70.0) * drop       -- from above the top of the window
+        local y = -90.0 + (p.y + 90.0) * drop       -- from above the top of the window
         local x = p.x + p.dx * away * 260.0         -- and away, off the side it belongs to
         y = y + p.dy * away * 260.0
         self:Place(p.widget, x, y, p.w, p.h)
@@ -288,10 +297,12 @@ function SpecialStageUI:TickCool(deltaTime)
         opacity = 1.0 - (t - COOL_POP - COOL_HOLD) / COOL_FADE
     end
 
-    local e = EMBLEM_SIZE * size
-    self:Place(self.emblem, SCREEN_W * 0.5 - e * 0.5, 84.0 - e * 0.5, e, e)
-    self:Place(self.coolText, SCREEN_W * 0.5 - 44.0, 140.0)
+    local ew, eh, th = EMBLEM_W * size, EMBLEM_H * size, THUMB_SIZE * size
+    self:Place(self.emblem, SCREEN_W * 0.5 - ew * 0.5, 84.0 - eh * 0.5, ew, eh)
+    self:Place(self.thumb, SCREEN_W * 0.5 - th * 0.5, 84.0 - th * 0.5, th, th)
+    self:Place(self.coolText, SCREEN_W * 0.5 - 44.0, 128.0)
     self.emblem:SetOpacityFloat(opacity)
+    self.thumb:SetOpacityFloat(opacity)
     self.coolText:SetOpacityFloat(opacity)
 end
 

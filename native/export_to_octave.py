@@ -309,14 +309,19 @@ def main():
         if os.path.exists(os.path.join(ASSETS, stale)):
             os.remove(os.path.join(ASSETS, stale))
     pieces = grl.load_pieces()
-    for i, (piece, p) in enumerate(pieces.items()):
-        slots = [m.name.split(".")[0] if m else "" for m in p["mesh"].materials]
-        colours = [palette["materials"].get(n, (1.0, 0.0, 1.0)) for n in slots]
-        glossy = [n in GLOSSY_SLOTS for n in slots]
-        write_mesh("SM_Piece_%s_P%d" % (piece, STAGE), 16 * STAGE + i, p["mesh"], lambda k, c=colours: c[k],
-                   material="M_StageMatte", keep_slot=lambda k, g=glossy: not g[k])
-        write_mesh("SM_Piece_%s_Gloss_P%d" % (piece, STAGE), 16 * STAGE + 8 + i, p["mesh"], lambda k, c=colours: c[k],
-                   material="M_StageGloss", keep_slot=lambda k, g=glossy: g[k])
+    # The pieces in ALL SEVEN palettes, whichever stage this is: a palette is only a set of
+    # meshes, so the game can change colours on the spot by swapping _P1 for _P4. (Keys 1-7
+    # do that in the demo, and marathon will after every third check.)
+    for number in stage_palettes.S2_LINE:
+        colours_of = stage_palettes.palette(number)["materials"]
+        for i, (piece, p) in enumerate(pieces.items()):
+            slots = [m.name.split(".")[0] if m else "" for m in p["mesh"].materials]
+            colours = [colours_of.get(n, (1.0, 0.0, 1.0)) for n in slots]
+            glossy = [n in GLOSSY_SLOTS for n in slots]
+            write_mesh("SM_Piece_%s_P%d" % (piece, number), 16 * number + i, p["mesh"], lambda k, c=colours: c[k],
+                       material="M_StageMatte", keep_slot=lambda k, g=glossy: not g[k])
+            write_mesh("SM_Piece_%s_Gloss_P%d" % (piece, number), 16 * number + 8 + i, p["mesh"],
+                       lambda k, c=colours: c[k], material="M_StageGloss", keep_slot=lambda k, g=glossy: g[k])
 
     def load(blend, mesh):
         with bpy.data.libraries.load(blend) as (src, dst):
@@ -340,8 +345,8 @@ def main():
     piece_list = []
     for piece, (start, origin, path) in zip(data["pieces"], chain.parts):
         q = origin.to_quaternion()
-        piece_list.append(dict(mesh="SM_Piece_%s_P%d" % (piece, STAGE),
-                               gloss="SM_Piece_%s_Gloss_P%d" % (piece, STAGE), pos=list(to_octave(origin.translation)),
+        piece_list.append(dict(mesh="SM_Piece_%s_P" % piece,             # + the palette's number
+                               gloss="SM_Piece_%s_Gloss_P" % piece, pos=list(to_octave(origin.translation)),
                                quat=[q.x, q.z, -q.y, q.w], first_frame=start / rm.STEP))
     frames = int(math.floor(chain.length / rm.STEP)) + 1
     path_list = []
@@ -361,7 +366,9 @@ def main():
         angle_00_side=-1 if rm.ANGLE_00_SIDE == "right" else 1,
         arch=dict(rings=arch["rings"], reach=rm.PIPE_RADIUS + 1.6, from_deg=12.0, ring_scale=arch["ring_scale"],
                   toward_player=0.72, steps_per_second=arch["steps_per_second"]),
-        sky=palette["sky"], pieces=piece_list, sections=sections, path=path_list)
+        sky=palette["sky"], palette=STAGE,
+        palette_skies=[stage_palettes.palette(n)["sky"] for n in sorted(stage_palettes.S2_LINE)],
+        pieces=piece_list, sections=sections, path=path_list)
     out = os.path.join(PROJ, "Scripts", "StageData%d.lua" % STAGE)
     open(out, "w", encoding="ascii", newline="\n").write(
         "-- Written by native/export_to_octave.py from %s.json. Do not edit by hand.\n"

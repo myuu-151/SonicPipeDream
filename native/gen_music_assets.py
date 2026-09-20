@@ -32,6 +32,38 @@ TRACKS = [
 ]
 
 
+# The effects. OGG as well as WAV, so these are read with soundfile (pip install soundfile),
+# which the two music tracks above do not need.
+EFFECTS = [
+    ("Ring.wav", "SW_Ring", 0x51C0FFEE00300010),
+    ("LoseRings.ogg", "SW_LoseRings", 0x51C0FFEE00300011),
+    ("Jump.ogg", "SW_Jump", 0x51C0FFEE00300012),
+    ("Checkpoint.wav", "SW_Checkpoint", 0x51C0FFEE00300013),
+    ("Get_Emerald.wav", "SW_GetEmerald", 0x51C0FFEE00300014),
+    ("Continue.ogg", "SW_Continue", 0x51C0FFEE00300015),
+    ("SE_Goalring.wav", "SW_Goalring", 0x51C0FFEE00300016),
+    ("SE_Item_Appear.wav", "SW_ItemAppear", 0x51C0FFEE00300017),
+    ("SE_Rainbow.wav", "SW_Rainbow", 0x51C0FFEE00300018),
+]
+
+
+def write(asset, uuid, channels, width, rate, frames, pcm):
+    name = asset.encode("ascii")
+    d = struct.pack("<IIIB", MAGIC, VERSION, TYPE_SOUNDWAVE, 0)
+    d += struct.pack("<Q", uuid) + struct.pack("<I", len(name)) + name
+    d += struct.pack("<ff", 1.0, 1.0)            # volume, pitch multipliers
+    d += struct.pack("<b", 0)                    # audio class
+    d += struct.pack("<???", False, False, False)  # compress, compress internal, stream
+    block = channels * width
+    d += struct.pack("<IIIIII", channels, width * 8, rate, frames, block, rate * block)
+    d += struct.pack("<?", False)                # not compressed: raw PCM follows
+    d += struct.pack("<I", len(pcm)) + pcm
+    with open(os.path.join(OUT, asset + ".oct"), "wb") as f:
+        f.write(d)
+    print("%-24s %d Hz, %d ch, %d-bit, %.2f s, %.1f MB"
+          % (asset, rate, channels, width * 8, frames / float(rate), len(d) / 1048576.0))
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     for wav_name, asset, uuid in TRACKS:
@@ -40,22 +72,12 @@ def main():
                                          w.getframerate(), w.getnframes())
         pcm = w.readframes(frames)
         w.close()
+        write(asset, uuid, channels, width, rate, frames, pcm)
 
-        name = asset.encode("ascii")
-        d = struct.pack("<IIIB", MAGIC, VERSION, TYPE_SOUNDWAVE, 0)
-        d += struct.pack("<Q", uuid) + struct.pack("<I", len(name)) + name
-        d += struct.pack("<ff", 1.0, 1.0)            # volume, pitch multipliers
-        d += struct.pack("<b", 0)                    # audio class
-        d += struct.pack("<???", False, False, False)  # compress, compress internal, stream
-        block = channels * width
-        d += struct.pack("<IIIIII", channels, width * 8, rate, frames, block, rate * block)
-        d += struct.pack("<?", False)                # not compressed: raw PCM follows
-        d += struct.pack("<I", len(pcm)) + pcm
-
-        with open(os.path.join(OUT, asset + ".oct"), "wb") as f:
-            f.write(d)
-        print("%-24s %d Hz, %d ch, %d-bit, %.2f s, %.1f MB"
-              % (asset, rate, channels, width * 8, frames / float(rate), len(d) / 1048576.0))
+    import soundfile
+    for file_name, asset, uuid in EFFECTS:
+        data, rate = soundfile.read(os.path.join(SRC, file_name), dtype="int16", always_2d=True)
+        write(asset, uuid, data.shape[1], 2, rate, data.shape[0], data.tobytes())
 
 
 if __name__ == "__main__":

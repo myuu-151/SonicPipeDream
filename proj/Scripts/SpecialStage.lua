@@ -176,13 +176,17 @@ function SpecialStage:Build()
 
     -- the track: every piece, once. (The engine culls what is out of sight.)
     -- A piece is two meshes at the same place: the matte pipe, and the glossy spheres and rails.
-    local loaded = {}
+    -- A mesh name ends in the PALETTE's number (SM_Piece_Straight_P4): the data gives the name
+    -- without it, and each node remembers its own, so the palette can be changed under it.
+    self.pieceNodes = {}
+    self.pieceMeshes = {}
+    self.palette = self.data.palette
     for _, piece in ipairs(self.data.pieces) do
         for _, name in ipairs({ piece.mesh, piece.gloss }) do
-            if (loaded[name] == nil) then loaded[name] = LoadAsset(name) end
-            local node = SpawnMesh(world, loaded[name])
+            local node = SpawnMesh(world, self:PieceMesh(name, self.palette))
             node:SetWorldPosition(Vec(piece.pos[1], piece.pos[2], piece.pos[3]))
             node:SetWorldRotationQuat(Vec(piece.quat[1], piece.quat[2], piece.quat[3], piece.quat[4]))
+            self.pieceNodes[#self.pieceNodes + 1] = { node = node, name = name }
         end
     end
 
@@ -348,8 +352,10 @@ function SpecialStage:Collide(fromFrame)
             if (o.bomb) then
                 self.rings = math.max(0, self.rings - BOMB_COST)
                 self.stun = STUN
+                self:Sound("LoseRings")
             else
                 self.rings = self.rings + 1
+                self:Sound("Ring", 0.8)
             end
         end
     end
@@ -363,6 +369,7 @@ function SpecialStage:PassChecks(fromFrame)
     if (self.rings >= section.quota) then
         if (self.uiReady) then TheSpecialStageUI:ShowCool() end
         self.thumbs = THUMBS_TIME
+        self:Sound((section.leads_to == "EMERALD") and "GetEmerald" or "Checkpoint")
         if (section.leads_to == "EMERALD") then
             self.emerald:SetVisible(false)
             self.over = 5.0
@@ -387,12 +394,48 @@ function SpecialStage:UpdateUI()
     TheSpecialStageUI:SetTotal(math.max(0, section.quota - self.rings))
 end
 
+-- ------------------------------------------------------------------ sounds
+-- The effects are SW_<name> assets (native/gen_music_assets.py makes them from external/audio).
+-- Loaded the first time each is wanted; a missing one is silence, not an error.
+function SpecialStage:Sound(name, volume)
+    self.sounds = self.sounds or {}
+    if (self.sounds[name] == nil) then self.sounds[name] = LoadAsset("SW_" .. name) or false end
+    if (self.sounds[name]) then Audio.PlaySound2D(self.sounds[name], volume or 1.0) end
+end
+
+-- ------------------------------------------------------------------ palettes
+function SpecialStage:PieceMesh(name, palette)
+    local full = name .. palette
+    if (self.pieceMeshes[full] == nil) then self.pieceMeshes[full] = LoadAsset(full) end
+    return self.pieceMeshes[full]
+end
+
+-- Stage n's colours, 1-7: the pipe (every piece swaps to that palette's mesh) and the sky that
+-- goes with it. Nothing else changes -- the track, the rings and the run carry on.
+function SpecialStage:SetPalette(n)
+    if (n == self.palette or self:PieceMesh(self.pieceNodes[1].name, n) == nil) then return end
+    self.palette = n
+    for _, p in ipairs(self.pieceNodes) do p.node:SetStaticMesh(self:PieceMesh(p.name, n)) end
+    if (TheSky ~= nil) then TheSky.sky = self.data.palette_skies[n] end
+end
+
+local PALETTE_KEYS = { Key.N1, Key.N2, Key.N3, Key.N4, Key.N5, Key.N6, Key.N7 }
+
 -- ------------------------------------------------------------------ every frame
 function SpecialStage:Tick(deltaTime)
     if (not self.built) then self:Build() end
     local dt = math.min(deltaTime, 0.05)
 
     if (Input.IsKeyJustDown(Key.R)) then self:Restart() end
+    for n, key in ipairs(PALETTE_KEYS) do
+        if (Input.IsKeyJustDown(key)) then self:SetPalette(n) end
+    end
+    -- Eight skies and seven stages: Midnight (sky 1) belongs to no stage, so 8 puts it over
+    -- whatever pipe is showing. Any of 1-7 brings that stage and its own sky back.
+    if (Input.IsKeyJustDown(Key.N8) and TheSky ~= nil) then
+        TheSky.sky = 1
+        self.palette = 0                -- so pressing the current stage again restores its sky
+    end
     if (self.over >= 0.0) then
         self.over = self.over - dt
         if (self.over < 0.0) then self:Restart() end
@@ -416,7 +459,10 @@ function SpecialStage:Tick(deltaTime)
     if (self.angle < -128.0) then self.angle = self.angle + 256.0 end
 
     -- jumping: off the pipe's surface, toward its axis, and back
-    if (self.height <= 0.0 and self.hold <= 0.0 and Input.IsKeyJustDown(Key.Space)) then self.rise = JUMP end
+    if (self.height <= 0.0 and self.hold <= 0.0 and Input.IsKeyJustDown(Key.Space)) then
+        self.rise = JUMP
+        self:Sound("Jump")
+    end
     if (self.height > 0.0 or self.rise > 0.0) then
         self.height = self.height + self.rise * dt
         self.rise = self.rise - GRAVITY * dt
