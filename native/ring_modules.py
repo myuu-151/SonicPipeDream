@@ -279,6 +279,7 @@ MODULES = {
     "BombClusterTight": rows(BOMB, (0,), (-6, 6), (0,)),   # 4   stage 2's own: 6 apart, not 8
     "BombTrain":       train(capsule(BOMB, 1), (0, 0, 0), 8),    # 12   stage 2
     "BombDots":        dotted(BOMB, 3, 4),      #  3   down the centre line, every 4 frames
+    "BombDotsLong":    dotted(BOMB, 12, 4),     # 12   stage 7 keeps it up for 37
     "BombTwin":        twin(capsule(BOMB, 1)),  #  8   x12: both walls, the floor is the way through
     "BombTwinNear":    twin(capsule(BOMB, 1), 32),   # 8   stage 6
     "BombDiamond":     diamond(BOMB, 3, True),  #  8   hollow
@@ -291,6 +292,7 @@ MODULES = {
     "BombSpiral":      corkscrew(BOMB, 16, -16),      # 16   right round in one straight
     "BombFunnel":      funnel(BOMB),            # 20   stage 3: two walls closing in
     "BombCorkscrew":   corkscrew(BOMB, 24),     # 24   stage 3
+    "BombCorkscrewLong": corkscrew(BOMB, 64),   # 64   two full turns: stage 3's longest, unbroken
     "BombSlant":       slant(BOMB, 10),         # 10
     # --- rings and bombs together, as the game pairs them ---------------------------
     "Slalom":          wave(RING) + put(capsule(BOMB, 1), 3) + put(capsule(BOMB, 1), 12),
@@ -332,8 +334,8 @@ RUNS = {
     "Helix":         helix(RING, 3),
     "Spiral":        corkscrew(RING, 48, 16),
     "SpiralSlow":    corkscrew(RING, 32, 8),
-    "BombDots":      dotted(BOMB, 8, 4),
-    "BombCorkscrew": corkscrew(BOMB, 32),
+    "BombDots":      dotted(BOMB, 40, 4),
+    "BombCorkscrew": corkscrew(BOMB, 64),
     "BombSpiral":    corkscrew(BOMB, 16, -16),
     "BombSlant":     slant(BOMB, 16),
     "BombFunnel":    funnel(BOMB, 12, 56),

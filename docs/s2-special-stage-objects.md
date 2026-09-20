@@ -117,6 +117,13 @@ only ever runs in crossing pairs, as `Helix`, or as bombs); `Snake`, `SnakeLong`
 to 16); `Row5`, `Row4Wide`, `Row5Wide`, `RowAcross`, `Across` (single rings stretched
 across the slope). 91 modules.
 
+A third check, for the same kind of miss: search every stage for single strands at any
+steady pace. The game uses exactly four -- straight (`Line`), 4 a frame (`Slant`, sweeps),
+8 (`Across`, `Snake`, `BombCorkscrew`), 16 (`Spiral`, `BombSpiral`) -- so no pace is
+missing. It did show two shapes far longer than their modules: a bomb corkscrew of 64
+frames, two full turns (`BombCorkscrewLong`), and stage 7's centre line of 37 bombs, one
+every 4 frames (`BombDotsLong`). 93 modules.
+
 ### Spacing along the track
 
 `STRETCH` in `ring_modules.py`, **chosen**: the data has no distances. At 1.0 a frame is
@@ -214,7 +221,7 @@ shape **placed more than once**. These are modules too:
 | `DottedArrow` | dotted line, two rows of three, one: stage 4's opening shape | stage 4 |
 
 `twin(module, apart)`, `train(shape, angles, every)` and `put(module, frame, angle)` build
-these, and modules add with `+`, so a new arrangement is one line. 91 modules in all.
+these, and modules add with `+`, so a new arrangement is one line. 93 modules in all.
 
 What is deliberately *not* a module: a shape simply put somewhere else (a `TriangleBig` on
 a wall, or overhead as in stage 5), which is the `at` angle's job when a level is laid; other
