@@ -2,18 +2,23 @@
 
 A 3D take on the Sonic 2 special stage, built on the Octave engine.
 
-So far: the sky (gradient, twinkling stars, an animated diamond show), a rigged and
-animated Sonic, and a half-pipe built from modular pieces that a generator lays out
-into levels.
+So far, on the content side: the sky, a rigged and animated Sonic, a half-pipe built from
+modular pieces, 93 ring and bomb shapes taken from the original game's own stages, and a
+generator that builds whole stages out of them -- the seven emerald stages and an endless
+marathon -- with a guarantee that every ring check can be passed. **None of it is playable
+yet:** in Octave there is the sky and the music. The plan says what comes next.
 
 ## Docs
 
 | | |
 | --- | --- |
-| [docs/procedural-stages.md](docs/procedural-stages.md) | **start here** -- why a stage is a list of hand-shaped pieces, not a model |
-| [docs/procedural-generation.md](docs/procedural-generation.md) | how the level generator works: pieces, the deck, the difficulty rulebook |
-| [docs/skies.md](docs/skies.md) | the eight skies: which number is which, with a chart, and how to change one |
+| [docs/implementation-plan.md](docs/implementation-plan.md) | **start here** -- the design, what is done and what is not, every phase left with a test for "done", and the decisions still open |
+| [docs/procedural-stages.md](docs/procedural-stages.md) | why a stage is a list of hand-shaped pieces, not a model |
+| [docs/procedural-generation.md](docs/procedural-generation.md) | the track generator: pieces, the deck, the difficulty rulebook |
+| [docs/stage-generation.md](docs/stage-generation.md) | the stage generator: sections, ring checks, the guarantee, colours, the marathon's hold |
+| [docs/s2-special-stage-objects.md](docs/s2-special-stage-objects.md) | the original's rings and bombs, decoded; the 93 modules; the checkers |
 | [docs/s2-special-stage-layouts.md](docs/s2-special-stage-layouts.md) | the original game's track data, decoded, and what it does and does not say |
+| [docs/skies.md](docs/skies.md) | the eight skies: which number is which, with a chart, and how to change one |
 
 The sections below describe the sky and predate the rest.
 
