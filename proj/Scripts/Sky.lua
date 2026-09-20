@@ -50,7 +50,7 @@ end
 function Sky:Create()
     -- Which sky: 0 classic, 1 Midnight, 2 Dawn, 3 Pastel, 4 Sunset, 5 Aurora,
     -- 6 Inferno, 7 Noir. Change it in the inspector or from a level script.
-    self.sky = 1
+    self.sky = 7
     -- Frames a second, so a full twinkle is STAR_FRAMES / this.
     self.twinklesPerSecond = 12.0
     self.colourShiftsPerSecond = 2.0
@@ -59,12 +59,20 @@ function Sky:Create()
     self.time = 0.0
     self.medleyTime = 0.0
     self.shownSky = -1
+    -- Start the playable special stage when the game runs. The sky is the one node every
+    -- scene of this project already has, so starting it from here means there is nothing to
+    -- set up in the editor: SpecialStage.lua spawns the track, the rings, Sonic, the camera
+    -- and the UI for itself. Untick it in the inspector to look at the sky alone.
+    self.startSpecialStage = true
+    TheSky = self                   -- so a stage can set `sky` to the one its palette names
+    self.startedSpecialStage = false
 end
 
 function Sky:GatherProperties()
     return
     {
         { name = "sky", type = DatumType.Integer },
+        { name = "startSpecialStage", type = DatumType.Bool },
         { name = "twinklesPerSecond", type = DatumType.Float },
         { name = "medleyFramesPerSecond", type = DatumType.Float },
         { name = "colourShiftsPerSecond", type = DatumType.Float },
@@ -188,6 +196,13 @@ function Sky:UpdateSky(deltaTime)
 end
 
 function Sky:Tick(deltaTime)
+    -- Tick is the GAME's; the editor calls EditorTick. So the stage never starts in the editor.
+    if (self.startSpecialStage and not self.startedSpecialStage) then
+        self.startedSpecialStage = true
+        local stage = self:GetWorld():SpawnNode("Node3D")
+        stage:SetName("SpecialStage")
+        stage:SetScript("SpecialStage")
+    end
     self:UpdateSky(deltaTime)
 end
 

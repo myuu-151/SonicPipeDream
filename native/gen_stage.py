@@ -942,4 +942,6 @@ def main():
             bpy.ops.render.render(write_still=True)
 
 
-main()
+# Only when run as the script: export_to_octave.py imports this for piece_paths().
+if __name__ == "__main__":
+    main()

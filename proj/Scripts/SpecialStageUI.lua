@@ -24,6 +24,7 @@
 --     TheSpecialStageUI:SetRings(n)        as rings are collected or lost
 --     TheSpecialStageUI:SetTotal(n)        the number in the TOTAL box (rings to go, or the total)
 --     TheSpecialStageUI:ShowCool()         when a ring check is passed
+--     TheSpecialStageUI:ShowBanner(t, s)   a line of words for s seconds
 --
 -- Everything is laid out on the original's 320 x 224 screen and scaled to the window's
 -- height, so it sits the same at any resolution and is re-laid if the window changes size.
@@ -89,6 +90,13 @@ function SpecialStageUI:ShowCool()
     self.coolTime = 0.0
 end
 
+-- A line of words across the middle for a few seconds: NOT ENOUGH RINGS, EMERALD GET !
+function SpecialStageUI:ShowBanner(text, seconds)
+    self.bannerText = text
+    self.bannerLeft = seconds or 3.0
+    if (self.built) then self.banner:SetText(text) end
+end
+
 -- ------------------------------------------------------------------ building
 local function MakeText(parent, text, colour)
     local t = parent:CreateChild("Text")
@@ -128,6 +136,8 @@ function SpecialStageUI:Build()
     self.letters = {}
     for i = 1, #LETTERS do self.letters[i] = MakeText(self, LETTERS[i], WHITE) end
 
+    self.banner   = MakeText(self, self.bannerText or "", YELLOW)
+    self.banner:SetVisible(false)
     self.emblem   = MakeQuad(self, LoadAsset("T_UI_Emblem"), WHITE)
     self.coolText = MakeText(self, "COOL !", WHITE)
 
@@ -189,6 +199,7 @@ function SpecialStageUI:Layout()
 
     for i = 1, #self.letters do self.letters[i]:SetTextSize(LETTER_SIZE * self.k) end
     self.coolText:SetTextSize(26.0 * self.k)
+    self.banner:SetTextSize(22.0 * self.k)
 end
 
 -- ------------------------------------------------------------------ animation
@@ -300,6 +311,14 @@ function SpecialStageUI:Tick(deltaTime)
     if (height ~= self.layoutHeight) then self:Layout() end
 
     if (self.demo) then self:TickDemo(deltaTime) end
+
+    if ((self.bannerLeft or 0.0) > 0.0) then
+        self.bannerLeft = self.bannerLeft - deltaTime
+        self.banner:SetVisible(true)
+        self:Place(self.banner, SCREEN_W * 0.5 - 5.6 * #self.bannerText, 176.0)
+    elseif (self.banner:IsVisible()) then
+        self.banner:SetVisible(false)
+    end
     self:TickStart(deltaTime)
     self:TickCool(deltaTime)
 end
