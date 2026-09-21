@@ -51,7 +51,7 @@ local SPARKLES = 5              -- to a ring
 local SPARKLE_LIFE = 0.45
 local SPARKLE_SIZE = 1.5
 local BOOM_LIFE = 0.50
-local BOOM_FRAMES = 4
+local BOOM_FRAMES = 3
 local BOOM_SIZE = 5.5
 
 -- Drop shadows: a dark blob on the pipe under Sonic and under every ring and bomb (SM_Shadow).

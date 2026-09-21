@@ -3,11 +3,11 @@
     python native/gen_fx_assets.py        (needs Pillow; no Blender)
 
     -> proj/Assets/Stage/FX/T_Sparkle.oct, M_Sparkle.oct         a four-pointed star, ADDITIVE
-                            T_Explosion_0..3.oct, M_Explosion.oct   a fireball opening out to smoke
+                            T_Explosion_0..2.oct, M_Explosion.oct   the bomb going off: external/ui/blowup.png
                             SM_FxQuad.oct, SM_FxQuadBoom.oct        the square they are drawn on
 
-After the original's RING SPARKS and BOMB EXPLOSION sprites: drawn here from shapes, small and
-hard-edged like them. Both are flat squares that the game turns to face the camera every frame
+After the original's RING SPARKS and BOMB EXPLOSION sprites. The sparkle is drawn here from shapes;
+the explosion is the supplied sprite sheet, cut into its frames. Both are flat squares that the game turns to face the camera every frame
 (SpecialStage.lua), so there is no particle system to set up: a sparkle is a StaticMesh3D node.
 
 The square has NO vertex colours and the material is unlit and textured, which is the one
@@ -29,7 +29,7 @@ LOOK = os.path.abspath(os.path.join(HERE, "..", "external", "fx"))
 
 UUID = 0x51C0FFEE00006000
 ADDITIVE, TRANSLUCENT = 3, 2
-EXPLOSION_FRAMES = 4
+EXPLOSION_FRAMES = 3
 
 
 def sparkle(size=64):
@@ -50,31 +50,25 @@ def sparkle(size=64):
     return img.convert("RGBA")
 
 
-def explosion(frame, size=64):
-    """Frame 0 a white-hot ball, 1 and 2 the fireball opening out in lobes, 3 what is left: smoke."""
-    ss = 4
-    n = size * ss
-    img = Image.new("RGBA", (n, n), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    c = n / 2.0
-    grow = (0.22, 0.36, 0.45, 0.47)[frame]
-    ramps = (
-        [(255, 255, 255), (255, 240, 120), (255, 170, 30)],
-        [(255, 240, 150), (255, 160, 20), (220, 60, 10)],
-        [(255, 190, 60), (230, 80, 10), (120, 30, 10)],
-        [(150, 140, 130), (95, 88, 84), (60, 56, 54)],
-    )[frame]
-    lobes = 9
-    for ring, colour in zip((1.0, 0.72, 0.44), reversed(ramps)):
-        for i in range(lobes):
-            a = 2.0 * math.pi * i / lobes + frame * 0.35
-            wobble = 0.80 + 0.20 * math.sin(i * 2.3 + frame)
-            r = n * grow * ring * 0.55 * wobble
-            x, y = c + math.cos(a) * n * grow * ring * 0.55, c + math.sin(a) * n * grow * ring * 0.55
-            d.ellipse((x - r, y - r, x + r, y + r), fill=colour + (255,))
-        r = n * grow * ring * 0.75
-        d.ellipse((c - r, c - r, c + r, c + r), fill=colour + (255,))
-    return img.resize((size, size), Image.LANCZOS)
+SHEET = os.path.abspath(os.path.join(HERE, "..", "external", "ui", "blowup.png"))
+CELL = 32                           # the sheet is three 32 x 32 cells, a pixel of border round each
+CELL_BACKGROUND = (0, 84, 84)       # the teal each cell is drawn on: it becomes clear
+FX_SCALE = 4                        # pixel art, scaled up with hard edges so the engine's filtering
+                                    # softens a big picture a little and not a small one a lot
+
+
+def explosion(frame):
+    """Frame `frame` of the supplied sheet (external/ui/blowup.png): the fireball, the fireball
+    breaking up, the debris. (A drawn one came first and was too simple; this is the real art.)"""
+    sheet = Image.open(SHEET).convert("RGBA")
+    x = 1 + frame * (CELL + 1)
+    cell = sheet.crop((x, 1, x + CELL, 1 + CELL))
+    px = cell.load()
+    for yy in range(CELL):
+        for xx in range(CELL):
+            if px[xx, yy][:3] == CELL_BACKGROUND:
+                px[xx, yy] = (0, 0, 0, 0)
+    return cell.resize((CELL * FX_SCALE, CELL * FX_SCALE), Image.NEAREST)
 
 
 def material(name, uuid, texture_uuid, texture_name, blend):
