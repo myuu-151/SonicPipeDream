@@ -9,6 +9,8 @@
     external/ui/total_remade.png    -> T_UI_Total         the TOTAL frame (gen_ui_total.py draws it)
     external/ui/emblem_bluenew2.png -> T_UI_Emblem        the winged disc of a passed check
     external/ui/thumbsupnew2.png    -> T_UI_Thumb         the glove that sits on it
+                                       T_UI_ThumbDown     the same, thumb down: TOO BAD
+                                       T_UI_EmblemRed     and the emblem it sits on then
 
 The art is small pixel art (64, 128 or 256 across) and the window is not, so each picture is
 scaled up to about 512 across with hard edges before it is written: the engine then filters a big
@@ -56,6 +58,11 @@ if __name__ == "__main__":
     save(art("flag"), 0, "T_UI_Flag")
     save(art("emblem_bluenew2"), 1, "T_UI_Emblem", scale=2)
     save(art("thumbsupnew2"), 2, "T_UI_Thumb", scale=2)
+    # TOO BAD: the same glove turned thumb down, on the same emblem gone red (its red and blue
+    # swapped, which keeps every highlight and shadow of the art exactly where it was).
+    save(art("thumbsupnew2").transpose(Image.FLIP_TOP_BOTTOM), 11, "T_UI_ThumbDown", scale=2)
+    r, g, b, a = art("emblem_bluenew2").split()
+    save(Image.merge("RGBA", (b, g, r, a)), 12, "T_UI_EmblemRed", scale=2)
     save(art("sonicringsnew"), 3, "T_UI_SonicRings", scale=2)      # 256 across already
     save(art("total_remade"), 4, "T_UI_Total", scale=2)       # drawn by gen_ui_total.py
     start = art("startnew2")

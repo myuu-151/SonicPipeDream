@@ -44,6 +44,9 @@ EFFECTS = [
     ("SE_Goalring.wav", "SW_Goalring", 0x51C0FFEE00300016),
     ("SE_Item_Appear.wav", "SW_ItemAppear", 0x51C0FFEE00300017),
     ("SE_Rainbow.wav", "SW_Rainbow", 0x51C0FFEE00300018),
+    ("Fail.wav", "SW_Fail", 0x51C0FFEE00300019),
+    ("Explosion2.wav", "SW_Explosion", 0x51C0FFEE0030001A),
+    ("Exit_SS.wav", "SW_ExitStage", 0x51C0FFEE0030001B),
 ]
 
 

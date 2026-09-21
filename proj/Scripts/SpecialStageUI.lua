@@ -106,6 +106,22 @@ end
 
 function SpecialStageUI:ShowCool()
     self.coolTime = 0.0
+    self.tooBad = false
+    self:DressEmblem()
+end
+
+-- A FAILED check: the same emblem and glove, gone red and thumb down, over TOO BAD !
+function SpecialStageUI:ShowTooBad()
+    self.coolTime = 0.0
+    self.tooBad = true
+    self:DressEmblem()
+end
+
+function SpecialStageUI:DressEmblem()
+    if (not self.built) then return end
+    self.emblem:SetTexture(self.tooBad and self.texEmblemRed or self.texEmblem)
+    self.thumb:SetTexture(self.tooBad and self.texThumbDown or self.texThumb)
+    self.coolText:SetText(self.tooBad and "TOO BAD !" or "COOL !")
 end
 
 -- A line of words across the middle for a few seconds: NOT ENOUGH RINGS, EMERALD GET !
@@ -151,8 +167,11 @@ function SpecialStageUI:Build()
 
     self.banner   = MakeText(self, self.bannerText or "", YELLOW)
     self.banner:SetVisible(false)
-    self.emblem   = MakeQuad(self, LoadAsset("T_UI_Emblem"), WHITE)
-    self.thumb    = MakeQuad(self, LoadAsset("T_UI_Thumb"), WHITE)
+    self.texEmblem, self.texThumb = LoadAsset("T_UI_Emblem"), LoadAsset("T_UI_Thumb")
+    self.texEmblemRed = LoadAsset("T_UI_EmblemRed") or self.texEmblem
+    self.texThumbDown = LoadAsset("T_UI_ThumbDown") or self.texThumb
+    self.emblem   = MakeQuad(self, self.texEmblem, WHITE)
+    self.thumb    = MakeQuad(self, self.texThumb, WHITE)
     self.coolText = MakeText(self, "COOL !", WHITE)
 
     self.built = true
@@ -304,7 +323,7 @@ function SpecialStageUI:TickCool(deltaTime)
     local bob = math.sin(t * 2.0 * math.pi / COOL_BOB_TIME) * COOL_BOB
     self:Place(self.emblem, SCREEN_W * 0.5 - ew * 0.5, 84.0 + bob - eh * 0.5, ew, eh)
     self:Place(self.thumb, SCREEN_W * 0.5 - th * 0.5, 84.0 - bob - th * 0.5, th, th)
-    self:Place(self.coolText, SCREEN_W * 0.5 - 44.0, 128.0)
+    self:Place(self.coolText, SCREEN_W * 0.5 - (self.tooBad and 62.0 or 44.0), 128.0)
     self.emblem:SetOpacityFloat(opacity)
     self.thumb:SetOpacityFloat(opacity)
     self.coolText:SetOpacityFloat(opacity)

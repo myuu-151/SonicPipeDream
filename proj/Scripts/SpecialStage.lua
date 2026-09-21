@@ -43,6 +43,17 @@ local REACH_ANGLE = 11.0        -- ...this far round it (256ths)...
 local REACH_HEIGHT = 2.6        -- ...and no higher off the surface than this
 local RING_SPIN_FRAMES = 12     -- meshes in half a turn of a ring (export_to_octave.py writes them)
 local RING_SPIN_FPS = 20.0      -- steps a second: a full turn to the eye every 0.6 s
+-- Sparkles where a ring was, and a fireball where a bomb was (native/gen_fx_assets.py). They are
+-- flat squares turned to face the camera, and they RIDE WITH SONIC: he runs at 30 units a second,
+-- so one left where the ring hung would be behind the camera before it had finished. Each is kept
+-- in track coordinates relative to him (frames ahead, angle, height) and placed afresh every tick.
+local SPARKLES = 5              -- to a ring
+local SPARKLE_LIFE = 0.45
+local SPARKLE_SIZE = 1.5
+local BOOM_LIFE = 0.50
+local BOOM_FRAMES = 4
+local BOOM_SIZE = 5.5
+
 -- Drop shadows: a dark blob on the pipe under Sonic and under every ring and bomb (SM_Shadow).
 local SHADOW_LIFT = 0.06        -- off the pipe's surface, or it fights the pipe for the same depth
 local SHADOW_RING = { along = 1.05, across = 1.05 }     -- round, like the others. (A thin ellipse is what a ring
@@ -268,6 +279,9 @@ function SpecialStage:Build()
     self.emerald:SetWorldRotationQuat(FacingQuat(emeraldFwd, emeraldUp))
 
     self.meshBall = LoadAsset("SM_PlayerBall")
+    self.meshSparkle, self.meshBoom = LoadAsset("SM_FxQuad"), LoadAsset("SM_FxQuadBoom")
+    self.boomMaterial, self.boomTextures, self.boomFrame = LoadAsset("M_Explosion"), {}, -1
+    for i = 0, BOOM_FRAMES - 1 do self.boomTextures[i] = LoadAsset("T_Explosion_" .. i) end
     self.meshShadow = LoadAsset("SM_Shadow")
     self.meshShadows = { self.meshShadow }                          -- nearest and darkest first
     for i = 1, #SHADOW_STEPS - 1 do
@@ -331,6 +345,80 @@ function SpecialStage:Restart()
     self.runClock = 0.0
     self.emerald:SetVisible(true)
     self.uiReady = false
+    self.failed = false
+    self.fxPool = self.fxPool or { sparkle = {}, boom = {} }
+    for _, fx in ipairs(self.fx or {}) do                   -- whatever was mid-flight goes back to the pool
+        fx.node:SetVisible(false)
+        table.insert(self.fxPool[fx.kind], fx.node)
+    end
+    self.fx = {}
+end
+
+-- ------------------------------------------------------------------ effects
+function SpecialStage:FxNode(kind)
+    local node = table.remove(self.fxPool[kind])
+    if (node == nil) then
+        local mesh = (kind == "boom") and self.meshBoom or self.meshSparkle
+        if (mesh == nil) then return nil end
+        node = SpawnMesh(self:GetWorld(), mesh)
+    end
+    node:SetVisible(true)
+    return node
+end
+
+function SpecialStage:SpawnSparkles(o)
+    for i = 1, SPARKLES do
+        local node = self:FxNode("sparkle")
+        if (node == nil) then return end
+        local a = (i / SPARKLES) * TWO_PI + math.random() * 1.2
+        local push = 0.6 + math.random() * 0.8
+        self.fx[#self.fx + 1] = { kind = "sparkle", node = node, age = -0.05 * (i - 1), life = SPARKLE_LIFE,
+                                  ahead = o.frame - self.frame, angle = o.angle, height = self.data.hover,
+                                  dAngle = math.cos(a) * push * 14.0, dHeight = math.sin(a) * push * 2.4,
+                                  size = SPARKLE_SIZE * (0.7 + math.random() * 0.6) }
+    end
+end
+
+function SpecialStage:SpawnBoom(o)
+    local node = self:FxNode("boom")
+    if (node == nil) then return end
+    self.fx[#self.fx + 1] = { kind = "boom", node = node, age = 0.0, life = BOOM_LIFE,
+                              ahead = o.frame - self.frame, angle = o.angle, height = self.data.hover,
+                              dAngle = 0.0, dHeight = 1.5, size = BOOM_SIZE }
+end
+
+-- Move, size and face every live effect; retire the finished ones. `facing` is the camera's
+-- own rotation: a square given it faces the camera exactly.
+function SpecialStage:UpdateFx(dt, facing)
+    local keep = {}
+    for _, fx in ipairs(self.fx) do
+        fx.age = fx.age + dt
+        if (fx.age >= fx.life) then
+            fx.node:SetVisible(false)
+            table.insert(self.fxPool[fx.kind], fx.node)
+        else
+            local t = math.max(0.0, fx.age) / fx.life
+            local place = self:Place(self.frame + fx.ahead, fx.angle + fx.dAngle * t, fx.height + fx.dHeight * t)
+            local size
+            if (fx.kind == "boom") then
+                size = fx.size * (0.55 + 0.45 * t)
+                local frame = math.min(BOOM_FRAMES - 1, math.floor(t * BOOM_FRAMES))
+                if (frame ~= self.boomFrame and self.boomMaterial ~= nil and self.boomTextures[frame] ~= nil) then
+                    self.boomFrame = frame
+                    self.boomMaterial:SetTexture(1, self.boomTextures[frame])
+                end
+            else
+                -- a sparkle swells, twinkles and goes
+                size = fx.size * math.sin(math.pi * t) * (0.75 + 0.25 * math.sin(fx.age * 50.0))
+            end
+            fx.node:SetVisible(fx.age >= 0.0)
+            fx.node:SetWorldPosition(ToVec(place))
+            fx.node:SetWorldRotationQuat(facing)
+            fx.node:SetScale(Vec(size, size, size))
+            keep[#keep + 1] = fx
+        end
+    end
+    self.fx = keep
 end
 
 -- ------------------------------------------------------------------ rings and bombs
@@ -432,12 +520,16 @@ function SpecialStage:Collide(fromFrame)
             o.taken = true
             if (o.node ~= nil) then self:Release(o) end
             if (o.bomb) then
+                local had = self.rings
                 self.rings = math.max(0, self.rings - BOMB_COST)
                 self.stun = STUN
-                self:Sound("LoseRings")
+                self:Sound("Explosion")
+                if (had > 0) then self:Sound("LoseRings") end      -- only if there were any to lose
+                self:SpawnBoom(o)
             else
                 self.rings = self.rings + 1
                 self:Sound("Ring")
+                self:SpawnSparkles(o)
             end
         end
     end
@@ -461,7 +553,9 @@ function SpecialStage:PassChecks(fromFrame)
         self.section = self.section + 1
     else
         self.over = 3.5
-        if (self.uiReady) then TheSpecialStageUI:ShowBanner("NOT ENOUGH RINGS", 3.2) end
+        self.failed = true
+        self:Sound("Fail")
+        if (self.uiReady) then TheSpecialStageUI:ShowTooBad() end
     end
 end
 
@@ -485,7 +579,8 @@ end
 -- music (rms 0.34 against 0.16) and it is the one sound that plays in bursts, several a second,
 -- each on top of the last. So every effect has its own level here, set against the music at 1.0:
 -- the ring well under it, the one-off fanfares about level with it.
-local MIX = { Ring = 0.22, LoseRings = 0.55, Jump = 0.40, Checkpoint = 0.65, GetEmerald = 1.0 }
+local MIX = { Ring = 0.22, LoseRings = 0.55, Jump = 0.40, Checkpoint = 0.65, GetEmerald = 1.0,
+              Explosion = 0.60, Fail = 0.70, ExitStage = 0.60 }
 
 function SpecialStage:Sound(name)
     self.sounds = self.sounds or {}
@@ -528,7 +623,10 @@ function SpecialStage:Tick(deltaTime)
     end
     if (self.over >= 0.0) then
         self.over = self.over - dt
-        if (self.over < 0.0) then self:Restart() end
+        if (self.over < 0.0) then
+            if (self.failed) then self:Sound("ExitStage") end
+            self:Restart()
+        end
     end
 
     -- steering: round the pipe, and only round it
@@ -644,7 +742,19 @@ function SpecialStage:Tick(deltaTime)
     local look = Normalize(Add(target, Scale(eye, -1.0)))
     local camUp = Normalize(Add(Scale(upHere, 1.0 - swing), Scale(inward, swing)))
     self.camera:SetWorldPosition(ToVec(eye))
-    self.camera:SetWorldRotationQuat(CameraQuat(look, camUp))
+    local facing = CameraQuat(look, camUp)
+    self.camera:SetWorldRotationQuat(facing)
+    -- For looking at the effects without having to steer into anything: S2_TEST_FX sets one of
+    -- each off in front of Sonic every second.
+    if (os ~= nil and os.getenv ~= nil and os.getenv("S2_TEST_FX") ~= nil) then
+        self.testFx = (self.testFx or 0.0) + dt
+        if (self.testFx >= 1.0) then
+            self.testFx = 0.0
+            self:SpawnSparkles({ frame = self.frame + 5.0, angle = -14.0 })
+            self:SpawnBoom({ frame = self.frame + 6.0, angle = 14.0 })
+        end
+    end
+    self:UpdateFx(dt, facing)
 
     -- the rings spin: every ring in sight steps to the next mesh of the turn, all together
     self.clock = (self.clock or 0.0) + dt
