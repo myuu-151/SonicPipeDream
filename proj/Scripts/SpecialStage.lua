@@ -43,6 +43,18 @@ local REACH_ANGLE = 11.0        -- ...this far round it (256ths)...
 local REACH_HEIGHT = 2.6        -- ...and no higher off the surface than this
 local RING_SPIN_FRAMES = 12     -- meshes in half a turn of a ring (export_to_octave.py writes them)
 local RING_SPIN_FPS = 20.0      -- steps a second: a full turn to the eye every 0.6 s
+-- Drop shadows: a dark blob on the pipe under Sonic and under every ring and bomb (SM_Shadow).
+local SHADOW_LIFT = 0.06        -- off the pipe's surface, or it fights the pipe for the same depth
+local SHADOW_RING = { along = 1.05, across = 1.05 }     -- round, like the others. (A thin ellipse is what a ring
+                                                        -- really casts from above; round reads better.)
+local SHADOW_BOMB = { along = 1.35, across = 1.35 }
+local SHADOW_SONIC = 1.25
+local SHADOW_SHRINK = 0.10      -- how fast a shadow shrinks with the drop from the thing to the pipe under it
+-- The drop at which a shadow steps down to the next, fainter disc (SM_Shadow, SM_Shadow_1..3);
+-- past the last there is no shadow at all. A thing riding the pipe is about 2 off it.
+local SHADOW_STEPS = { 3.0, 6.0, 9.0, 12.0 }
+local SHADOW_RIM = 0.94         -- no shadow for a thing further out than this share of the pipe's radius:
+                                -- the track is a HALF pipe, and past its rim there is nothing to fall on
 local BOMB_COST = 10            -- rings a bomb takes, as in the original
 local STUN = 0.6                -- seconds of stumbling after a bomb
 local SEE_AHEAD, SEE_BEHIND = 110, 6    -- frames of rings and bombs kept alive round the player
@@ -256,6 +268,14 @@ function SpecialStage:Build()
     self.emerald:SetWorldRotationQuat(FacingQuat(emeraldFwd, emeraldUp))
 
     self.meshBall = LoadAsset("SM_PlayerBall")
+    self.meshShadow = LoadAsset("SM_Shadow")
+    self.meshShadows = { self.meshShadow }                          -- nearest and darkest first
+    for i = 1, #SHADOW_STEPS - 1 do
+        self.meshShadows[i + 1] = LoadAsset("SM_Shadow_" .. i) or self.meshShadows[i]
+    end
+    if (self.meshShadow ~= nil) then
+        self.playerShadow = SpawnMesh(world, self.meshShadow)
+    end
     self.sonicRun, self.sonicThumbs = {}, {}
     for i = 0, SONIC_FRAMES - 1 do
         self.sonicRun[i] = LoadAsset(string.format("SM_Sonic_Run_%02d", i))
@@ -316,13 +336,55 @@ end
 -- ------------------------------------------------------------------ rings and bombs
 function SpecialStage:Release(o)
     o.node:SetVisible(false)
-    self.pool[#self.pool + 1] = o.node
-    o.node = nil
+    if (o.shadow ~= nil) then o.shadow:SetVisible(false) end
+    self.pool[#self.pool + 1] = { node = o.node, shadow = o.shadow }
+    o.node, o.shadow = nil, nil
+end
+
+-- A shadow falls STRAIGHT DOWN (down being the track's own down: the pipe is shaded by a light
+-- from right above, and the shadows agree with it). So it does not sit on the pipe behind the
+-- thing -- for a ring high on the wall or overhead that spot is in mid air, the pipe being open
+-- at the top, and the first version floated blobs there at odd angles -- but on the pipe BELOW
+-- it: the point of the lower half with the same sideways offset. `height` is how far the thing
+-- is off the surface. Returns false, and hides the shadow, when there is no pipe under it.
+function SpecialStage:PlaceShadow(shadow, frame, angle, height, along, across)
+    local radius = self.data.pipe_radius
+    local side = self.data.angle_00_side
+    local t = side * angle * TWO_PI / 256.0
+    local r = radius - height
+    local across_pipe = r * math.sin(t) / radius                -- sideways offset, as a share of the radius
+    if (math.abs(across_pipe) > SHADOW_RIM) then
+        shadow:SetVisible(false)
+        return false
+    end
+    local below = math.asin(across_pipe)                        -- the angle of the pipe under it
+    local drop = (radius - r * math.cos(t)) - (radius - radius * math.cos(below))
+    local level = nil
+    for i, limit in ipairs(SHADOW_STEPS) do
+        if (drop <= limit) then level = i break end
+    end
+    if (level == nil or self.meshShadows[level] == nil) then        -- too far up to cast anything worth seeing
+        shadow:SetVisible(false)
+        return false
+    end
+    shadow:SetStaticMesh(self.meshShadows[level])
+    local shrink = 1.0 / (1.0 + math.max(0.0, drop) * SHADOW_SHRINK)
+    local place, fwd, inward = self:Place(frame, below * 256.0 / TWO_PI * side, SHADOW_LIFT)
+    shadow:SetWorldPosition(ToVec(place))
+    shadow:SetWorldRotationQuat(FacingQuat(fwd, inward))
+    shadow:SetScale(Vec(along * shrink, 1.0, across * shrink))
+    shadow:SetVisible(true)
+    return true
 end
 
 function SpecialStage:Acquire(o)
-    local node = table.remove(self.pool)
-    if (node == nil) then node = self:GetWorld():SpawnNode("StaticMesh3D") end
+    local pair = table.remove(self.pool)
+    local node = pair and pair.node or self:GetWorld():SpawnNode("StaticMesh3D")
+    local shadow = pair and pair.shadow
+    if (shadow == nil and self.meshShadow ~= nil) then
+        shadow = self:GetWorld():SpawnNode("StaticMesh3D")
+        shadow:SetStaticMesh(self.meshShadow)
+    end
     node:SetStaticMesh(o.bomb and self.meshBomb or self.meshRingSpin[self.ringStep])
     local place, fwd, inward = self:Place(o.frame, o.angle, self.data.hover)
     node:SetWorldPosition(ToVec(place))
@@ -336,6 +398,11 @@ function SpecialStage:Acquire(o)
     end
     node:SetVisible(true)
     o.node = node
+    o.shadow = shadow
+    if (shadow ~= nil) then
+        local size = o.bomb and SHADOW_BOMB or SHADOW_RING
+        self:PlaceShadow(shadow, o.frame, o.angle, self.data.hover, size.along, size.across)
+    end
 end
 
 -- Keep alive only what is near the player.
@@ -531,6 +598,10 @@ function SpecialStage:Tick(deltaTime)
     self.player:SetWorldPosition(ToVec(place))
     self.player:SetWorldRotationQuat(FacingQuat(fwd, inward))
     self.player:SetVisible(self.stun <= 0.0 or (math.floor(self.stun * 20.0) % 2 == 0))   -- flickers when hit
+    -- his shadow stays on the pipe under him, and draws in as he jumps away from it
+    if (self.playerShadow ~= nil) then
+        self:PlaceShadow(self.playerShadow, self.frame, self.angle, self.height, SHADOW_SONIC, SHADOW_SONIC)
+    end
 
     -- the camera rides the centre line behind him: it follows the TRACK, not the player,
     -- so steering moves Sonic round the screen as it does in the original

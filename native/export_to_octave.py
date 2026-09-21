@@ -269,6 +269,89 @@ def torus(bm, around=36, across=16, radius=1.0, tube=0.24, spin=0.0):
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
 
 
+# --- drop shadows ---------------------------------------------------------------------------
+# The original puts a dark blob on the pipe under Sonic and under every ring and bomb, and it is
+# most of what tells you how far round the pipe a thing is. Here it is one small mesh, SM_Shadow:
+# a disc lying flat (its face is Blender +Z, the engine's +Y: "away from the pipe"), black, solid
+# in the middle and fading to nothing at its rim. The fade is in the VERTEX ALPHA, so it needs no
+# texture; the material is unlit and translucent and takes its alpha from the vertices.
+SHADOW_SEGMENTS = 20
+SHADOW_CORE = 0.55                  # out to this share of the radius it is fully dark
+SHADOW_ALPHA = 0.50
+# THE DISC IS CURVED to fit the pipe. Flat, it touched the pipe in the middle and its left and
+# right edges sank under the surface and were cut off -- at Sonic's size; smaller ones (his own,
+# mid-jump) were shallow enough to escape. Across the pipe, the surface rises by x*x / 2R from
+# where a flat disc would be, so the disc's vertices are lifted by that. The game scales the disc
+# sideways but not upward, so the lift is worked out for the BIGGEST shadow (SHADOW_WIDEST, the
+# bomb's): smaller ones then ride a hair above the pipe at their edges, which does not show.
+SHADOW_WIDEST = 1.35
+# A SHADOW FADES WITH THE DROP. A thing near the pipe casts a tight dark blob; the same blob under
+# a ring far overhead has nothing to tie it to the ring, and a cluster of them is a dark smear on
+# the floor. The fade lives in the vertices, so the game cannot dim one shadow: there are several
+# discs instead, SM_Shadow (nearest, darkest) and SM_Shadow_1.., each fainter and softer-edged
+# than the last, and the game picks by how far the shadow falls. (darkness, share that is fully dark)
+SHADOW_LEVELS = [(0.50, 0.55), (0.34, 0.40), (0.20, 0.25), (0.10, 0.10)]
+
+
+def write_shadow():
+    uuid = UUID_BASE + 0x880
+    d = header(TYPE_MATERIALLITE, uuid + 1, "M_StageShadow")
+    d += u32(0)                     # numParameters
+    d += u32(0)                     # Unlit
+    d += u32(2)                     # Translucent
+    d += u32(1)                     # VertexColorMode::Modulate: the fade is the vertices' alpha
+    d += u32(0)                     # numTextures
+    for _ in range(4):
+        d += null_ref() + u8(0) + u8(1)
+    for _ in range(2):
+        d += f32(0) + f32(0) + f32(1) + f32(1)
+    d += f32(0) + f32(0) + f32(0) + f32(1)                  # colour: black
+    d += f32(1) + f32(1) + f32(1) + f32(1)
+    d += f32(1.0) + f32(0.0) + f32(0.0) + f32(0.0)
+    d += u32(2) + f32(1.0) + f32(0.5) + f32(8.0)            # toonSteps, opacity, maskCutoff, shininess
+    d += i32(0)
+    d += u8(0) + u8(0) + u8(0)                              # depth test on, no fresnel, NO FOG on a shadow
+    d += u8(0)                                              # no culling
+    open(os.path.join(ASSETS, "M_StageShadow.oct"), "wb").write(d)
+
+    for level, (darkness, core) in enumerate(SHADOW_LEVELS):
+        write_shadow_disc(uuid, level, darkness, core)
+
+
+def write_shadow_disc(uuid, level, darkness, core):
+    name = "SM_Shadow" if level == 0 else "SM_Shadow_%d" % level
+    # vertices: the middle, a ring at `core` (dark), a ring at 1 (clear)
+    alpha = int(round(255 * darkness))
+    verts = [((0.0, 0.0, 0.0), alpha)]
+    for ring, a in ((core, alpha), (1.0, 0)):
+        for i in range(SHADOW_SEGMENTS):
+            t = 2.0 * math.pi * i / SHADOW_SEGMENTS
+            across = ring * math.sin(t) * SHADOW_WIDEST          # Blender Y is across the pipe
+            verts.append(((ring * math.cos(t), ring * math.sin(t), across * across / (2.0 * rm.PIPE_RADIUS)), a))
+    idx = []
+    n = SHADOW_SEGMENTS
+    for i in range(n):
+        j = (i + 1) % n
+        idx += [0, 1 + i, 1 + j]                                        # the dark middle
+        idx += [1 + i, 1 + n + i, 1 + n + j, 1 + i, 1 + n + j, 1 + j]   # the fading rim
+    d = header(TYPE_STATICMESH, uuid + (0 if level == 0 else 1 + level), name)
+    d += u32(len(verts)) + u32(len(idx)) + u32(1)
+    d += asset_ref(uuid + 1, "M_StageShadow")
+    d += u8(0) + u8(1)
+    for p, a in verts:
+        o = to_octave(p)
+        up = to_octave((0.0, 0.0, 1.0))
+        d += f32(o[0]) + f32(o[1]) + f32(o[2]) + f32(0) + f32(0) + f32(0) + f32(0)
+        d += f32(up[0]) + f32(up[1]) + f32(up[2])
+        d += u32(255 | (255 << 8) | (255 << 16) | (a << 24))
+    for i in idx:
+        d += u32(i)
+    d += u8(0) + u32(0)
+    d += f32(0) + f32(0) + f32(0) + f32(1.05)
+    open(os.path.join(ASSETS, name + ".oct"), "wb").write(d)
+    print("wrote %s.oct (%d triangles, %.0f%% dark)" % (name, len(idx) // 3, darkness * 100))
+
+
 def simple(name, build):
     bm = bmesh.new()
     build(bm)
@@ -350,6 +433,7 @@ def main():
     write_mesh("SM_PlayerBall", 221, simple("Ball", lambda bm: bmesh.ops.create_icosphere(bm, subdivisions=3, radius=1.7)),
                lambda k: (0.12, 0.30, 0.95))
     write_mesh("SM_Emerald", 222, simple("Emerald", octahedron), lambda k: (0.10, 0.85, 0.95))
+    write_shadow()
 
     # The track: where each piece goes, and the centre line frame by frame.
     paths = piece_paths()
