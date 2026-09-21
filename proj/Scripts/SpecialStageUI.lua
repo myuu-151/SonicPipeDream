@@ -40,12 +40,28 @@ local YELLOW  = Vec(1.00, 0.84, 0.10, 1.0)      -- RINGS
 local BOX     = Vec(1.00, 1.00, 1.00, 1.0)
 
 -- START: how long each part of it takes, in seconds.
-local DROP_TIME, HOLD_TIME, SCATTER_TIME = 0.45, 1.10, 0.60
+local DROP_TIME, HOLD_TIME, SCATTER_TIME = 0.55, 1.00, 0.75
+local DROP_STAGGER = 0.045      -- each letter lands this long after the one before it: S, T, A, R, T
 local START_Y = 118.0                           -- where it comes to rest, on the 224-high screen
--- START is five textures, a letter each, so that they can part company. These are the
--- columns each was cut from in the art (START_CUTS in gen_ui_assets.py): they overlap by the
--- outline the letters share, and putting each back at its own column rebuilds the word exactly.
-local START_CUTS = { 0, 54, 97, 148, 199 }
+-- START is five textures, a letter each, so that they can part company. The letters of the art
+-- TOUCH, so gen_ui_assets.py separates them properly (split_letters), each with a whole outline
+-- of its own, and prints where each sits in the word: { x, y } here, in the art's pixels. Put
+-- back at those places they overlap only in outline, and the word is exactly as it was drawn.
+local START_LETTERS = { { 5, 11 }, { 50, 11 }, { 96, 11 }, { 146, 11 }, { 200, 11 } }
+-- How each part leaves: the way it flies (x, y: up is negative), how far it turns (degrees), and
+-- how long after the scatter starts it goes. They go from the OUTSIDE IN -- the flags, then the
+-- end letters, then the inner ones, the A last -- each pulling back a touch first, then flung,
+-- turning and growing as it comes toward the screen.
+local START_FLIGHT = {
+    { -1.00, -0.55, -70.0, 0.06 },      -- S
+    { -0.55, -1.00, -35.0, 0.12 },      -- T
+    {  0.00, -1.20,  12.0, 0.18 },      -- A
+    {  0.55, -1.00,  35.0, 0.12 },      -- R
+    {  1.00, -0.55,  70.0, 0.06 },      -- T
+}
+local FLAG_FLIGHT = { { -1.10, 0.20, -110.0, 0.0 }, { 1.10, 0.20, 110.0, 0.0 } }
+local FLIGHT_REACH = 300.0      -- how far a part travels, on the 320 screen: well off it
+local FLIGHT_GROW = 0.45        -- and how much bigger it gets on the way
 local START_ART_W = 256.0                       -- the word, in the art's pixels
 local LETTER_W, LETTER_H = 64.0, 128.0          -- the texture of one letter, in the same
 local START_SCALE = 0.6                         -- art pixels to pixels of the 320 screen
@@ -163,7 +179,7 @@ function SpecialStageUI:Build()
     self.flagRight = MakeQuad(self, LoadAsset("T_UI_Flag"), WHITE)
     -- The pole is beside the word and the cloth flies outward, so the left one is a mirrored picture.
     self.letters = {}
-    for i = 1, #START_CUTS do self.letters[i] = MakeQuad(self, LoadAsset("T_UI_Start_" .. i), WHITE) end
+    for i = 1, #START_LETTERS do self.letters[i] = MakeQuad(self, LoadAsset("T_UI_Start_" .. i), WHITE) end
 
     self.banner   = MakeText(self, self.bannerText or "", YELLOW)
     self.banner:SetVisible(false)
@@ -244,28 +260,33 @@ local function EaseOutBack(t)               -- overshoots a little and settles: 
     return 1.0 + (c + 1.0) * u * u * u + c * u * u
 end
 
-local function EaseInQuad(t)
-    return t * t
+-- Pulls back a little before it goes: anticipation, then the fling.
+local function EaseInBack(t)
+    local c = 1.9
+    return t * t * ((c + 1.0) * t - c)
 end
 
--- Each part of START: where it rests (x on the 320 screen), and which way it scatters.
+local function Clamp01(t)
+    return math.max(0.0, math.min(1.0, t))
+end
+
+-- Each part of START: where it rests (on the 320 screen), its size, and how it flies off.
 local function StartParts(self)
     local parts = {}
     local mid = SCREEN_W * 0.5
     local wordW = START_ART_W * START_SCALE
     local first = mid - wordW * 0.5
     for i = 1, #self.letters do
-        local x = first + (START_CUTS[i] - START_CUTS[1]) * START_SCALE
-        local dir = 0.0
-        if (i < 3) then dir = -1.0 elseif (i > 3) then dir = 1.0 end
-        parts[#parts + 1] = { widget = self.letters[i], x = x, y = START_Y, dx = dir, dy = (dir == 0.0) and -1.0 or -0.25,
-                              w = LETTER_W * START_SCALE, h = LETTER_H * START_SCALE }
+        local at = START_LETTERS[i]
+        parts[#parts + 1] = { widget = self.letters[i], order = i - 1,
+                              x = first + at[1] * START_SCALE, y = START_Y + at[2] * START_SCALE,
+                              w = LETTER_W * START_SCALE, h = LETTER_H * START_SCALE, flight = START_FLIGHT[i] }
     end
     local flagY = START_Y + 17.0
-    parts[#parts + 1] = { widget = self.flagLeft,  x = first - FLAG_W - 4.0, y = flagY, dx = -1.0, dy = 0.15,
-                          w = FLAG_W, h = FLAG_H, spin = -40.0 }
-    parts[#parts + 1] = { widget = self.flagRight, x = first + wordW + 4.0, y = flagY, dx = 1.0, dy = 0.15,
-                          w = FLAG_W, h = FLAG_H, spin = 40.0 }
+    parts[#parts + 1] = { widget = self.flagLeft, order = 0, x = first - FLAG_W - 4.0, y = flagY,
+                          w = FLAG_W, h = FLAG_H, flight = FLAG_FLIGHT[1] }
+    parts[#parts + 1] = { widget = self.flagRight, order = 4, x = first + wordW + 4.0, y = flagY,
+                          w = FLAG_W, h = FLAG_H, flight = FLAG_FLIGHT[2] }
     return parts
 end
 
@@ -273,7 +294,8 @@ function SpecialStageUI:TickStart(deltaTime)
     if (self.startTime < 0.0) then return end
     self.startTime = self.startTime + deltaTime
     local t = self.startTime
-    local total = DROP_TIME + HOLD_TIME + SCATTER_TIME
+    local dropEnd = DROP_TIME + DROP_STAGGER * 4.0
+    local total = dropEnd + HOLD_TIME + SCATTER_TIME
     if (t >= total) then
         self.startTime = -1.0
         self:ShowStartParts(false)
@@ -281,20 +303,26 @@ function SpecialStageUI:TickStart(deltaTime)
     end
     self:ShowStartParts(true)
 
-    local drop = 1.0                        -- 0: above the window, 1: at rest
-    local away = 0.0                        -- 0: at rest, 1: gone
-    if (t < DROP_TIME) then
-        drop = EaseOutBack(t / DROP_TIME)
-    elseif (t > DROP_TIME + HOLD_TIME) then
-        away = EaseInQuad((t - DROP_TIME - HOLD_TIME) / SCATTER_TIME)
-    end
-
     for _, p in ipairs(StartParts(self)) do
-        local y = -90.0 + (p.y + 90.0) * drop       -- from above the top of the window
-        local x = p.x + p.dx * away * 260.0         -- and away, off the side it belongs to
-        y = y + p.dy * away * 260.0
-        self:Place(p.widget, x, y, p.w, p.h)
-        if (p.spin ~= nil) then p.widget:SetRotation(p.spin * away) end
+        -- the drop: one after another from above the window, each landing with a little bounce
+        local drop = EaseOutBack(Clamp01((t - p.order * DROP_STAGGER) / DROP_TIME))
+        local x, y, w, h = p.x, -110.0 + (p.y + 110.0) * drop, p.w, p.h
+        local turn = 0.0
+
+        -- the scatter
+        local f = p.flight
+        local since = t - dropEnd - HOLD_TIME - f[4]
+        if (since > 0.0) then
+            local away = EaseInBack(Clamp01(since / (SCATTER_TIME - 0.18)))
+            x = x + f[1] * FLIGHT_REACH * away
+            y = y + f[2] * FLIGHT_REACH * away
+            turn = f[3] * math.max(0.0, away)
+            local grow = 1.0 + FLIGHT_GROW * math.max(0.0, away)
+            x, y = x - w * (grow - 1.0) * 0.5, y - h * (grow - 1.0) * 0.5      -- grow about its middle
+            w, h = w * grow, h * grow
+        end
+        self:Place(p.widget, x, y, w, h)
+        p.widget:SetRotation(turn)
     end
 end
 

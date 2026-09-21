@@ -92,6 +92,11 @@ MATERIALS = {
     # gold ring's highlight IS gold -- which is what metal does, and plastic does not. Metal is
     # little diffuse and a lot of highlight, broad rather than pin-sharp (Blender's roughness
     # about 0.3), with a touch of emission so a ring in shadow is still a ring.
+    # The bombs: METAL. What makes a lit surface read as metal and not plastic is a highlight that
+    # is strong and fairly broad over a base that is darker than the paint would be (a metal has
+    # little diffuse colour: most of what it sends back is reflection). So: three times the gloss
+    # material's specular, a lower shininess for a wider hot spot, and the colours darkened below.
+    "M_StageMetal": (UUID_BASE + 0x804, 2.40, 26.0, False, 0.0, 0.18),
     "M_StageGold":  (UUID_BASE + 0x803, 2.60, 20.0, False, 0.18, 0.10),
 }
 GLOSSY_SLOTS = ("HP_Sphere",)               # of the half-pipe's seven materials, only the arch of spheres
@@ -285,12 +290,11 @@ SHADOW_ALPHA = 0.50
 # sideways but not upward, so the lift is worked out for the BIGGEST shadow (SHADOW_WIDEST, the
 # bomb's): smaller ones then ride a hair above the pipe at their edges, which does not show.
 SHADOW_WIDEST = 1.35
-# A SHADOW FADES WITH THE DROP. A thing near the pipe casts a tight dark blob; the same blob under
-# a ring far overhead has nothing to tie it to the ring, and a cluster of them is a dark smear on
-# the floor. The fade lives in the vertices, so the game cannot dim one shadow: there are several
-# discs instead, SM_Shadow (nearest, darkest) and SM_Shadow_1.., each fainter and softer-edged
-# than the last, and the game picks by how far the shadow falls. (darkness, share that is fully dark)
-SHADOW_LEVELS = [(0.50, 0.55), (0.34, 0.40), (0.20, 0.25), (0.10, 0.10)]
+# ONE disc, and dark. Fainter discs for things high up were tried (a shadow dropped to the floor
+# and faded with the drop); the original does neither: a thing up on the wall has a dark shadow
+# ON THE WALL beside it, and its sprites for that -- long slanted blobs, thin slivers at the side --
+# are what this same disc looks like lying on the wall, seen from down the track.
+SHADOW_LEVELS = [(0.60, 0.60)]      # (darkness, the share of the radius that is fully dark)
 
 
 def write_shadow():
@@ -429,7 +433,9 @@ def main():
     for i, c in enumerate(RAINBOW):
         write_mesh("SM_RingRainbow_%d" % i, 210 + i, ring, lambda k, c=c: c, material="M_StageGlow")
     bomb_colours = [tuple(linear_to_srgb(x) for x in m.diffuse_color[:3]) for m in bomb.materials]
-    write_mesh("SM_Bomb", 220, bomb, lambda k: bomb_colours[k])
+    METAL_BASE = 0.78               # how much of its painted colour a metal keeps as diffuse
+    write_mesh("SM_Bomb", 220, bomb, lambda k: tuple(c * METAL_BASE for c in bomb_colours[k]),
+               material="M_StageMetal")
     write_mesh("SM_PlayerBall", 221, simple("Ball", lambda bm: bmesh.ops.create_icosphere(bm, subdivisions=3, radius=1.7)),
                lambda k: (0.12, 0.30, 0.95))
     write_mesh("SM_Emerald", 222, simple("Emerald", octahedron), lambda k: (0.10, 0.85, 0.95))

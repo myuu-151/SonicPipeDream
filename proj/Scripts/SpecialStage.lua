@@ -50,9 +50,9 @@ local RING_SPIN_FPS = 20.0      -- steps a second: a full turn to the eye every 
 local SPARKLES = 5              -- to a ring
 local SPARKLE_LIFE = 0.45
 local SPARKLE_SIZE = 1.5
-local BOOM_LIFE = 0.50
+local BOOM_LIFE = 0.30
 local BOOM_FRAMES = 3
-local BOOM_SIZE = 5.5
+local BOOM_SIZE = 3.6
 
 -- Drop shadows: a dark blob on the pipe under Sonic and under every ring and bomb (SM_Shadow).
 local SHADOW_LIFT = 0.06        -- off the pipe's surface, or it fights the pipe for the same depth
@@ -60,12 +60,10 @@ local SHADOW_RING = { along = 1.05, across = 1.05 }     -- round, like the other
                                                         -- really casts from above; round reads better.)
 local SHADOW_BOMB = { along = 1.35, across = 1.35 }
 local SHADOW_SONIC = 1.25
-local SHADOW_SHRINK = 0.10      -- how fast a shadow shrinks with the drop from the thing to the pipe under it
--- The drop at which a shadow steps down to the next, fainter disc (SM_Shadow, SM_Shadow_1..3);
--- past the last there is no shadow at all. A thing riding the pipe is about 2 off it.
-local SHADOW_STEPS = { 3.0, 6.0, 9.0, 12.0 }
-local SHADOW_RIM = 0.94         -- no shadow for a thing further out than this share of the pipe's radius:
-                                -- the track is a HALF pipe, and past its rim there is nothing to fall on
+local SHADOW_SHRINK = 0.10      -- how fast Sonic's shadow draws in as he jumps away from the pipe
+local SHADOW_RIM = 58.0         -- 256ths round from the floor's centre line: the pipe's surface ends at 57.7
+                                -- (81 degrees; measured off the mesh). The track is a HALF pipe, and a
+                                -- thing beyond its rim has nothing under it to cast a shadow on
 local BOMB_COST = 10            -- rings a bomb takes, as in the original
 local STUN = 0.6                -- seconds of stumbling after a bomb
 local SEE_AHEAD, SEE_BEHIND = 110, 6    -- frames of rings and bombs kept alive round the player
@@ -283,10 +281,6 @@ function SpecialStage:Build()
     self.boomMaterial, self.boomTextures, self.boomFrame = LoadAsset("M_Explosion"), {}, -1
     for i = 0, BOOM_FRAMES - 1 do self.boomTextures[i] = LoadAsset("T_Explosion_" .. i) end
     self.meshShadow = LoadAsset("SM_Shadow")
-    self.meshShadows = { self.meshShadow }                          -- nearest and darkest first
-    for i = 1, #SHADOW_STEPS - 1 do
-        self.meshShadows[i + 1] = LoadAsset("SM_Shadow_" .. i) or self.meshShadows[i]
-    end
     if (self.meshShadow ~= nil) then
         self.playerShadow = SpawnMesh(world, self.meshShadow)
     end
@@ -429,35 +423,24 @@ function SpecialStage:Release(o)
     o.node, o.shadow = nil, nil
 end
 
--- A shadow falls STRAIGHT DOWN (down being the track's own down: the pipe is shaded by a light
--- from right above, and the shadows agree with it). So it does not sit on the pipe behind the
--- thing -- for a ring high on the wall or overhead that spot is in mid air, the pipe being open
--- at the top, and the first version floated blobs there at odd angles -- but on the pipe BELOW
--- it: the point of the lower half with the same sideways offset. `height` is how far the thing
--- is off the surface. Returns false, and hides the shadow, when there is no pipe under it.
+-- A shadow lies ON THE PIPE UNDER THE THING, "under" meaning toward the pipe's surface: a ring up
+-- on the wall has its shadow on the wall beside it, as the original has. Seen from down the track
+-- a disc lying on the wall is a long slanted blob, and at the side a thin sliver, which is exactly
+-- what the original's shadow sprites are. It is dark wherever it is. (Two other ways were tried:
+-- dropped straight down to the floor, and fading with the drop. Neither is what the game does.)
+-- The track is a HALF pipe: past its rim there is no surface, and a shadow put there floats in
+-- mid air, so a thing beyond the rim casts none. `height` only matters for Sonic: his draws in
+-- as he jumps away from the pipe.
 function SpecialStage:PlaceShadow(shadow, frame, angle, height, along, across)
-    local radius = self.data.pipe_radius
-    local side = self.data.angle_00_side
-    local t = side * angle * TWO_PI / 256.0
-    local r = radius - height
-    local across_pipe = r * math.sin(t) / radius                -- sideways offset, as a share of the radius
-    if (math.abs(across_pipe) > SHADOW_RIM) then
+    local round = angle
+    if (round > 128.0) then round = round - 256.0 end
+    if (round < -128.0) then round = round + 256.0 end
+    if (math.abs(round) > SHADOW_RIM) then
         shadow:SetVisible(false)
         return false
     end
-    local below = math.asin(across_pipe)                        -- the angle of the pipe under it
-    local drop = (radius - r * math.cos(t)) - (radius - radius * math.cos(below))
-    local level = nil
-    for i, limit in ipairs(SHADOW_STEPS) do
-        if (drop <= limit) then level = i break end
-    end
-    if (level == nil or self.meshShadows[level] == nil) then        -- too far up to cast anything worth seeing
-        shadow:SetVisible(false)
-        return false
-    end
-    shadow:SetStaticMesh(self.meshShadows[level])
-    local shrink = 1.0 / (1.0 + math.max(0.0, drop) * SHADOW_SHRINK)
-    local place, fwd, inward = self:Place(frame, below * 256.0 / TWO_PI * side, SHADOW_LIFT)
+    local shrink = 1.0 / (1.0 + math.max(0.0, height) * SHADOW_SHRINK)
+    local place, fwd, inward = self:Place(frame, angle, SHADOW_LIFT)
     shadow:SetWorldPosition(ToVec(place))
     shadow:SetWorldRotationQuat(FacingQuat(fwd, inward))
     shadow:SetScale(Vec(along * shrink, 1.0, across * shrink))
@@ -489,7 +472,7 @@ function SpecialStage:Acquire(o)
     o.shadow = shadow
     if (shadow ~= nil) then
         local size = o.bomb and SHADOW_BOMB or SHADOW_RING
-        self:PlaceShadow(shadow, o.frame, o.angle, self.data.hover, size.along, size.across)
+        self:PlaceShadow(shadow, o.frame, o.angle, 0.0, size.along, size.across)
     end
 end
 
