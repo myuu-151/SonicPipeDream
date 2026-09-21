@@ -125,12 +125,19 @@ def split_letters(img, count):
     return out
 
 
+# Another exporter (the GameCube repo's) runs main() with these changed: no scaling up, and not
+# forced to stay uncompressed, so that machine's cook can store the art in 16 bits.
+SCALE_ART = True
+FORCE_HQ = True
+
+
 def save(img, index, name, scale=SCALE):
     os.makedirs(TEX, exist_ok=True)
     img = img.convert("RGBA")
-    img = img.resize((img.width * scale, img.height * scale), Image.NEAREST)
+    if SCALE_ART:
+        img = img.resize((img.width * scale, img.height * scale), Image.NEAREST)
     write_texture(os.path.join(TEX, name + ".oct"), name, UUID_UI + index, img.width, img.height,
-                  img.tobytes(), wrap=CLAMP, force_hq=True)
+                  img.tobytes(), wrap=CLAMP, force_hq=FORCE_HQ)
 
 
 def hue_to(img, hue):
@@ -155,7 +162,7 @@ def art(name):
     return Image.open(os.path.join(ART, name + ".png")).convert("RGBA")
 
 
-if __name__ == "__main__":
+def main():
     save(art("flag"), 0, "T_UI_Flag")
     save(art("emblem_bluenew2"), 1, "T_UI_Emblem", scale=2)
     save(art("thumbsupnew2"), 2, "T_UI_Thumb", scale=2)
@@ -179,3 +186,7 @@ if __name__ == "__main__":
     # the flag on the LEFT of the word is the same flag facing the other way. A picture of its
     # own, because mirroring a Quad through its UVs drew it as a thin line.
     save(art("flag").transpose(Image.FLIP_LEFT_RIGHT), 10, "T_UI_FlagLeft")
+
+
+if __name__ == "__main__":
+    main()

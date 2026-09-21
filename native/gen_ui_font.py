@@ -34,6 +34,7 @@ SHADOW_ALPHA = 150
 PAD = OUTLINE + 2
 FACE_TOP, FACE_BOTTOM = (255, 255, 255), (178, 196, 235)
 INK = (8, 10, 22)
+ONLY = None                         # a string: draw just these glyphs (a smaller atlas); None draws them all
 
 
 def glyph(font, ch, ascent, descent):
@@ -68,6 +69,9 @@ def main():
     atlas = Image.new("RGBA", (ATLAS_W, ATLAS_H), (255, 255, 255, 0))
     chars, x, y, row_h = [], 1, 1, 0
     for code in range(32, 127):
+        if ONLY is not None and chr(code) not in ONLY and chr(code) != " ":
+            chars.append((code, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, font.getlength(chr(code))))
+            continue
         tile, ox, oy, advance = glyph(font, chr(code), ascent, descent)
         if tile is None:
             chars.append((code, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, advance))

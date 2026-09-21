@@ -32,6 +32,9 @@
 SpecialStageUI = {}
 
 local SCREEN_W, SCREEN_H = 320.0, 224.0
+-- The share of the window kept clear all round. 0 on a monitor, which shows every pixel; a TV
+-- hides its edges (overscan), so a console build sets this to a few percent.
+local SAFE_MARGIN = 0.0
 
 local WHITE   = Vec(1.00, 1.00, 1.00, 1.0)
 local BLACK   = Vec(0.00, 0.00, 0.00, 1.0)
@@ -211,7 +214,7 @@ end
 -- (x, y, w, h) are on the 320 x 224 screen; k scales them to the window, and the picture
 -- is centred across a window that is wider than 4:3.
 function SpecialStageUI:Place(widget, x, y, w, h)
-    widget:SetPosition(self.left + x * self.k, y * self.k)
+    widget:SetPosition(self.left + x * self.k, (self.top or 0.0) + y * self.k)
     if (w ~= nil) then widget:SetDimensions(w * self.k, h * self.k) end
 end
 
@@ -234,8 +237,13 @@ function SpecialStageUI:Layout()
         self:SetDimensions(width, height)
     end
     self.layoutHeight = height
-    self.k = height / SCREEN_H
+    -- Scaled to FIT: by the height on a wide window, by the WIDTH on a narrow one. The design is
+    -- 320 x 224, which is wider in proportion than a 4:3 screen: scaled by height alone it was
+    -- wider than a 640 x 480 window, and SONIC / RINGS hung off its left edge.
+    local usableW, usableH = width * (1.0 - 2.0 * SAFE_MARGIN), height * (1.0 - 2.0 * SAFE_MARGIN)
+    self.k = math.min(usableH / SCREEN_H, usableW / SCREEN_W)
     self.left = (width - SCREEN_W * self.k) * 0.5
+    self.top = height * SAFE_MARGIN
 
     -- SONIC / RINGS: the picture is 2:1, RINGS its lower half; the count goes beside RINGS
     self:Place(self.ringsLabel, 8.0, 6.0, 68.0, 34.0)
