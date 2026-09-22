@@ -25,6 +25,7 @@
 --     TheSpecialStageUI:SetTotal(n)        the number in the TOTAL box (rings to go, or the total)
 --     TheSpecialStageUI:ShowCool()         when a ring check is passed
 --     TheSpecialStageUI:ShowBanner(t, s)   a line of words for s seconds
+--     TheSpecialStageUI:ShowPause(on, i)   the pause menu, CONTINUE (1) or EXIT (2) picked
 --
 -- Everything is laid out on the original's 320 x 224 screen and scaled to the window's
 -- height, so it sits the same at any resolution and is re-laid if the window changes size.
@@ -143,6 +144,16 @@ function SpecialStageUI:DressEmblem()
     self.coolText:SetText(self.tooBad and "TOO BAD !" or "COOL !")
 end
 
+-- The pause menu: CONTINUE over EXIT, the picked one in yellow.
+function SpecialStageUI:ShowPause(visible, index)
+    self.pauseOn, self.pauseIndex = visible and true or false, index or 1
+    if (not self.built) then return end
+    for i, t in ipairs(self.pauseItems) do
+        t:SetVisible(self.pauseOn)
+        t:SetColor((i == self.pauseIndex) and YELLOW or WHITE)
+    end
+end
+
 -- A line of words across the middle for a few seconds: NOT ENOUGH RINGS, EMERALD GET !
 function SpecialStageUI:ShowBanner(text, seconds)
     self.bannerText = text
@@ -192,8 +203,10 @@ function SpecialStageUI:Build()
     self.emblem   = MakeQuad(self, self.texEmblem, WHITE)
     self.thumb    = MakeQuad(self, self.texThumb, WHITE)
     self.coolText = MakeText(self, "COOL !", WHITE)
+    self.pauseItems = { MakeText(self, "CONTINUE", WHITE), MakeText(self, "EXIT", WHITE) }
 
     self.built = true
+    self:ShowPause(self.pauseOn, self.pauseIndex)
     self:ShowStartParts(false)
     self:ShowCoolParts(false)
 end
@@ -259,6 +272,12 @@ function SpecialStageUI:Layout()
     self:PlaceTotal()
     self.coolText:SetTextSize(26.0 * self.k)
     self.banner:SetTextSize(22.0 * self.k)
+    -- the pause menu, centred, one line over the other
+    for i, t in ipairs(self.pauseItems) do
+        local word = (i == 1) and "CONTINUE" or "EXIT"
+        t:SetTextSize(22.0 * self.k)
+        self:Place(t, SCREEN_W * 0.5 - 5.6 * #word, 84.0 + (i - 1) * 28.0)
+    end
 end
 
 -- ------------------------------------------------------------------ animation

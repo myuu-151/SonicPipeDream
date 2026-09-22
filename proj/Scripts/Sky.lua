@@ -238,6 +238,9 @@ function Sky:ShowMenu()
             self:StartSpecialStage(stage)
             -- The stage hands back here when its emerald is taken.
             if (TheSpecialStage ~= nil) then
+                TheSpecialStage.onExit = function()
+                    TheStageSelect:Open()           -- paused and EXIT chosen
+                end
                 TheSpecialStage.onFinished = function(won)
                     TheStageSelect:SetWon(won, true)
                     -- All seven emeralds is what MARATHON waits for.

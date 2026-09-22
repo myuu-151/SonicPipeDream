@@ -3,6 +3,7 @@
 --
 --     A / D      steer left and right round the inside of the pipe
 --     Space      jump; again in the air to drop straight back down
+--     Escape     pause: CONTINUE, or EXIT to the stage select
 --     R          start again
 --
 -- Sonic runs forward by himself, as in the original: the player only ever moves ROUND the
@@ -461,6 +462,8 @@ end
 -- is left as it was before the stage started -- the sky, and a menu over it.
 function SpecialStage:Leave()
     self.active = false
+    self.paused = false
+    if (self.uiReady) then TheSpecialStageUI:ShowPause(false, 1) end
     self:ClearStage()
     for _, node in ipairs({ self.player, self.playerShadow, self.uiNode }) do
         if (node ~= nil) then node:SetVisible(false) end
@@ -481,6 +484,12 @@ function SpecialStage:Enter(n)
     if (TheSpecialStageMusic ~= nil and TheSpecialStageMusic.Restart ~= nil) then
         TheSpecialStageMusic:Restart()
     end
+end
+
+function SpecialStage:SetPaused(paused)
+    self.paused = paused
+    self.pauseIndex = 1
+    if (self.uiReady) then TheSpecialStageUI:ShowPause(paused, 1) end
 end
 
 function SpecialStage:Restart()
@@ -783,6 +792,31 @@ function SpecialStage:Tick(deltaTime)
     if (not self.built) then self:Build() end
     if (self.active == false) then return end       -- put away; the menu has the screen
     local dt = math.min(deltaTime, 0.05)
+
+    -- paused: nothing moves; Up and Down pick CONTINUE or EXIT, Enter takes it, Escape continues
+    if (self.paused) then
+        if (Input.IsKeyJustDown(Key.Up) or Input.IsKeyJustDown(Key.W)
+                or Input.IsKeyJustDown(Key.Down) or Input.IsKeyJustDown(Key.S)) then
+            self.pauseIndex = 3 - self.pauseIndex
+            if (self.uiReady) then TheSpecialStageUI:ShowPause(true, self.pauseIndex) end
+        end
+        if (Input.IsKeyJustDown(Key.Escape)) then
+            self:SetPaused(false)
+        elseif (Input.IsKeyJustDown(Key.Enter) or Input.IsKeyJustDown(Key.Space)) then
+            if (self.pauseIndex == 1) then
+                self:SetPaused(false)
+            else
+                self:SetPaused(false)
+                self:Leave()
+                if (self.onExit ~= nil) then self.onExit() end
+            end
+        end
+        return
+    end
+    if (Input.IsKeyJustDown(Key.Escape) and self.hold <= 0.0 and self.over < 0.0) then
+        self:SetPaused(true)
+        return
+    end
 
     if (Input.IsKeyJustDown(Key.R)) then self:Restart() end
     for n, key in ipairs(PALETTE_KEYS) do

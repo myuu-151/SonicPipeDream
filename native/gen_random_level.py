@@ -77,18 +77,42 @@ def curve_points(ob):
     return pts, math.atan2(tangent.y, tangent.x)
 
 
+# Where each face of a baked piece came from, for painting a pattern on the pipe after it has
+# been bent: CELLS[mesh name][polygon index] = (copy, x, angle) -- which repeat of the section
+# along the piece, and the face's middle in the STRAIGHT section: x along it, and degrees round
+# the pipe from the floor (0) to the rims (+-90). None for a face that is not a repeat of a
+# section (a rail cap, a sphere). The mirrored variants share their source's list: the
+# patterns painted from it are symmetric about the floor.
+CELLS = {}
+PIPE_RADIUS = 10.0          # the section's: floor at z = 0, axis at z = PIPE_RADIUS
+
+
 def bake(curve_ob, name):
     """The piece's pipe, rails and arches, modifiers applied, as ONE mesh in the
     piece's own space: origin at its start, heading +X."""
     dg = bpy.context.evaluated_depsgraph_get()
     bm = bmesh.new()
     materials = None
+    cells = []
     for child in sorted(curve_ob.children, key=lambda o: o.name):
         if child.type != 'MESH':
             continue
         me = bpy.data.meshes.new_from_object(child.evaluated_get(dg))
         if materials is None:
             materials = list(me.materials)
+        # An Array keeps the section's faces in order, copy after copy, and a Curve only moves
+        # them: face p of the result is face p % n of the section, in copy p // n.
+        base = child.data
+        n = len(base.polygons)
+        if n and len(me.polygons) % n == 0:
+            here = []
+            for poly in base.polygons:
+                c = poly.center
+                here.append((c.x, math.degrees(math.atan2(c.y, PIPE_RADIUS - c.z))))
+            for p in range(len(me.polygons)):
+                cells.append((p // n,) + here[p % n])
+        else:
+            cells.extend([None] * len(me.polygons))
         bm.from_mesh(me)
         bpy.data.meshes.remove(me)
     out = bpy.data.meshes.new(name)
@@ -96,6 +120,7 @@ def bake(curve_ob, name):
     bm.free()
     for m in materials or []:
         out.materials.append(m)
+    CELLS[name] = cells
     return out
 
 
@@ -109,6 +134,7 @@ def variant(mesh, name, matrix, flip):
     if flip:
         me.flip_normals()
     me.update()
+    CELLS[name] = CELLS.get(mesh.name)
     return me
 
 

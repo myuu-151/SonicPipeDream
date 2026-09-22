@@ -157,11 +157,14 @@ def linear_to_srgb(c):
     return 12.92 * c if c <= 0.0031308 else 1.055 * (c ** (1.0 / 2.4)) - 0.055
 
 
-def write_mesh(name, index, mesh, colour_of_slot, material="M_StageGloss", keep_slot=None, paint=None):
+def write_mesh(name, index, mesh, colour_of_slot, material="M_StageGloss", keep_slot=None, paint=None,
+               colour_of_face=None):
     """One StaticMesh with vertex colours. colour_of_slot(slot index) -> (r, g, b) sRGB.
     keep_slot(slot index) -> bool picks which faces go in: how a piece is split in two.
     paint(normal) -> (r, g, b), when given, colours each vertex by which way it faces and
-    nothing else: a whole look painted on, for a material that takes no light."""
+    nothing else: a whole look painted on, for a material that takes no light.
+    colour_of_face(polygon index, slot index) -> (r, g, b) or None overrides a face's colour:
+    a pattern on the pipe."""
     mesh.calc_loop_triangles()
     corner_normals = [Vector(n.vector) for n in mesh.corner_normals] if hasattr(mesh, "corner_normals") else None
     verts, index_of, idx = [], {}, []
@@ -170,6 +173,8 @@ def write_mesh(name, index, mesh, colour_of_slot, material="M_StageGloss", keep_
         if keep_slot is not None and not keep_slot(tri.material_index):
             continue
         base = colour_of_slot(tri.material_index)
+        if colour_of_face is not None:
+            base = colour_of_face(tri.polygon_index, tri.material_index) or base
         for corner, loop in zip(tri.vertices, tri.loops):
             p = mesh.vertices[corner].co
             n = corner_normals[loop] if (corner_normals and tri.use_smooth) else Vector(tri.normal)
@@ -393,6 +398,50 @@ def lua(value, indent=0):
     return '"%s"' % str(value).replace('"', '\\"')
 
 
+# --- checkers ------------------------------------------------------------------------------
+# The original's first stage has its pipe in a check of two blues. Ours: the pipe's faces
+# (slot HP_Pipe) in the palette's own colour and a darker shade of it, by cell. A cell is a
+# few faces along the piece by a band round it; the bands are by the wall's angle from the
+# floor, the same up both walls, so the mirrored pieces match their sources.
+CHECKER_STAGES = {1: 3}     # stage -> the palette line's slot for the dark square (3: the pipe's mid shade)
+CHECK_ALONG = 4.0           # a cell's length along the pipe, about; a section holds a whole number of them
+CHECK_BANDS = 4             # cells up each wall from the lane stripe to the rim
+LANE_OUT = 19.0             # degrees: where the lane stripe ends and the wall's blue begins (gen_halfpipe.py)
+
+
+def checkers(number, mesh_name, slots):
+    """colour_of_face for a piece mesh in palette `number`, or None when that palette has no check."""
+    if number not in CHECKER_STAGES or "HP_Pipe" not in slots:
+        return None
+    cells = grl.CELLS.get(mesh_name)
+    if not cells:
+        return None
+    pipe_slot = slots.index("HP_Pipe")
+    dark = stage_palettes.rgb(stage_palettes.S2_LINE[number].split()[CHECKER_STAGES[number]])
+    length = max(c[1] for c in cells if c) * 1.0
+    # the section's faces sit between x stations; the last face's middle is short of the end
+    length = max(length, 1.0)
+    n_along = max(1, int(round((length + CHECK_ALONG * 0.5) / CHECK_ALONG)))
+    cell_x = (length + CHECK_ALONG * 0.5) / n_along
+
+    def colour_of_face(poly, slot):
+        if slot != pipe_slot:
+            return None
+        c = cells[poly] if poly < len(cells) else None
+        if c is None:
+            return None
+        copy, x, angle = c
+        along = copy * n_along + int(x // cell_x)
+        a = abs(angle)
+        if a < LANE_OUT:
+            band = 0                                        # the floor strip between the stripes
+        else:
+            band = 1 + min(CHECK_BANDS - 1, int((a - LANE_OUT) / ((90.0 - LANE_OUT) / CHECK_BANDS)))
+        return dark if (along + band) % 2 else None
+
+    return colour_of_face
+
+
 def main():
     os.makedirs(ASSETS, exist_ok=True)
     name = "Stage%d_seed%d" % (STAGE, GAUNTLET_SEED[STAGE])
@@ -414,8 +463,9 @@ def main():
             slots = [m.name.split(".")[0] if m else "" for m in p["mesh"].materials]
             colours = [colours_of.get(n, (1.0, 0.0, 1.0)) for n in slots]
             glossy = [n in GLOSSY_SLOTS for n in slots]
+            checker = checkers(number, p["mesh"].name, slots)
             write_mesh("SM_Piece_%s_P%d" % (piece, number), 16 * number + i, p["mesh"], lambda k, c=colours: c[k],
-                       material="M_StageMatte", keep_slot=lambda k, g=glossy: not g[k])
+                       material="M_StageMatte", keep_slot=lambda k, g=glossy: not g[k], colour_of_face=checker)
             write_mesh("SM_Piece_%s_Gloss_P%d" % (piece, number), 16 * number + 8 + i, p["mesh"],
                        lambda k, c=colours: c[k], material="M_StageGloss", keep_slot=lambda k, g=glossy: g[k])
 
