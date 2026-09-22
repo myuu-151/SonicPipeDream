@@ -51,4 +51,6 @@ MenuLayout = {
         T_Menu_EmeraldOff = { x = 402, y = 93, w = 30, h = 24, aw = 120, ah = 96, cw = 128, ch = 128 },
     },
     items = { "main_game", "marathon", "records", "options" },
+    preview_frames = 16,      -- a stage's preview clip: T_Menu_Preview<n>, then _01 .. this - 1
+    preview_fps = 6,
 }

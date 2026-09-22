@@ -399,11 +399,12 @@ def lua(value, indent=0):
 
 
 # --- checkers ------------------------------------------------------------------------------
-# The original's first stage has its pipe in a check of two blues. Ours: the pipe's faces
-# (slot HP_Pipe) in the palette's own colour and a darker shade of it, by cell. A cell is a
-# few faces along the piece by a band round it; the bands are by the wall's angle from the
-# floor, the same up both walls, so the mirrored pieces match their sources.
-CHECKER_STAGES = {1: 3}     # stage -> the palette line's slot for the dark square (3: the pipe's mid shade)
+# The original's first stage has its pipe in a check of two blues; ours has every stage's pipe
+# in a check of its own colour and a darker shade of it, by cell (the pipe's faces, slot
+# HP_Pipe). A cell is a few faces along the piece by a band round it; the bands are by the
+# wall's angle from the floor, the same up both walls, so the mirrored pieces match their sources.
+CHECKER_STAGES = {n: 3 for n in range(1, 8)}    # stage -> the palette line's slot for the dark square
+                                                # (3: the pipe's mid shade)
 CHECK_ALONG = 4.0           # a cell's length along the pipe, about; a section holds a whole number of them
 CHECK_BANDS = 4             # cells up each wall from the lane stripe to the rim
 LANE_OUT = 19.0             # degrees: where the lane stripe ends and the wall's blue begins (gen_halfpipe.py)

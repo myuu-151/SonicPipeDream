@@ -28,8 +28,15 @@ ENGINE = os.environ.get("OCTAVE_ROOT", r"C:\Users\NoSig\Documents\octave-libogc"
 EXE = os.path.join(ENGINE, "Standalone", "Build", "Windows", "x64", "Release", "Octave.exe")
 
 SIZE = (165, 143)                   # the mockup's preview picture
-SETTLE = 9.0                        # seconds before the photograph: past START, into the rings
+SETTLE = 30.0                       # seconds, at most, to wait for the stage to reach its rings
+RINGS_IN = -8.0                     # frames before the stage's first ring for the first photograph: the
+                                    # rings come into view and are taken during the clip
 HUD_TOP = 0.30                      # the top of the window is the HUD; crop below it
+# The preview is a short clip, not one picture: FRAMES photographs, one every 1/FPS of a
+# second, of the stage PLAYING ITSELF (S2_AUTOPLAY: it steers for the rings), shown on a loop
+# by the stage select. Frame 0 is also the still.
+FRAMES = 16
+FPS = 6.0
 
 
 def grab_window(title="Sonic2Special3D"):
@@ -79,23 +86,7 @@ def grab_window(title="Sonic2Special3D"):
     return Image.frombuffer("RGBA", (w, h), buf, "raw", "BGRA", 0, 1).convert("RGB")
 
 
-def shoot(stage):
-    env = dict(os.environ, S2_STAGE=str(stage), S2_NOMENU="1")
-    # The working directory MUST be the engine root: the runtime loads its shaders from the
-    # relative path Engine/Shaders/GLSL/bin, and started anywhere else it dies without a word.
-    game = subprocess.Popen([EXE, "-project", PROJ], env=env, cwd=ENGINE)
-    try:
-        time.sleep(SETTLE)
-        if game.poll() is not None:
-            raise RuntimeError("the game exited (%s) before stage %d could be photographed"
-                               % (game.returncode, stage))
-        shot = grab_window()
-        if shot is None:
-            raise RuntimeError("no window for stage %d" % stage)
-    finally:
-        game.terminate()
-        game.wait(timeout=10)
-
+def crop(shot):
     # below the HUD, centred, cut to the preview's shape
     w, h = shot.size
     top = int(h * HUD_TOP)
@@ -107,13 +98,73 @@ def shoot(stage):
     return shot.crop((left, top, left + cw, top + ch)).resize(SIZE, Image.LANCZOS)
 
 
+def first_ring(stage):
+    """The frame of the stage's first ring, from its StageData: the clip starts there."""
+    import re
+    path = os.path.join(HERE, "..", "proj", "Scripts", "StageData%d.lua" % stage)
+    text = open(path, encoding="utf-8").read()
+    text = text[text.index("sections = {"):]
+    text = text[text.index("objects = {"):]
+    return float(re.search(r"\{\s*([\d.]+)\s*,", text).group(1))
+
+
+def blank(img):
+    """PrintWindow now and then hands back a white frame: the picture is not there yet."""
+    small = img.convert("L").resize((8, 8))
+    return sum(small.getdata()) / 64.0 > 235
+
+
+def shoot(stage):
+    """FRAMES photographs of the stage playing itself, cropped to the preview, from just
+    past its first ring. The game says where it is (FRAME lines on its stdout, with
+    S2_AUTOPLAY); the photographer waits for that rather than guessing at a time."""
+    env = dict(os.environ, S2_STAGE=str(stage), S2_NOMENU="1", S2_AUTOPLAY="1")
+    start_at = first_ring(stage) + RINGS_IN
+    # The working directory MUST be the engine root: the runtime loads its shaders from the
+    # relative path Engine/Shaders/GLSL/bin, and started anywhere else it dies without a word.
+    game = subprocess.Popen([EXE, "-project", PROJ], env=env, cwd=ENGINE,
+                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1)
+    frames = []
+    try:
+        deadline = time.time() + SETTLE
+        for line in game.stdout:
+            if line.startswith("FRAME ") and float(line.split()[1]) >= start_at:
+                break
+            if time.time() > deadline:
+                raise RuntimeError("stage %d never reached frame %.0f" % (stage, start_at))
+        else:
+            raise RuntimeError("the game exited (%s) before stage %d could be photographed"
+                               % (game.returncode, stage))
+        due = time.time()
+        while len(frames) < FRAMES:
+            if game.poll() is not None:
+                raise RuntimeError("the game exited (%s) while stage %d was being photographed"
+                                   % (game.returncode, stage))
+            shot = grab_window()
+            if shot is None:
+                raise RuntimeError("no window for stage %d" % stage)
+            frame = crop(shot)
+            if blank(frame):                # the window's title bar would always pass; test the picture
+                time.sleep(0.03)
+                continue
+            frames.append(frame)
+            due += 1.0 / FPS
+            time.sleep(max(0.0, due - time.time()))
+    finally:
+        game.terminate()
+        game.wait(timeout=10)
+    return frames
+
+
 def main():
     if not os.path.exists(EXE):
         sys.exit("no Windows build at %s (build Standalone Release first)" % EXE)
-    for stage in range(1, 8):
-        out = os.path.join(PARTS, "preview_stage%d.png" % stage)
-        shoot(stage).convert("RGBA").save(out)
-        print("wrote %s" % os.path.basename(out))
+    stages = [int(a) for a in sys.argv[1:]] or range(1, 8)
+    for stage in stages:
+        for k, frame in enumerate(shoot(stage)):
+            name = "preview_stage%d.png" % stage if k == 0 else "preview_stage%d_%02d.png" % (stage, k)
+            frame.convert("RGBA").save(os.path.join(PARTS, name))
+        print("wrote preview_stage%d (%d frames)" % (stage, FRAMES))
 
 
 if __name__ == "__main__":

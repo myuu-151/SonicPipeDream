@@ -52,7 +52,7 @@ PATCH_LIFT = 0.40           # HP_Patch, the paler inset in a stripe: the lane co
 
 # Which of the project's skies (docs/skies.md) goes behind each stage. OURS: see above.
 SKY = {1: (0, "Classic"), 2: (4, "Sunset"), 3: (6, "Inferno"), 4: (2, "Dawn"),
-       5: (5, "Aurora"), 6: (3, "Pastel"), 7: (7, "Noir")}
+       5: (5, "Aurora"), 6: (3, "Pastel"), 7: (1, "Midnight")}
 
 
 def rgb(hex6):

@@ -534,6 +534,7 @@ function SpecialStage:Restart()
     self.diving = false             -- jumped again in the air: dropping straight back down
     self.rings = 0
     -- For testing the checks without playing to them: set S2_TEST_RINGS in the environment.
+    self.autoplay = (os ~= nil and os.getenv ~= nil and os.getenv("S2_AUTOPLAY") ~= nil)
     if (os ~= nil and os.getenv ~= nil and os.getenv("S2_AUTOJUMP") ~= nil) then
         self.testJump = tonumber(os.getenv("S2_AUTOJUMP"))
         self.testLog = true
@@ -808,6 +809,41 @@ end
 
 local PALETTE_KEYS = { Key.N1, Key.N2, Key.N3, Key.N4, Key.N5, Key.N6, Key.N7 }
 
+-- ------------------------------------------------------------------ the autopilot
+-- For the stage select's previews (native/make_stage_previews.py): with S2_AUTOPLAY set the
+-- stage plays itself, steering for the nearest ring ahead and round any bomb in the way.
+local PILOT_LOOK = 14.0         -- frames ahead it looks for a ring
+local PILOT_DODGE = 18.0        -- 256ths: a bomb this close to his line, this near, is steered round
+local PILOT_NEAR = 9.0          -- frames
+
+function SpecialStage:Pilot()
+    local target, bomb = nil, nil
+    for _, o in ipairs(self.objects) do
+        if (o.frame > self.frame + PILOT_LOOK) then break end
+        if (not o.taken and o.frame > self.frame) then
+            if (o.bomb) then
+                if (bomb == nil and o.frame < self.frame + PILOT_NEAR and AngleBetween(o.angle, self.angle) < PILOT_DODGE) then
+                    bomb = o
+                end
+            elseif (target == nil) then
+                target = o
+            end
+        end
+    end
+    local d = 0.0
+    if (bomb ~= nil) then
+        d = self.angle - bomb.angle                             -- away from it
+        if (d > 128.0) then d = d - 256.0 elseif (d < -128.0) then d = d + 256.0 end
+        if (math.abs(d) < 1.0) then d = 1.0 end
+    elseif (target ~= nil) then
+        d = target.angle - self.angle                           -- toward it
+        if (d > 128.0) then d = d - 256.0 elseif (d < -128.0) then d = d + 256.0 end
+        if (math.abs(d) < 2.0) then d = 0.0 end
+    end
+    if (d == 0.0) then return 0.0 end
+    return (d > 0.0) and 1.0 or -1.0
+end
+
 -- ------------------------------------------------------------------ every frame
 function SpecialStage:Tick(deltaTime)
     if (not self.built) then self:Build() end
@@ -869,6 +905,18 @@ function SpecialStage:Tick(deltaTime)
         if (Input.IsKeyDown(Key.D)) then want = want - 1.0 end
     end
     want = want * self.data.angle_00_side                 -- A is always the player's left
+    if (self.autoplay and self.hold <= 0.0 and self.intro <= 0.0 and self.stun <= 0.0) then
+        want = self:Pilot()                               -- already in the angle's own sense
+    end
+    if (self.autoplay) then
+        -- and says where it is, four times a second, for the photographer to time its shots by
+        self.pilotSaid = (self.pilotSaid or 0.0) + dt
+        if (self.pilotSaid >= 0.25) then
+            self.pilotSaid = 0.0
+            print(string.format("FRAME %.1f", self.frame))
+            io.stdout:flush()
+        end
+    end
     local radius = self.data.pipe_radius
     if (self.height <= 0.0) then
         if (want ~= 0.0 and self.steer * want >= STEER * 0.97) then

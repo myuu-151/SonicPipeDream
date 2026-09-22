@@ -176,7 +176,7 @@ def save(name, img, index):
     return canvas.size, img.size
 
 
-def lua_table(rows, ref_w, ref_h, panel_top):
+def lua_table(rows, ref_w, ref_h, panel_top, preview_frames=1):
     out = ["-- Written by native/gen_menu_assets.py. Do not edit: run that instead.",
            "-- Where every piece of the menu goes, on the mockup's own %d x %d screen." % (ref_w, ref_h),
            "--",
@@ -198,6 +198,9 @@ def lua_table(rows, ref_w, ref_h, panel_top):
                    % (name, x, y, w, h, aw, ah, cw, ch))
     out.append("    },")
     out.append("    items = { %s }," % ", ".join('"%s"' % n for n, _ in ITEMS))
+    out.append("    preview_frames = %d,      -- a stage's preview clip: T_Menu_Preview<n>, then _01 .. this - 1"
+               % preview_frames)
+    out.append("    preview_fps = 6,")
     out.append("}")
     return "\n".join(out) + "\n"
 
@@ -251,6 +254,7 @@ def main():
     # exactly where the menu's own preview and emerald did.
     prev, emer = where["preview_picture"], where["emerald"]
     gem = load("emerald")
+    preview_frames = 1
     for stage in range(1, 8):
         shot = "preview_stage%d" % stage
         if os.path.exists(os.path.join(PARTS, shot + ".png")):
@@ -260,6 +264,14 @@ def main():
             rows.append(("T_Menu_Preview%d" % stage, prev["x"], prev["y"], prev["w"], prev["h"],
                          aw, ah, cw, ch))
             index += 1
+            # and the rest of its clip, if there is one (make_stage_previews.py): the same
+            # picture's frames, T_Menu_Preview<n>_<k>, k from 1; the layout row is frame 0's
+            k = 1
+            while os.path.exists(os.path.join(PARTS, "%s_%02d.png" % (shot, k))):
+                save("T_Menu_Preview%d_%02d" % (stage, k), load("%s_%02d" % (shot, k)), index)
+                index += 1
+                k += 1
+            preview_frames = max(preview_frames, k)
         hue, sat = EMERALD_HUE[stage]
         img = recolour(gem, hue, sat)
         (cw, ch), (aw, ah) = save("T_Menu_Emerald%d" % stage, img, index)
@@ -271,7 +283,7 @@ def main():
                  aw, ah, cw, ch))
     index += 1
 
-    open(LUA, "w", newline="\n").write(lua_table(rows, ref_w, ref_h, layout["panel_top"]))
+    open(LUA, "w", newline="\n").write(lua_table(rows, ref_w, ref_h, layout["panel_top"], preview_frames))
     print("wrote %d textures to %s" % (index, TEX))
     print("wrote %s" % LUA)
 

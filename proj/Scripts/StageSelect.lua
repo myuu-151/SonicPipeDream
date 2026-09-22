@@ -165,6 +165,19 @@ function StageSelect:Build()
         self.previewTex[i] = LoadAsset("T_Menu_Preview" .. i)
         self.emeraldTex[i] = LoadAsset("T_Menu_Emerald" .. i)
     end
+    -- the preview is a short clip of the stage playing (native/make_stage_previews.py):
+    -- frame 0 is T_Menu_Preview<n>, the rest T_Menu_Preview<n>_01 ..
+    self.previewClip = {}
+    local frames = (MenuLayout ~= nil and MenuLayout.preview_frames) or 1
+    for i = 1, STAGES do
+        self.previewClip[i] = { self.previewTex[i] }
+        for k = 1, frames - 1 do
+            local tex = LoadAsset(string.format("T_Menu_Preview%d_%02d", i, k))
+            if (tex == nil) then break end
+            self.previewClip[i][k + 1] = tex
+        end
+    end
+    self.previewClock, self.previewFrame = 0.0, 0
     -- and the name of that emerald, where the mockup's SPECIAL STAGE label was
     self.label = MakeText(self, EMERALD_NAME[1])
     self.label:SetColor(LABEL)
@@ -294,7 +307,8 @@ function StageSelect:Refresh()
         row:SetColor((i == self.index) and WHITE or DIM)
     end
     local n = self.index
-    if (self.previewTex[n] ~= nil) then self.preview:SetTexture(self.previewTex[n]) end
+    self.previewFrame = -1                                  -- so the clip is redrawn from wherever it is
+    self:PlayPreview()
     -- That stage's own emerald in its own colour once it is won; until then its shadow, a
     -- black silhouette drawn half transparent, so you can see which one is missing.
     if (self.won[n] and self.emeraldTex[n] ~= nil) then
@@ -321,6 +335,20 @@ function StageSelect:Show(visible)
     self.label:SetVisible(self.open)
     for _, row in ipairs(self.rows) do row:SetVisible(self.open) end
     self:PlaceWatermark()
+end
+
+-- The picked stage's clip, on a loop. Every stage's clip runs on the same clock, so moving
+-- the cursor does not restart it.
+function StageSelect:PlayPreview(deltaTime)
+    self.previewClock = (self.previewClock or 0.0) + (deltaTime or 0.0)
+    local clip = self.previewClip and self.previewClip[self.index]
+    if (clip == nil or #clip == 0) then return end
+    local fps = (MenuLayout ~= nil and MenuLayout.preview_fps) or 6
+    local frame = math.floor(self.previewClock * fps) % #clip
+    if (frame ~= self.previewFrame) then
+        self.previewFrame = frame
+        self.preview:SetTexture(clip[frame + 1])
+    end
 end
 
 function StageSelect:Open() self:Show(true) end
@@ -363,6 +391,7 @@ function StageSelect:Tick(deltaTime)
     if (not self.open) then return end
     self:ScrollWatermark(deltaTime)
     self:BlinkCursor(deltaTime)
+    self:PlayPreview(deltaTime)
 
     local up = Input.IsKeyDown(Key.Up) or Input.IsKeyDown(Key.W)
     local down = Input.IsKeyDown(Key.Down) or Input.IsKeyDown(Key.S)
