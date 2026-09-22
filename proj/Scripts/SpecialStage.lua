@@ -873,7 +873,7 @@ function SpecialStage:Tick(deltaTime)
         return
     end
     if (Input.IsKeyJustDown(Key.Escape) and self.hold <= 0.0 and self.intro <= 0.0 and self.over < 0.0) then
-        self:Sound("MenuChoose")                    -- the warp, on pausing as on leaving
+        self:Sound("Pause")
         self:SetPaused(true)
         return
     end
