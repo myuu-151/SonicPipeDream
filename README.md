@@ -2,11 +2,16 @@
 
 A 3D take on the Sonic 2 special stage, built on the Octave engine.
 
-So far, on the content side: the sky, a rigged and animated Sonic, a half-pipe built from
-modular pieces, 93 ring and bomb shapes taken from the original game's own stages, and a
-generator that builds whole stages out of them -- the seven emerald stages and an endless
-marathon -- with a guarantee that every ring check can be passed. **None of it is playable
-yet:** in Octave there is the sky and the music. The plan says what comes next.
+On the content side: the sky, a rigged and animated Sonic, a half-pipe built from modular
+pieces, 93 ring and bomb shapes taken from the original game's own stages, and a generator
+that builds whole stages out of them -- the seven emerald stages and an endless marathon --
+with a guarantee that every ring check can be passed.
+
+**The gauntlet plays.** All seven stages are exported and run one after another: steer round
+the pipe, collect, pass each ring check, take the emerald and the next stage begins in its
+own colours under its own sky. `S2_STAGE=<1-7>` starts at one of them instead of the first.
+Marathon is generated but not yet wired into the engine, and there is no menu -- the seventh
+emerald leads back to the first stage for now. The plan says what comes next.
 
 ## Docs
 

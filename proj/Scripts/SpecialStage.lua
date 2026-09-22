@@ -32,6 +32,8 @@ SpecialStage = {}
 local TWO_PI = math.pi * 2.0
 
 -- How it feels. Frames are the track's own unit: 8 to a straight piece.
+local LAST_STAGE = 7            -- the gauntlet: StageData1..7, each with its own palette and emerald
+
 local SPEED = 15.0              -- frames a second, forward. The original never lets you change it.
 local STEER = 150.0             -- 256ths of a circle a second, at full tilt: round the pipe in 1.7 s
 local STEER_GRIP = 9.0          -- how fast steering speed is reached and lost
@@ -179,7 +181,12 @@ local function SpawnMesh(world, mesh)
 end
 
 function SpecialStage:Create()
+    -- The gauntlet is stages 1-7 in order. S2_STAGE starts somewhere else, for testing.
     self.stage = 1
+    if (os ~= nil and os.getenv ~= nil) then
+        local pick = tonumber(os.getenv("S2_STAGE") or "")
+        if (pick ~= nil and pick >= 1 and pick <= LAST_STAGE) then self.stage = math.floor(pick) end
+    end
     self.built = false
 end
 
@@ -187,10 +194,10 @@ function SpecialStage:GatherProperties()
     return { { name = "stage", type = DatumType.Integer } }
 end
 
+-- Build is the things that outlive a stage: the meshes, the light, Sonic, the camera, the
+-- UI and the music. LoadStage is the stage itself, and can be called again for the next one.
 function SpecialStage:Build()
     local world = self:GetWorld()
-    Script.Require("StageData" .. self.stage)
-    self.data = _G["StageData" .. self.stage]
 
     self.meshRing = LoadAsset("SM_Ring")
     -- the ring, turned a little further in each: half a turn in all, which is a whole one to look at
@@ -200,6 +207,70 @@ function SpecialStage:Build()
     end
     self.ringStep = 0
     self.meshBomb = LoadAsset("SM_Bomb")
+
+    -- The light, for the glossy things only (the pipe is unlit and carries its own shading).
+    -- The light. The meshes carry their colours but not their shading: a sun from above and a
+    -- little ahead, so the spheres catch a highlight. It is GENTLE on purpose -- ambient and sun
+    -- add up to about 1, so the pipe keeps the colour it was given instead of burning out to
+    -- white, which the first, brighter setting did.
+    local sun = world:SpawnNode("DirectionalLight3D")
+    sun:SetName("StageSun")
+    sun:SetDirection(Vec(0.35, -1.0, -0.25))
+    sun:SetColor(Vec(1.0, 0.98, 0.94, 1.0))
+    sun:SetIntensity(0.45)
+    world:SetAmbientLightColor(Vec(0.62, 0.62, 0.66, 1.0))
+
+    self.meshBall = LoadAsset("SM_PlayerBall")
+    self.meshSparkle, self.meshBoom = LoadAsset("SM_FxQuad"), LoadAsset("SM_FxQuadBoom")
+    self.boomMaterial, self.boomTextures, self.boomFrame = LoadAsset("M_Explosion"), {}, -1
+    for i = 0, BOOM_FRAMES - 1 do self.boomTextures[i] = LoadAsset("T_Explosion_" .. i) end
+    self.meshShadow = LoadAsset("SM_Shadow")
+    if (self.meshShadow ~= nil) then
+        self.playerShadow = SpawnMesh(world, self.meshShadow)
+    end
+    self.sonicRun, self.sonicThumbs = {}, {}
+    for i = 0, SONIC_FRAMES - 1 do
+        self.sonicRun[i] = LoadAsset(string.format("SM_Sonic_Run_%02d", i))
+        self.sonicThumbs[i] = LoadAsset(string.format("SM_Sonic_Thumbs_%02d", i))
+    end
+    self.sonicIdle = LoadAsset("SM_Sonic_Idle_00")
+    self.player = SpawnMesh(world, self.sonicIdle or self.meshBall)
+    self.playerMesh = nil
+
+    self.camera = world:GetActiveCamera()
+    if (self.camera == nil) then
+        self.camera = world:SpawnNode("Camera3D")
+        world:SetActiveCamera(self.camera)
+    end
+    self.camera:SetFar(6000.0)
+
+    local ui = world:SpawnNode("Canvas")
+    ui:SetScript("SpecialStageUI")
+
+    -- the music: its script only needs to be on some node, and nothing in the scene has it
+    local music = world:SpawnNode("Node3D")
+    music:SetName("SpecialStageMusic")
+    music:SetScript("SpecialStageMusic")
+
+    self.built = true
+    self:LoadStage(self.stage)
+end
+
+-- ------------------------------------------------------------------ a stage
+-- Everything a stage owns, and nothing a stage does not: called once at startup and again
+-- for each stage of the gauntlet. Whatever the last stage spawned is destroyed first.
+function SpecialStage:LoadStage(n)
+    local world = self:GetWorld()
+    self:ClearStage()
+    self.stage = n
+    Script.Require("StageData" .. n)
+    self.data = _G["StageData" .. n]
+    if (self.data == nil) then          -- a build that ships fewer stages than seven
+        self.stage = 1
+        Script.Require("StageData1")
+        self.data = _G["StageData1"]
+    end
+
     self.meshRainbow = {}
     for i = 0, self.data.arch.rings - 1 do self.meshRainbow[i] = LoadAsset("SM_RingRainbow_" .. i) end
 
@@ -219,18 +290,6 @@ function SpecialStage:Build()
         end
     end
 
-    -- The light, for the glossy things only (the pipe is unlit and carries its own shading).
-    -- The light. The meshes carry their colours but not their shading: a sun from above and a
-    -- little ahead, so the spheres catch a highlight. It is GENTLE on purpose -- ambient and sun
-    -- add up to about 1, so the pipe keeps the colour it was given instead of burning out to
-    -- white, which the first, brighter setting did.
-    local sun = world:SpawnNode("DirectionalLight3D")
-    sun:SetName("StageSun")
-    sun:SetDirection(Vec(0.35, -1.0, -0.25))
-    sun:SetColor(Vec(1.0, 0.98, 0.94, 1.0))
-    sun:SetIntensity(0.45)
-    world:SetAmbientLightColor(Vec(0.62, 0.62, 0.66, 1.0))
-
     -- every ring and bomb in one list, in the order they are met
     self.objects = {}
     for s, section in ipairs(self.data.sections) do
@@ -239,7 +298,9 @@ function SpecialStage:Build()
         end
     end
     table.sort(self.objects, function(a, b) return a.frame < b.frame end)
-    self.pool = {}                  -- StaticMesh3D nodes not in use
+    -- StaticMesh3D nodes not in use. It OUTLIVES a stage: a ring is a ring in all seven, so
+    -- the next stage takes the same nodes back out of it rather than spawning its own.
+    self.pool = self.pool or {}
 
     -- the rainbow arch over each check
     self.arches = {}
@@ -276,43 +337,49 @@ function SpecialStage:Build()
     self.emerald:SetWorldPosition(ToVec(where))
     self.emerald:SetWorldRotationQuat(FacingQuat(emeraldFwd, emeraldUp))
 
-    self.meshBall = LoadAsset("SM_PlayerBall")
-    self.meshSparkle, self.meshBoom = LoadAsset("SM_FxQuad"), LoadAsset("SM_FxQuadBoom")
-    self.boomMaterial, self.boomTextures, self.boomFrame = LoadAsset("M_Explosion"), {}, -1
-    for i = 0, BOOM_FRAMES - 1 do self.boomTextures[i] = LoadAsset("T_Explosion_" .. i) end
-    self.meshShadow = LoadAsset("SM_Shadow")
-    if (self.meshShadow ~= nil) then
-        self.playerShadow = SpawnMesh(world, self.meshShadow)
-    end
-    self.sonicRun, self.sonicThumbs = {}, {}
-    for i = 0, SONIC_FRAMES - 1 do
-        self.sonicRun[i] = LoadAsset(string.format("SM_Sonic_Run_%02d", i))
-        self.sonicThumbs[i] = LoadAsset(string.format("SM_Sonic_Thumbs_%02d", i))
-    end
-    self.sonicIdle = LoadAsset("SM_Sonic_Idle_00")
-    self.player = SpawnMesh(world, self.sonicIdle or self.meshBall)
-    self.playerMesh = nil
-
-    self.camera = world:GetActiveCamera()
-    if (self.camera == nil) then
-        self.camera = world:SpawnNode("Camera3D")
-        world:SetActiveCamera(self.camera)
-    end
-    self.camera:SetFar(6000.0)
-
-    local ui = world:SpawnNode("Canvas")
-    ui:SetScript("SpecialStageUI")
-
-    -- the music: its script only needs to be on some node, and nothing in the scene has it
-    local music = world:SpawnNode("Node3D")
-    music:SetName("SpecialStageMusic")
-    music:SetScript("SpecialStageMusic")
+    -- the emerald, past the last check
+    local last = self.data.sections[#self.data.sections]
+    -- SM_Emerald_<stage>: each stage has its own chaos emerald (native/export_emeralds.py).
+    -- Its reflection is fixed to the gem and drawn to be seen along its X, so it is turned to
+    -- face back down the track, as a ring is.
+    local emeraldFrame = last.check_frame + 10.0
+    -- For looking at the emerald without playing to it: S2_TEST_EMERALD puts it just past the start.
+    if (os ~= nil and os.getenv ~= nil and os.getenv("S2_TEST_EMERALD") ~= nil) then emeraldFrame = 16.0 end
+    local where, emeraldFwd, emeraldUp = self:Place(emeraldFrame, 0.0, 4.0)
+    self.emerald = SpawnMesh(world, LoadAsset("SM_Emerald_" .. self.data.stage) or LoadAsset("SM_Emerald"))
+    self.emerald:SetWorldPosition(ToVec(where))
+    self.emerald:SetWorldRotationQuat(FacingQuat(emeraldFwd, emeraldUp))
 
     -- the sky that goes with this stage's colours (stage_palettes.py's SKY). Sky.lua picks
     -- up a change of `sky` on its next tick.
     if (TheSky ~= nil and self.data.sky ~= nil) then TheSky.sky = self.data.sky end
-    self.built = true
     self:Restart()
+end
+
+-- What LoadStage spawned, taken down again. The pooled ring and bomb nodes are NOT destroyed:
+-- their meshes are the same in every stage, so the next one reuses them.
+function SpecialStage:ClearStage()
+    for _, p in ipairs(self.pieceNodes or {}) do p.node:Destruct() end
+    self.pieceNodes = {}
+    for _, rings in ipairs(self.arches or {}) do
+        for _, node in pairs(rings) do node:Destruct() end
+    end
+    self.arches = {}
+    for _, o in ipairs(self.objects or {}) do
+        if (o.node ~= nil) then self:Release(o) end
+    end
+    self.objects = {}
+    if (self.emerald ~= nil) then self.emerald:Destruct() end
+    self.emerald = nil
+end
+
+-- The gauntlet: stage 1 to 7, then round again. (The design has MARATHON unlock here once
+-- there is a menu to unlock it in; until then the seventh emerald leads back to the first.)
+function SpecialStage:NextStage()
+    local next_ = self.stage + 1
+    if (next_ > LAST_STAGE) then next_ = 1 end
+    self:LoadStage(next_)
+    self.announce = next_           -- shown once the UI says it is ready, in UpdateUI
 end
 
 function SpecialStage:Restart()
@@ -548,6 +615,10 @@ function SpecialStage:UpdateUI()
         TheSpecialStageUI.demo = false
         TheSpecialStageUI:ShowStart()
         self.uiReady = true
+        if (self.announce ~= nil) then
+            TheSpecialStageUI:ShowBanner("STAGE " .. self.announce, 2.5)
+            self.announce = nil
+        end
     end
     local section = self.data.sections[math.min(self.section, #self.data.sections)]
     TheSpecialStageUI:SetRings(self.rings)
@@ -607,8 +678,12 @@ function SpecialStage:Tick(deltaTime)
     if (self.over >= 0.0) then
         self.over = self.over - dt
         if (self.over < 0.0) then
-            if (self.failed) then self:Sound("ExitStage") end
-            self:Restart()
+            if (self.failed) then
+                self:Sound("ExitStage")
+                self:Restart()                  -- a failed stage is played again
+            else
+                self:NextStage()                -- the emerald was taken: on to the next
+            end
         end
     end
 
