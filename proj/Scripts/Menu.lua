@@ -220,8 +220,9 @@ end
 function Menu:Open() self:Show(true) end
 function Menu:Close() self:Show(false) end
 
--- The menus' own two sounds: the highlight moving, and a choice made. (For a while the menu
--- borrowed the stage's ring and checkpoint, and they were the wrong sounds for it.)
+-- The menus' own sounds: the highlight moving (MenuMove), a menu going on to the next
+-- (MenuSelect), and a stage chosen (MenuWarp). (For a while the menu borrowed the stage's
+-- ring and checkpoint, and they were the wrong sounds for it.)
 function MenuSound(name, volume)
     MenuSounds = MenuSounds or {}
     if (MenuSounds[name] == nil) then MenuSounds[name] = LoadAsset("SW_" .. name) or false end
@@ -239,7 +240,7 @@ end
 function Menu:Choose()
     local item = self.items[self.index]
     if (not self.unlocked[item.key]) then return end        -- a locked row does nothing
-    MenuSound("MenuChoose", 0.7)
+    MenuSound("MenuSelect", 0.7)
     if (self.onChoose ~= nil) then self.onChoose(item.key) end
 end
 

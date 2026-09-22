@@ -411,7 +411,7 @@ function StageSelect:Tick(deltaTime)
     -- See Armed: a screen ignores the key that opened it.
     if (not self:Armed()) then return end
     if (Input.IsKeyJustDown(Key.Enter) or Input.IsKeyJustDown(Key.Space)) then
-        if (MenuSound ~= nil) then MenuSound("MenuChoose", 0.7) end
+        if (MenuSound ~= nil) then MenuSound("MenuWarp", 0.7) end       -- off to the stage
         if (self.onChoose ~= nil) then self.onChoose(self.index) end
     elseif (Input.IsKeyJustDown(Key.Escape) or Input.IsKeyJustDown(Key.Backspace)) then
         if (self.onBack ~= nil) then self.onBack() end

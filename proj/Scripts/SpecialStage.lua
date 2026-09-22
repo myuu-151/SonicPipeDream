@@ -864,7 +864,7 @@ function SpecialStage:Tick(deltaTime)
             if (self.pauseIndex == 1) then
                 self:SetPaused(false)
             else
-                self:Sound("MenuChoose")
+                self:Sound("MenuWarp")
                 self:SetPaused(false)
                 self:Leave()
                 if (self.onExit ~= nil) then self.onExit() end
@@ -873,7 +873,7 @@ function SpecialStage:Tick(deltaTime)
         return
     end
     if (Input.IsKeyJustDown(Key.Escape) and self.hold <= 0.0 and self.intro <= 0.0 and self.over < 0.0) then
-        self:Sound("Pause")
+        self:Sound("MenuSelect")
         self:SetPaused(true)
         return
     end
