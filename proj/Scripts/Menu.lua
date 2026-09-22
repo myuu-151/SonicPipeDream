@@ -151,6 +151,7 @@ function Menu:SetUnlocked(key, on)
 end
 
 function Menu:Show(visible)
+    if (visible and not self.open) then self.armed = false end
     self.open = visible and true or false
     if (not self.built) then return end
     for _, quad in pairs(self.quads) do quad:SetVisible(self.open) end
@@ -173,6 +174,19 @@ function Menu:Choose()
     local item = self.items[self.index]
     if (not self.unlocked[item.key]) then return end        -- a locked row does nothing
     if (self.onChoose ~= nil) then self.onChoose(item.key) end
+end
+
+
+-- A screen that has just opened must not act on the very key that opened it. Both screens
+-- tick in the same frame, so the Enter that chose Main Game was still "just down" when the
+-- stage select ticked a moment later, and it chose stage 1 with it. A screen is not armed
+-- until it sees the confirm keys released.
+function Menu:Armed()
+    if (self.armed) then return true end
+    if (not Input.IsKeyDown(Key.Enter) and not Input.IsKeyDown(Key.Space)) then
+        self.armed = true
+    end
+    return false
 end
 
 -- ------------------------------------------------------------------ every frame
@@ -209,5 +223,7 @@ function Menu:Tick(deltaTime)
         end
     end
 
+    -- See Armed: a screen ignores the key that opened it.
+    if (not self:Armed()) then return end
     if (Input.IsKeyJustDown(Key.Enter) or Input.IsKeyJustDown(Key.Space)) then self:Choose() end
 end
