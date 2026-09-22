@@ -71,6 +71,15 @@ PIECES = [
 ]
 
 
+# The chaos emeralds, stage by stage, as native/export_emeralds.py assigns them. The menu's
+# own emerald art is green; these are that shape in each stage's colour, and a dark one for
+# a stage whose emerald is still out there.
+EMERALD_HUE = {
+    1: (0.60, 1.00), 2: (0.14, 1.00), 3: (0.78, 0.95), 4: (0.33, 1.00),
+    5: (0.00, 1.00), 6: (0.52, 0.85), 7: (0.00, 0.00),
+}
+
+
 def pot(n):
     p = 1
     while p < n:
@@ -98,6 +107,36 @@ def greyed(img):
             lum = int(0.299 * r + 0.587 * g + 0.114 * b)
             lum = int(46 + lum * 0.55)          # lift the blacks so the outline does not crush
             px[x, y] = (lum, lum, lum, a)
+    return out
+
+
+def recolour(img, hue, sat):
+    """The same gem in another colour: hue and saturation set, brightness left alone, so the
+    facets and the highlight survive."""
+    import colorsys
+    out = img.copy()
+    px = out.load()
+    for y in range(out.height):
+        for x in range(out.width):
+            r, g, b, a = px[x, y]
+            if a == 0:
+                continue
+            _h, _s, v = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
+            nr, ng, nb = colorsys.hsv_to_rgb(hue, sat, v)
+            px[x, y] = (int(nr * 255), int(ng * 255), int(nb * 255), a)
+    return out
+
+
+def silhouette(img):
+    """The gem as a shadow of itself: its shape, filled with the art's own outline blue.
+    A stage whose emerald has not been won shows this."""
+    out = img.copy()
+    px = out.load()
+    for y in range(out.height):
+        for x in range(out.width):
+            a = px[x, y][3]
+            if a:
+                px[x, y] = (12, 28, 92, a)
     return out
 
 
@@ -172,6 +211,30 @@ def main():
         index += 1
         save("T_Menu_Item%d_Off" % (i + 1), greyed(img), index)
         index += 1
+
+    # The stage-select screen: one photograph of each stage (native/make_stage_previews.py)
+    # and its emerald, in colour once it has been won and as a silhouette until then. Both
+    # sit exactly where the menu's own preview and emerald do.
+    prev, emer = where["preview_picture"], where["emerald"]
+    gem = load("emerald")
+    for stage in range(1, 8):
+        shot = "preview_stage%d" % stage
+        if os.path.exists(os.path.join(PARTS, shot + ".png")):
+            img = load(shot)
+            cw, ch = save("T_Menu_Preview%d" % stage, img, index)
+            rows.append(("T_Menu_Preview%d" % stage, prev["x"], prev["y"], prev["w"], prev["h"],
+                         img.width, img.height, cw, ch))
+            index += 1
+        hue, sat = EMERALD_HUE[stage]
+        img = recolour(gem, hue, sat)
+        cw, ch = save("T_Menu_Emerald%d" % stage, img, index)
+        rows.append(("T_Menu_Emerald%d" % stage, emer["x"], emer["y"], emer["w"], emer["h"],
+                     img.width, img.height, cw, ch))
+        index += 1
+    cw, ch = save("T_Menu_EmeraldOff", silhouette(gem), index)
+    rows.append(("T_Menu_EmeraldOff", emer["x"], emer["y"], emer["w"], emer["h"],
+                 gem.width, gem.height, cw, ch))
+    index += 1
 
     open(LUA, "w", newline="\n").write(lua_table(rows, ref_w, ref_h, layout["panel_top"]))
     print("wrote %d textures to %s" % (index, TEX))

@@ -188,6 +188,7 @@ function SpecialStage:Create()
         if (pick ~= nil and pick >= 1 and pick <= LAST_STAGE) then self.stage = math.floor(pick) end
     end
     self.built = false
+    TheSpecialStage = self          -- so the stage select can say which stage to build
 end
 
 function SpecialStage:GatherProperties()
@@ -602,6 +603,9 @@ function SpecialStage:PassChecks(fromFrame)
             self.emerald:SetVisible(false)
             self.over = 5.0
             if (self.uiReady) then TheSpecialStageUI:ShowBanner("EMERALD GET !", 4.5) end
+            -- Won, and remembered: the stage select shows it in colour from now on, this
+            -- session and the next.
+            if (TheStageSelect ~= nil) then TheStageSelect:SetWon(self.stage, true) end
         end
         self.section = self.section + 1
     else

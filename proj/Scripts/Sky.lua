@@ -201,24 +201,47 @@ end
 -- The menu comes first, over the sky, and the stage starts when Main Game is chosen. Set
 -- `startSpecialStage` and untick `showMenu` in the inspector to skip straight to playing,
 -- which is what the S2_NOMENU environment variable does as well.
-function Sky:StartSpecialStage()
+function Sky:StartSpecialStage(which)
     if (self.startedSpecialStage) then return end
     self.startedSpecialStage = true
     local stage = self:GetWorld():SpawnNode("Node3D")
     stage:SetName("SpecialStage")
     stage:SetScript("SpecialStage")
+    -- The script's Create picked stage 1 (or S2_STAGE); the stage select overrides it before
+    -- the first Tick builds anything.
+    if (which ~= nil and TheSpecialStage ~= nil) then TheSpecialStage.stage = which end
 end
 
+-- Three screens in one world: the menu, the stage select it leads to, and the stage itself.
+-- The two screens are Canvases that hide rather than unload, so going back to one is instant
+-- and neither has to be built twice.
 function Sky:ShowMenu()
-    local menu = self:GetWorld():SpawnNode("Canvas")
+    local world = self:GetWorld()
+    local menu = world:SpawnNode("Canvas")
     menu:SetName("Menu")
     menu:SetScript("Menu")
-    -- TheMenu is set by the script's Create, which has run by the time SetScript returns.
+    local select = world:SpawnNode("Canvas")
+    select:SetName("StageSelect")
+    select:SetScript("StageSelect")
+
+    -- TheMenu and TheStageSelect are set by each script's Create, which has run by the time
+    -- SetScript returns.
+    if (TheStageSelect ~= nil) then
+        TheStageSelect:Close()
+        TheStageSelect.onChoose = function(stage)
+            TheStageSelect:Close()
+            self:StartSpecialStage(stage)
+        end
+        TheStageSelect.onBack = function()
+            TheStageSelect:Close()
+            if (TheMenu ~= nil) then TheMenu:Open() end
+        end
+    end
     if (TheMenu ~= nil) then
         TheMenu.onChoose = function(key)
-            if (key == "main_game") then
+            if (key == "main_game" and TheStageSelect ~= nil) then
                 TheMenu:Close()
-                self:StartSpecialStage()
+                TheStageSelect:Open()
             end
         end
     end
