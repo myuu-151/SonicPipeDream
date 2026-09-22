@@ -916,10 +916,12 @@ function SpecialStage:Tick(deltaTime)
     local place, fwd, inward = self:Place(self.frame, self.angle, lift)
     self.player:SetWorldPosition(ToVec(place))
     if (airborne and not self.falling) then
-        -- the ball rolls forward as it flies
+        -- the ball rolls forward as it flies, about the track's own up: not `inward`, which
+        -- swings right round as he passes near the axis and would have the ball curving
+        local _, _, upHere = self:TrackAt(self.frame)
         local c, sn = math.cos(self.spin), math.sin(self.spin)
-        local f = Add(Scale(fwd, c), Scale(inward, -sn))
-        local u = Add(Scale(fwd, sn), Scale(inward, c))
+        local f = Add(Scale(fwd, c), Scale(upHere, -sn))
+        local u = Add(Scale(fwd, sn), Scale(upHere, c))
         self.player:SetWorldRotationQuat(FacingQuat(f, u))
     elseif (airborne) then
         -- dropped off the wall: he swings upright as the fall starts, and falls feet first
@@ -934,9 +936,20 @@ function SpecialStage:Tick(deltaTime)
         self.player:SetWorldRotationQuat(FacingQuat(fwd, inward))
     end
     self.player:SetVisible(self.stun <= 0.0 or (math.floor(self.stun * 20.0) % 2 == 0))   -- flickers when hit
-    -- his shadow stays on the pipe under him, and draws in as he jumps away from it
+    -- his shadow stays on the pipe under him, and draws in as he jumps away from it. In the
+    -- air "under him" is straight DOWN, onto the floor: his angle round the pipe means nothing
+    -- near the axis (a hair to one side there is a quarter turn), and a shadow that followed it
+    -- would fly to the rim on every hop
     if (self.playerShadow ~= nil) then
-        self:PlaceShadow(self.playerShadow, self.frame, self.angle, self.height, SHADOW_SONIC, SHADOW_SONIC)
+        local shadowAngle, drop = self.angle, self.height
+        if (airborne) then
+            local radius = self.data.pipe_radius
+            local x = math.max(-radius, math.min(radius, self.cx))
+            local floorY = -math.sqrt(radius * radius - x * x)
+            shadowAngle = self.data.angle_00_side * math.asin(x / radius) * 256.0 / TWO_PI
+            drop = math.max(0.0, self.cy - floorY)
+        end
+        self:PlaceShadow(self.playerShadow, self.frame, shadowAngle, drop, SHADOW_SONIC, SHADOW_SONIC)
     end
 
     -- the camera rides the centre line behind him: it follows the TRACK, not the player,
