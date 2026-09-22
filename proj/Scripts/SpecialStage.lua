@@ -198,7 +198,7 @@ end
 -- Off the surface where he stands, into the air: he becomes a point in the pipe's section,
 -- (cx, cy) from its axis, cy up, the floor at cy = -radius, pushed away from the surface at
 -- `push` (a jump; the rest of the push builds in Tick) or simply let go of (a fall, push 0).
-function SpecialStage:LeaveSurface(push)
+function SpecialStage:LeaveSurface(push, held)
     local radius = self.data.pipe_radius
     local t = self.data.angle_00_side * self.angle * TWO_PI / 256.0
     local r = radius - 0.05                 -- a hair inside, so he is not "landed" again next tick
@@ -209,6 +209,9 @@ function SpecialStage:LeaveSurface(push)
     local n = math.sqrt(nx * nx + ny * ny)
     self.nx, self.ny = nx / n, ny / n
     self.level = 1.0 - k                                      -- how much of a plain hop this is
+    -- only a HELD direction carries into the air: the slide toward the floor of hands let go
+    -- does not. Carried, it turned the whole section under him through the flight, a twirl
+    if (not held) then self.steer = 0.0 end
     local wall = math.min(1.0, math.abs(math.sin(t)))         -- 0 on the floor, 1 at the vertical wall
     push = push * (1.0 + (WALL_PUSH - 1.0) * wall)
     self.vx, self.vy = self.nx * push * JUMP_START, self.ny * push * JUMP_START
@@ -822,7 +825,7 @@ function SpecialStage:Tick(deltaTime)
         if (want == 0.0 and self.hold <= 0.0 and math.abs(self.angle) > FALL_ANGLE) then
             self.cling = self.cling + dt
             if (self.cling >= CLING) then
-                self:LeaveSurface(0.0)      -- let go up the overhang: he drops off it, on his feet
+                self:LeaveSurface(0.0, false)   -- let go up the overhang: he drops off it, on his feet
                 self.falling = true
             end
         else
@@ -836,7 +839,7 @@ function SpecialStage:Tick(deltaTime)
     if (self.testJump ~= nil and self.frame >= self.testJump) then autoJump, self.testJump = true, nil end
     if (self.hold <= 0.0 and (Input.IsKeyJustDown(Key.Space) or autoJump)) then
         if (self.height <= 0.0) then
-            self:LeaveSurface(JUMP)
+            self:LeaveSurface(JUMP, want ~= 0.0)
             self:Sound("Jump")
         elseif (not self.diving) then
             -- jump again in the air: he drops straight back onto the pipe under him
