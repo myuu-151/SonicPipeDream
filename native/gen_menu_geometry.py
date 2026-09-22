@@ -416,14 +416,166 @@ def word_part(part, text, scale=1.0, outline=OUTLINE, face=WHITE, ink=BLUE):
     return render_text(text, scale, outline, face, ink, canvas=orig.size, at=at, xscale=xscale)
 
 
+
+# ------------------------------------------------------------------ fitting to the mockup
+# A glyph designed from a mask by eye is within a pixel; the eye sees that pixel. The
+# watermark looks 1:1 because split_menu.py tuned its letters until the render matched the
+# mockup NUMERICALLY, and the same is done here, automatically: every number in a glyph's
+# shape is nudged, and a nudge is kept if the 1x render of the shape matches the letter's
+# coverage in the mockup better. Each letter is fitted where it stands in its own word, so
+# the spacing is the mockup's too.
+
+def coverage(a, face=True):
+    """Per-pixel coverage, 0..1, of the face (bright inside the outline) or of the ink."""
+    alpha = a[..., 3].astype(float) / 255.0
+    if not face:
+        return alpha
+    lum = a[..., :3].min(axis=2).astype(float)
+    return alpha * np.clip((lum - 40.0) / (250.0 - 40.0), 0.0, 1.0)
+
+
+def render_1x(shape, size, grow=0.0):
+    W, H = size[0] * SS, size[1] * SS
+    m = shape.draw(Image.new("L", (W, H), 0), SS, grow)
+    return np.asarray(m.resize(size, Image.BOX)).astype(float) / 255.0
+
+
+def _params(shape):
+    """Every tunable number in a shape, as (op index, path) so it can be set back."""
+    out = []
+    for i, (kind, arg, _hole) in enumerate(shape.ops):
+        if kind == "rr":
+            out += [(i, j) for j in range(5)]            # x0 y0 x1 y1 r
+        elif kind == "el":
+            out += [(i, j) for j in range(4)]
+        else:
+            out += [(i, (j, k)) for j in range(len(arg)) for k in range(2)]
+    return out
+
+
+def _get(shape, i, path):
+    kind, arg, hole = shape.ops[i]
+    if kind == "poly":
+        return arg[path[0]][path[1]]
+    return arg[path]
+
+
+def _set(shape, i, path, value):
+    kind, arg, hole = shape.ops[i]
+    if kind == "poly":
+        pt = list(arg[path[0]])
+        pt[path[1]] = value
+        arg[path[0]] = tuple(pt)
+    else:
+        arg = list(arg)
+        arg[path] = value
+        shape.ops[i] = (kind, tuple(arg), hole)
+
+
+def fit(shape, target, size, grow=0.0, rounds=(1.0, 0.5, 0.25)):
+    """Coordinate descent on the shape's numbers against `target` coverage (an array the
+    size of `size`). Returns the mean error at the end."""
+    def err():
+        return np.abs(render_1x(shape, size, grow) - target).mean()
+    best = err()
+    for step in rounds:
+        improved = True
+        while improved:
+            improved = False
+            for i, path in _params(shape):
+                v0 = _get(shape, i, path)
+                for dv in (step, -step):
+                    _set(shape, i, path, v0 + dv)
+                    e = err()
+                    if e < best - 1e-6:
+                        best, v0, improved = e, v0 + dv, True
+                    else:
+                        _set(shape, i, path, v0)
+    return best
+
+
+def runs_of(cols):
+    out, x = [], 0
+    while x < len(cols):
+        if cols[x]:
+            s = x
+            while x < len(cols) and cols[x]:
+                x += 1
+            out.append((s, x - 1))
+        else:
+            x += 1
+    return out
+
+
+def fitted_word(part, text, scale=1.0, outline=OUTLINE, face=WHITE, ink=BLUE):
+    """The word rebuilt letter by letter where the mockup drew each letter, every letter's
+    geometry fitted to the mockup's, on a canvas 4x the cut-out."""
+    orig = Image.open(os.path.join(PARTS, part + ".png")).convert("RGBA")
+    a = np.array(orig)
+    outlined = outline > 0
+    cov = coverage(a, face=outlined)
+    hard = cov > 0.5
+    letters = [ch for ch in text if ch != " "]
+    runs = runs_of(hard.any(axis=0))
+    if len(runs) != len(letters):
+        raise ValueError("%s: %d letter runs for %d letters" % (part, len(runs), len(letters)))
+
+    W, H = orig.size
+    shapes, errs = [], []
+    for ch, (x0, x1) in zip(letters, runs):
+        rows = np.where(hard[:, x0:x1 + 1].any(axis=1))[0]
+        top = rows[0]
+        w, gtop, base = GLYPHS[ch]
+        # the glyph, scaled, put where the mockup's letter is; then its width matched to the
+        # letter's, since the mockup's widths vary from word to word
+        xs = (x1 - x0 + 1) / float(w * scale)
+        shape = base.moved(float(x0), float(top), scale, xs)
+        # fit against this letter's neighbourhood only
+        m = 3
+        bx0, by0 = max(0, x0 - m), max(0, top - m)
+        bx1, by1 = min(W, x1 + 1 + m), min(H, rows[-1] + 1 + m)
+        local = shape.moved(-bx0, -by0)
+        e = fit(local, cov[by0:by1, bx0:bx1], (bx1 - bx0, by1 - by0))
+        shapes.append(local.moved(bx0, by0))
+        errs.append(e)
+
+    # everything together, with the outline width fitted to the ink as a last step
+    whole = Shape()
+    for sh in shapes:
+        whole.ops += sh.ops
+    grow = outline
+    if outlined:
+        ink_cov = coverage(a, face=False)
+        best = None
+        for g in (outline - 1.0, outline - 0.5, outline - 0.25, outline, outline + 0.25, outline + 0.5):
+            if g <= 0:
+                continue
+            e = np.abs(render_1x(whole, (W, H), g) - ink_cov).mean()
+            if best is None or e < best[0]:
+                best = (e, g)
+        grow = best[1]
+
+    out = Image.new("RGBA", (W * SS, H * SS), (0, 0, 0, 0))
+    layers = [(ink, grow)] if outlined else []
+    layers.append((face, 0.0))
+    for colour, g in layers:
+        mask = whole.draw(Image.new("L", (W * SS, H * SS), 0), SS, g)
+        out.paste(Image.new("RGBA", (W * SS, H * SS), colour + (255,)), (0, 0), mask)
+    print("  %-18s letters fitted, mean face error per letter %.3f  outline %.2f"
+          % (part, sum(errs) / len(errs), grow))
+    return out
+
+
 def build_all():
     made = {}
-    made["item_main_game"] = word_part("item_main_game", "Main Game")
-    made["item_marathon"] = word_part("item_marathon", "Marathon")
-    made["item_records"] = word_part("item_records", "Records")
-    made["item_options"] = word_part("item_options", "Options")
-    made["item_time_attack"] = word_part("item_time_attack", "Time Attack")
-    made["title_text"] = word_part("title_text", "SONIC PIPE DREAM", scale=16.0 / CAP, outline=2.3)
+    made["item_main_game"] = fitted_word("item_main_game", "Main Game")
+    made["item_marathon"] = fitted_word("item_marathon", "Marathon")
+    made["item_records"] = fitted_word("item_records", "Records")
+    made["item_options"] = fitted_word("item_options", "Options")
+    made["item_time_attack"] = fitted_word("item_time_attack", "Time Attack")
+    made["title_text"] = fitted_word("title_text", "SONIC PIPE DREAM", scale=16.0 / CAP, outline=2.3)
+    # The labels are 12 px tall and their letters touch, so they cannot be fitted letter by
+    # letter; set plainly and condensed to fit, which at that size is all the eye can tell.
     made["label_select"] = word_part("label_select", "Select", scale=10.0 / CAP, outline=0.0, face=BLUE)
     made["label_back"] = word_part("label_back", "Back", scale=10.0 / CAP, outline=0.0, face=BLUE)
     made["cursor_arrow"] = cursor()
