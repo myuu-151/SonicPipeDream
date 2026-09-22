@@ -30,7 +30,7 @@ MenuLayout = {
         T_Menu_LabelSelect = { x = 400, y = 321, w = 38, h = 12, aw = 38, ah = 12, cw = 64, ch = 16 },
         T_Menu_LabelBack = { x = 481, y = 321, w = 30, h = 12, aw = 30, ah = 12, cw = 32, ch = 16 },
         T_Menu_Item1 = { x = 41, y = 105, w = 198, h = 30, aw = 198, ah = 30, cw = 256, ch = 32 },
-        T_Menu_Item2 = { x = 38, y = 161, w = 167, h = 30, aw = 167, ah = 30, cw = 256, ch = 32 },
+        T_Menu_Item2 = { x = 38, y = 161, w = 167, h = 29, aw = 167, ah = 29, cw = 256, ch = 32 },
         T_Menu_Item3 = { x = 39, y = 213, w = 139, h = 29, aw = 139, ah = 29, cw = 256, ch = 32 },
         T_Menu_Item4 = { x = 39, y = 266, w = 135, h = 34, aw = 135, ah = 34, cw = 256, ch = 64 },
     },
