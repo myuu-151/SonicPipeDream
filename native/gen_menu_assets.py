@@ -42,6 +42,13 @@ LUA = os.path.abspath(os.path.join(HERE, "..", "proj", "Scripts", "MenuLayout.lu
 
 UUID_MENU = 0x51C0FFEE00002200      # + index; clear of the UI's (…2000) and the font's (…2100)
 
+SHARPEN = 4                         # how much the line art is scaled up before cooking
+
+# Which pieces are LINE ART -- lettering, arrows, frames -- and want scaling up with hard
+# edges. The panel is one column of flat colours, the circles are a soft wash and the stage
+# previews are photographs: none of those has an edge worth keeping, so they stay 1:1.
+SOFT = {"bg_scanlines_full", "bg_circles"}
+
 # The menu's items, top to bottom: the art, and the y the mockup put that row at. Marathon
 # takes Time Attack's place and its row.
 ITEMS = [
@@ -140,13 +147,25 @@ def silhouette(img):
     return out
 
 
-def save(name, img, index):
-    """Write one texture, padded to a power of two with the art at the top left."""
+def save(name, img, index, sharp=False):
+    """Write one texture, padded to a power of two with the art at the top left.
+
+    `sharp` scales the art up with hard edges first. The mockup is 522 px across and a
+    window is not: drawn at twice its size, art stored at 1:1 is a small picture filtered a
+    lot, and the lettering went soft and haloed. Scaled up here with nearest-neighbour, the
+    engine filters a big picture a little instead and the edges stay edges -- the same trick,
+    and the same reason, as the HUD art in gen_ui_assets.py.
+
+    Photographs are not scaled: they are continuous tone, so there are no edges to keep and
+    it would only cost memory.
+    """
+    if sharp:
+        img = img.resize((img.width * SHARPEN, img.height * SHARPEN), Image.NEAREST)
     canvas = Image.new("RGBA", (pot(img.width), pot(img.height)), (0, 0, 0, 0))
     canvas.alpha_composite(img, (0, 0))
     write_texture(os.path.join(TEX, name + ".oct"), name, UUID_MENU + index,
                   canvas.width, canvas.height, canvas.tobytes(), wrap=0, force_hq=True, quiet=True)
-    return canvas.size
+    return canvas.size, img.size
 
 
 def lua_table(rows, ref_w, ref_h, panel_top):
@@ -195,8 +214,8 @@ def main():
             img = img.crop((0, layout["panel_top"], img.width, img.height))
         else:
             x, y, w, h = p["x"], p["y"], p["w"], p["h"]
-        cw, ch = save(name, img, index)
-        rows.append((name, x, y, w, h, img.width, img.height, cw, ch))
+        (cw, ch), (aw, ah) = save(name, img, index, sharp=part not in SOFT)
+        rows.append((name, x, y, w, h, aw, ah, cw, ch))
         index += 1
 
     # the items, and a greyed copy of each
@@ -206,10 +225,11 @@ def main():
         # edge, so the column of items stays a column.
         p = where.get(part) or where["item_time_attack"]
         x, y = p["x"], p["y"]
-        cw, ch = save("T_Menu_Item%d" % (i + 1), img, index)
-        rows.append(("T_Menu_Item%d" % (i + 1), x, y, img.width, img.height, img.width, img.height, cw, ch))
+        w, h = img.width, img.height
+        (cw, ch), (aw, ah) = save("T_Menu_Item%d" % (i + 1), img, index, sharp=True)
+        rows.append(("T_Menu_Item%d" % (i + 1), x, y, w, h, aw, ah, cw, ch))
         index += 1
-        save("T_Menu_Item%d_Off" % (i + 1), greyed(img), index)
+        save("T_Menu_Item%d_Off" % (i + 1), greyed(img), index, sharp=True)
         index += 1
 
     # The stage-select screen: one photograph of each stage (native/make_stage_previews.py)
@@ -221,19 +241,20 @@ def main():
         shot = "preview_stage%d" % stage
         if os.path.exists(os.path.join(PARTS, shot + ".png")):
             img = load(shot)
-            cw, ch = save("T_Menu_Preview%d" % stage, img, index)
+            # a photograph: no edges to keep, so it is left at its own size
+            (cw, ch), (aw, ah) = save("T_Menu_Preview%d" % stage, img, index)
             rows.append(("T_Menu_Preview%d" % stage, prev["x"], prev["y"], prev["w"], prev["h"],
-                         img.width, img.height, cw, ch))
+                         aw, ah, cw, ch))
             index += 1
         hue, sat = EMERALD_HUE[stage]
         img = recolour(gem, hue, sat)
-        cw, ch = save("T_Menu_Emerald%d" % stage, img, index)
+        (cw, ch), (aw, ah) = save("T_Menu_Emerald%d" % stage, img, index, sharp=True)
         rows.append(("T_Menu_Emerald%d" % stage, emer["x"], emer["y"], emer["w"], emer["h"],
-                     img.width, img.height, cw, ch))
+                     aw, ah, cw, ch))
         index += 1
-    cw, ch = save("T_Menu_EmeraldOff", silhouette(gem), index)
+    (cw, ch), (aw, ah) = save("T_Menu_EmeraldOff", silhouette(gem), index, sharp=True)
     rows.append(("T_Menu_EmeraldOff", emer["x"], emer["y"], emer["w"], emer["h"],
-                 gem.width, gem.height, cw, ch))
+                 aw, ah, cw, ch))
     index += 1
 
     open(LUA, "w", newline="\n").write(lua_table(rows, ref_w, ref_h, layout["panel_top"]))

@@ -38,6 +38,8 @@ OUT = os.path.join(PARTS, "item_marathon.png")
 CHECK = os.path.join(PARTS, "_marathon_check.png")
 
 GAP = 3                             # px of daylight between faces, where the art does not say
+SS = 4                              # the word is drawn this much larger, then shrunk: the edge
+INK = (3, 38, 174)                  # the outline blue, straight off the mockup
 
 WORDS = {                           # the item art, and the letters in it (spaces have no face)
     "item_main_game": "MainGame",
@@ -171,6 +173,55 @@ def match_xheight(tiles, word):
     return out
 
 
+def stroke_of(name):
+    """How thick the blue outline is around the lettering of one drawn word: for each
+    column, how far the ink reaches above and below the face."""
+    img = Image.open(os.path.join(PARTS, name + ".png")).convert("RGBA")
+    a = np.array(img).astype(int)
+    f, ink = face(img), a[..., 3] > 100
+    out = []
+    for x in range(img.width):
+        fr, ir = np.where(f[:, x])[0], np.where(ink[:, x])[0]
+        if len(fr) and len(ir):
+            out += [fr[0] - ir[0], ir[-1] - fr[-1]]
+    return out
+
+
+def outline_width():
+    """One stroke for the whole word, taken from the art.
+
+    The four words do not agree: Records is outlined 4 px below its faces where Main Game
+    and Options use 3. Marathon draws its r from Records and everything else from the other
+    two, so inheriting each letter's own outline put two different stroke weights inside one
+    word -- which is what made it look botched, and no amount of resampling would have fixed
+    it. So the letters here contribute their FACES only, and one outline is drawn round the
+    lot at the commonest width the art uses.
+    """
+    seen = []
+    for name in WORDS:
+        seen += stroke_of(name)
+    seen = [v for v in seen if 1 <= v <= 6]
+    return max(set(seen), key=seen.count)
+
+
+def disc(radius):
+    """The offsets of a filled circle: a dilation by this grows a shape evenly in every
+    direction, where growing by a square would square off every corner."""
+    r = int(radius)
+    return [(dy, dx) for dy in range(-r, r + 1) for dx in range(-r, r + 1)
+            if dy * dy + dx * dx <= radius * radius]
+
+
+def grow(mask, radius):
+    out = np.zeros_like(mask)
+    h, w = mask.shape
+    for dy, dx in disc(radius):
+        ys0, ys1 = max(0, dy), min(h, h + dy)
+        xs0, xs1 = max(0, dx), min(w, w + dx)
+        out[ys0:ys1, xs0:xs1] |= mask[ys0 - dy:ys1 - dy, xs0 - dx:xs1 - dx]
+    return out
+
+
 def row_edges(mask):
     """Per row, the leftmost and rightmost face pixel (or None for an empty row)."""
     out = []
@@ -219,6 +270,8 @@ def compose(word):
     tiles = match_xheight([graft_h() if ch == "h" else letter(ch) for ch in word], word)
     boxes = [face_box(t) for t in tiles]
     kern = kerning()
+    global SS_OUTLINE
+    SS_OUTLINE = outline_width()
 
     baseline = max(b[3] for b in boxes)
     height = max(t.height + (baseline - b[3]) for t, b in zip(tiles, boxes))
@@ -258,19 +311,28 @@ def compose(word):
     xs = [x + shift for x in xs]
     width = max(x + t.width for x, t in zip(xs, tiles))
 
-    # Letters are laid down by taking the GREATER alpha, not by compositing one over the
-    # other. Their outlines overlap, and those outlines are anti-aliased: drawing a half-
-    # transparent blue edge over another half-transparent blue edge makes a darker, harder
-    # line, which showed as a bar running under the whole word. Taking the greater alpha
-    # leaves each letter's own edge as it was drawn.
-    out = np.zeros((height, width, 4), np.uint8)
+    # Only the FACES are taken from the letters; the outline is drawn once, round all of
+    # them, at one width. It is done at four times the size and shrunk down, which is where
+    # the smooth edge comes from.
+    pad = (SS_OUTLINE + 2)
+    W, H = (width + 2 * pad) * SS, (height + 2 * pad) * SS
+    faces = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     for t, b, x in zip(tiles, boxes, xs):
         y = baseline - b[3]
-        tile = np.array(t).astype(np.uint8)
-        patch = out[y:y + t.height, x:x + t.width]
-        take = tile[..., 3] > patch[..., 3]
-        patch[take] = tile[take]
+        a = np.array(t).astype(np.uint8)
+        only = a.copy()
+        only[~face(t)] = 0                      # the face, and nothing else
+        big = Image.fromarray(only, "RGBA").resize((t.width * SS, t.height * SS), Image.NEAREST)
+        faces.alpha_composite(big, ((x + pad) * SS, (y + pad) * SS))
+
+    mask = np.array(faces)[..., 3] > 128
+    ring = grow(mask, SS_OUTLINE * SS) & ~mask
+
+    out = np.zeros((H, W, 4), np.uint8)
+    out[ring] = list(INK) + [255]
     img = Image.fromarray(out, "RGBA")
+    img.alpha_composite(faces)
+    img = img.resize((W // SS, H // SS), Image.BOX)     # down again: this is the anti-aliasing
     return img.crop(img.getbbox())
 
 
