@@ -314,9 +314,11 @@ def cursor():                                  # 15 x 24: a red triangle, tip to
     return draw_shape((15, 24), Shape().poly([(0.5, 0.5), (14.5, 12), (0.5, 23.5)]), RED)
 
 
-def frame():                                   # 173 x 151: a blue border, 4 wide
+def frame():                                   # 173 x 151: a border, 4 wide
+    # Drawn WHITE: the stage select tints it to the colour of that stage's emerald, and a
+    # tint multiplies, so only a white texture can take any colour.
     s = Shape().rr(0, 0, 172, 151, 2.0).rr(4, 4, 168.5, 147, 1.0, hole=True)
-    return draw_shape((173, 151), s, (14, 45, 159))
+    return draw_shape((173, 151), s, (255, 255, 255))
 
 
 def banner():                                  # 323 x 35: the title's orange plate
@@ -578,7 +580,7 @@ def build_all():
                               (211, 219, 212), 10.0 / CAP, (9.0, 8.0))
     made["button_b"] = button("B", (25, 27), (12.2, 13.2), 12.0, (114, 19, 13), (217, 53, 57),
                               (229, 200, 202), 13.0 / CAP, (5.5, 5.0))
-    made["emerald"] = gem()
+    # the gem comes from the drawing in emerald2.png now: see gen_menu_emerald.py
     return made
 
 

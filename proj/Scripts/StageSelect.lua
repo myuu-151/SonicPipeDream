@@ -16,10 +16,10 @@
 --
 --   * the picture is a photograph of that stage, taken by native/make_stage_previews.py by
 --     running the game at it. Each one is its own pipe colours under its own sky.
---   * the emerald is that stage's chaos emerald. Until it is won it is barely there -- its
---     own colour, nearly transparent -- so you can see which one is missing and what it will
---     look like when it is not. Taking it in the stage brings you straight back here with it
---     in full colour. What has been won is remembered between sessions (see Save).
+--   * the emerald is that stage's chaos emerald in its own colour once it is won, and until
+--     then its shadow: a black silhouette, half transparent, so you can see which one is
+--     missing. Taking it in the stage brings you straight back here with it in full colour.
+--     What has been won is remembered between sessions (see Save).
 --   * under the picture is that emerald's COLOUR, where the mockup said SPECIAL STAGE.
 --
 -- The rows are text, not art: the mockup drew four words and none of them is a number, and
@@ -38,12 +38,23 @@ local SAVE = "emeralds"                 -- one character a stage: "1" won, "0" n
 
 local WHITE = Vec(1.0, 1.0, 1.0, 1.0)
 local DIM = Vec(0.62, 0.66, 0.78, 1.0)  -- a row the cursor is not on
-local GHOST = Vec(1.0, 1.0, 1.0, 0.30)  -- an emerald still out there: its colour, barely there
+local GHOST = Vec(1.0, 1.0, 1.0, 0.55)  -- an emerald still out there: a black silhouette, half there
 local LABEL = Vec(0.01, 0.15, 0.68, 1.0)    -- the mockup's lettering blue
 
 -- Which emerald belongs to which stage, as native/export_emeralds.py assigns them. The name
--- goes under the picture, where the mockup said SPECIAL STAGE.
+-- goes under the picture, where the mockup said SPECIAL STAGE, in that emerald's colour --
+-- and the frame round the picture takes the same colour. The font carries its own dark
+-- outline and shadow, so even yellow and white read on the yellow panel.
 local EMERALD_NAME = { "BLUE", "YELLOW", "PURPLE", "GREEN", "RED", "SKY", "WHITE" }
+local EMERALD_COLOUR = {
+    Vec(0.12, 0.38, 1.00, 1.0),     -- blue
+    Vec(1.00, 0.82, 0.12, 1.0),     -- yellow
+    Vec(0.62, 0.22, 0.92, 1.0),     -- purple
+    Vec(0.12, 0.78, 0.32, 1.0),     -- green
+    Vec(0.92, 0.16, 0.16, 1.0),     -- red
+    Vec(0.32, 0.78, 1.00, 1.0),     -- sky
+    Vec(1.00, 1.00, 1.00, 1.0),     -- white
+}
 
 local ROW_TOP = 104.0                   -- on the mockup's 522 x 386 screen
 local ROW_PITCH = 27.0
@@ -147,6 +158,7 @@ function StageSelect:Build()
     self.preview = MakeQuad(self, LoadAsset("T_Menu_Preview1"))
     self.emerald = MakeQuad(self, LoadAsset("T_Menu_Emerald1"))
     self.previewTex, self.emeraldTex = {}, {}
+    self.emeraldOff = LoadAsset("T_Menu_EmeraldOff")     -- the black silhouette
     for i = 1, STAGES do
         self.previewTex[i] = LoadAsset("T_Menu_Preview" .. i)
         self.emeraldTex[i] = LoadAsset("T_Menu_Emerald" .. i)
@@ -281,11 +293,19 @@ function StageSelect:Refresh()
     end
     local n = self.index
     if (self.previewTex[n] ~= nil) then self.preview:SetTexture(self.previewTex[n]) end
-    -- Always that stage's own emerald, in its own colour. Until it is won it is barely
-    -- there: you can see which one is missing, and what it will look like when it is not.
-    if (self.emeraldTex[n] ~= nil) then self.emerald:SetTexture(self.emeraldTex[n]) end
-    self.emerald:SetColor(self.won[n] and WHITE or GHOST)
+    -- That stage's own emerald in its own colour once it is won; until then its shadow, a
+    -- black silhouette drawn half transparent, so you can see which one is missing.
+    if (self.won[n] and self.emeraldTex[n] ~= nil) then
+        self.emerald:SetTexture(self.emeraldTex[n])
+        self.emerald:SetColor(WHITE)
+    else
+        self.emerald:SetTexture(self.emeraldOff or self.emeraldTex[n])
+        self.emerald:SetColor(GHOST)
+    end
     self.label:SetText(EMERALD_NAME[n] or "")
+    local colour = EMERALD_COLOUR[n] or LABEL
+    self.label:SetColor(colour)
+    self.quads.T_Menu_PreviewFrame:SetColor(colour)      -- the frame is white art, tinted
     self:PlaceLabel()
 end
 
@@ -315,7 +335,16 @@ end
 -- ------------------------------------------------------------------ every frame
 function StageSelect:Tick(deltaTime)
     if (not self.built) then self:Build() end
-    -- For testing without a keyboard, as the menu has: S2_SELECT_PICK=3 chooses stage 3.
+    -- For testing without a keyboard, as the menu has: S2_SELECT_PICK=3 chooses stage 3;
+    -- S2_SELECT_AT=5 only puts the cursor on stage 5, to look at it.
+    if (self.open and self.autoAt == nil) then
+        self.autoAt = (os ~= nil and os.getenv ~= nil and tonumber(os.getenv("S2_SELECT_AT") or "")) or false
+        if (self.autoAt) then
+            self.index = math.max(1, math.min(STAGES, math.floor(self.autoAt)))
+            self:PlaceSelection()
+            self:Refresh()
+        end
+    end
     if (self.open and self.autoPick == nil) then
         self.autoPick = (os ~= nil and os.getenv ~= nil and tonumber(os.getenv("S2_SELECT_PICK") or "")) or false
         if (self.autoPick) then

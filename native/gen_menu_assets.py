@@ -142,15 +142,15 @@ def recolour(img, hue, sat):
 
 
 def silhouette(img):
-    """The gem as a shadow of itself: its shape, filled with the art's own outline blue.
-    A stage whose emerald has not been won shows this."""
+    """The gem as a shadow of itself: its shape, solid black. A stage whose emerald has not
+    been won shows this, and the screen draws it half transparent."""
     out = img.copy()
     px = out.load()
     for y in range(out.height):
         for x in range(out.width):
             a = px[x, y][3]
             if a:
-                px[x, y] = (12, 28, 92, a)
+                px[x, y] = (0, 0, 0, a)
     return out
 
 
