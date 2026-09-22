@@ -37,15 +37,30 @@ local LAST_STAGE = 7            -- the gauntlet: StageData1..7, each with its ow
 local SPEED = 15.0              -- frames a second, forward. The original never lets you change it.
 local STEER = 150.0             -- 256ths of a circle a second, at full tilt: round the pipe in 1.7 s
 local STEER_GRIP = 9.0          -- how fast steering speed is reached and lost
+-- Momentum: keep the direction held and he winds up past STEER, faster and faster round the
+-- pipe, to STEER_MAX; let go and it bleeds off at STEER_COAST rather than stopping dead
+local STEER_BUILD = 90.0        -- 256ths a second a second, once he is at STEER and still holding
+local STEER_MAX = 320.0         -- round the pipe in 0.8 s
+local STEER_COAST = 2.5         -- how fast the wound-up speed is lost with the direction let go
 local SLIDE = 55.0              -- hands off, he slides back down toward the floor, this hard
--- The jump is S2's: he leaves the surface as a ball and FALLS, under gravity, across the
--- pipe's section. Off the floor it is a straight high hop; off the wall he drops away from
--- it and lands wherever gravity takes him, spinning as he goes. Holding a direction in the
--- air pushes him round a little; letting go leaves him to fall.
-local JUMP = 38.0               -- off the surface, units a second: 9 units up a 10 unit pipe, the ball's
-                                -- middle past its axis at the top of the hop
-local GRAVITY = 80.0            -- units a second a second, toward the floor
-local AIR_CONTROL = 45.0        -- units a second a second, round the pipe, while a direction is held
+-- The jump is S2's: the same hop off the surface wherever he stands on it, stiff and high,
+-- and while he is up gravity pulls him ROUND toward the floor: off the wall he swings down
+-- and lands nearer the middle, spinning as he goes. Holding a direction in the air keeps
+-- him where he is (or takes him on round); letting go leaves him to gravity. His way round
+-- the pipe is kept separate from the hop, so a jump while running round is still a full jump.
+local JUMP = 58.0               -- off the surface, units a second, once the push has built: 10 units up a
+                                -- 10 unit pipe, the ball's middle well past its axis at the top of the hop
+local JUMP_START = 0.45         -- of that at the instant he leaves; the rest builds over JUMP_RAMP seconds,
+local JUMP_RAMP = 0.1           -- a weighted bounce off the surface rather than a flick
+local GRAVITY = 150.0           -- units a second a second, back onto the surface: up and down in 0.75 s
+local AIR_PULL = 650.0          -- 256ths a second a second, round toward the floor, times sin(angle): a
+                                -- pendulum swing that carries him past the floor, so a jump off one
+                                -- wall lands him on the other (from 64 up, about 52 up the far side)
+local FALL_ANGLE = 64.0         -- past here (256ths; 64 is the wall gone vertical) the surface overhangs:
+local CLING = 0.45              -- with the steering let go he keeps his feet this long, then falls off it.
+                                -- A fall is a real drop through the pipe's section, under
+local FALL_GRAVITY = 150.0      -- this, units a second a second, toward the floor
+local FALL_TURN = 0.25          -- seconds to swing from feet-on-the-wall to upright as the fall starts
 local DIVE = 45.0               -- jump again in the air: straight back down onto the pipe, units a second
 local BALL_SPIN = 12.0          -- radians a second: two turns a second in the air
 local REACH_FRAMES = 0.55       -- a hit: within this far along the track...
@@ -97,6 +112,7 @@ local BALL_RADIUS = 1.7
 -- ------------------------------------------------------------------ small vector maths
 local function Add(a, b) return { a[1] + b[1], a[2] + b[2], a[3] + b[3] } end
 local function Scale(a, k) return { a[1] * k, a[2] * k, a[3] * k } end
+local function Dot(a, b) return a[1] * b[1] + a[2] * b[2] + a[3] * b[3] end
 local function Cross(a, b)
     return { a[2] * b[3] - a[3] * b[2], a[3] * b[1] - a[1] * b[3], a[1] * b[2] - a[2] * b[1] }
 end
@@ -170,18 +186,25 @@ end
 
 -- (frame, angle, height off the pipe's surface) -> a place, and which way is "up" there:
 -- toward the pipe's axis, so things stand square to the bit of pipe under them.
--- Off the surface where he stands, into the air: pushed away from it at `push`, and keeping
--- whatever speed he had round the pipe. Gravity does the rest (Tick).
+-- Off the surface where he stands, into the air. A push is a jump: height off the surface,
+-- with the rest of the push still to build (Tick). No push is a fall: he becomes a point in
+-- the pipe's section, (cx, cy) from its axis, cy up, the floor at cy = -radius, and drops.
 function SpecialStage:LeaveSurface(push)
-    local side = self.data.angle_00_side
     local radius = self.data.pipe_radius
-    local t = side * self.angle * TWO_PI / 256.0
-    local along = side * self.steer * TWO_PI / 256.0 * radius
-    self.cx, self.cy = radius * math.sin(t), -radius * math.cos(t)
-    self.vx = -math.sin(t) * push + math.cos(t) * along
-    self.vy = math.cos(t) * push + math.sin(t) * along
-    self.height = 0.001
-    self.diving = false
+    if (push > 0.0) then
+        self.rise = push * JUMP_START
+        self.push, self.ramp = push * (1.0 - JUMP_START), 0.0
+        self.height = 0.001
+        self.falling = false
+    else
+        local t = self.data.angle_00_side * self.angle * TWO_PI / 256.0
+        local r = radius - 0.05                 -- a hair inside, so he is not "landed" again next tick
+        self.cx, self.cy = r * math.sin(t), -r * math.cos(t)
+        self.vx, self.vy = 0.0, 0.0
+        self.height = radius - r
+        self.falling = true
+    end
+    self.diving, self.cling, self.fallTime = false, 0.0, 0.0
 end
 
 function SpecialStage:WrapAngle(angle)
@@ -447,12 +470,21 @@ function SpecialStage:Restart()
     self.angle = 0.0                -- 0 is the floor's centre line; it wraps at +-128
     self.steer = 0.0
     self.height = 0.0               -- off the pipe's surface
-    self.cx, self.cy = 0.0, 0.0     -- in the air: where he is in the pipe's section, and
+    self.rise = 0.0                 -- a jump: how fast he is going up off the surface, and how much
+    self.push, self.ramp = 0.0, 0.0 -- of the push is still building (LeaveSurface)
+    self.cx, self.cy = 0.0, 0.0     -- a fall: where he is in the pipe's section, and
     self.vx, self.vy = 0.0, 0.0     -- how he is moving through it
     self.spin = 0.0
+    self.cling = 0.0                -- how long he has hung on up the overhang with the steering let go
+    self.falling = false            -- in the air because he let go up there, on his feet, not as the ball
+    self.fallTime = 0.0             -- how long he has been in the air
     self.diving = false             -- jumped again in the air: dropping straight back down
     self.rings = 0
     -- For testing the checks without playing to them: set S2_TEST_RINGS in the environment.
+    if (os ~= nil and os.getenv ~= nil and os.getenv("S2_AUTOJUMP") ~= nil) then
+        self.testJump = tonumber(os.getenv("S2_AUTOJUMP"))
+        self.testLog = true
+    end
     if (os ~= nil and os.getenv ~= nil and os.getenv("S2_TEST_RINGS") ~= nil) then
         self.rings = tonumber(os.getenv("S2_TEST_RINGS")) or 0
     end
@@ -750,6 +782,7 @@ function SpecialStage:Tick(deltaTime)
         end
     end
 
+    local before = self.frame
     -- steering: round the pipe, and only round it, while his feet are on it
     local want = 0.0
     if (self.hold <= 0.0 and self.stun <= 0.0) then
@@ -759,54 +792,105 @@ function SpecialStage:Tick(deltaTime)
     want = want * self.data.angle_00_side                 -- A is always the player's left
     local radius = self.data.pipe_radius
     if (self.height <= 0.0) then
-        local target = want * STEER
-        if (want == 0.0) then
-            -- hands off: gravity slides him back down toward the floor
-            target = -math.sin(self.angle * TWO_PI / 256.0) * SLIDE
+        if (want ~= 0.0 and self.steer * want >= STEER) then
+            -- already at full tilt and still holding: momentum builds
+            self.steer = math.max(-STEER_MAX, math.min(STEER_MAX, self.steer + want * STEER_BUILD * dt))
+        else
+            local target, grip = want * STEER, STEER_GRIP
+            if (want == 0.0) then
+                -- hands off: gravity slides him back down toward the floor, and what speed he
+                -- had round the pipe coasts off
+                target, grip = -math.sin(self.angle * TWO_PI / 256.0) * SLIDE, STEER_COAST
+            end
+            self.steer = self.steer + (target - self.steer) * math.min(1.0, grip * dt)
         end
-        self.steer = self.steer + (target - self.steer) * math.min(1.0, STEER_GRIP * dt)
         self.angle = self:WrapAngle(self.angle + self.steer * dt)
+        if (want == 0.0 and self.hold <= 0.0 and math.abs(self.angle) > FALL_ANGLE) then
+            self.cling = self.cling + dt
+            if (self.cling >= CLING) then
+                self:LeaveSurface(0.0)      -- let go up the overhang: he drops off it, on his feet
+                self.falling = true
+            end
+        else
+            self.cling = 0.0
+        end
     end
 
-    -- jumping: off the surface, and then falling. In the air he is a point in the pipe's
-    -- section, (cx, cy) from its axis, cy up; the floor is at cy = -radius
-    if (self.hold <= 0.0 and Input.IsKeyJustDown(Key.Space)) then
+    -- jumping, and falling
+    -- For testing the jump without playing: S2_AUTOJUMP=<frame> jumps there and logs the flight.
+    local autoJump = false
+    if (self.testJump ~= nil and self.frame >= self.testJump) then autoJump, self.testJump = true, nil end
+    if (self.hold <= 0.0 and (Input.IsKeyJustDown(Key.Space) or autoJump)) then
         if (self.height <= 0.0) then
             self:LeaveSurface(JUMP)
             self:Sound("Jump")
         elseif (not self.diving) then
             -- jump again in the air: he drops straight back onto the pipe under him
-            local r = math.sqrt(self.cx * self.cx + self.cy * self.cy)
-            self.vx, self.vy = self.cx / r * DIVE, self.cy / r * DIVE
+            if (self.falling) then
+                local r = math.sqrt(self.cx * self.cx + self.cy * self.cy)
+                self.vx, self.vy = self.cx / r * DIVE, self.cy / r * DIVE
+            else
+                self.rise, self.push = -DIVE, 0.0
+            end
             self.diving = true
         end
     end
-    if (self.height > 0.0) then
-        local t = math.atan(self.cx, -self.cy)                       -- round from the floor
-        if (not self.diving) then
-            self.vy = self.vy - GRAVITY * dt
-            self.vx = self.vx + math.cos(t) * want * AIR_CONTROL * dt
-            self.vy = self.vy + math.sin(t) * want * AIR_CONTROL * dt
+    if (self.height > 0.0 and not self.falling) then
+        -- a jump. Round the pipe: held, the steering carries on; let go, gravity pulls him
+        -- round toward the floor (a dive goes straight down where he is)
+        if (want ~= 0.0) then
+            self.steer = self.steer + (want * STEER - self.steer) * math.min(1.0, STEER_GRIP * dt)
+        elseif (self.diving) then
+            self.steer = self.steer * math.max(0.0, 1.0 - STEER_COAST * dt)
+        else
+            self.steer = self.steer - math.sin(self.angle * TWO_PI / 256.0) * AIR_PULL * dt
         end
+        self.angle = self:WrapAngle(self.angle + self.steer * dt)
+        -- and off the surface: the rest of the push builds over the first moments, then gravity
+        if (self.ramp < JUMP_RAMP and self.push > 0.0) then
+            self.rise = self.rise + self.push * math.min(dt, JUMP_RAMP - self.ramp) / JUMP_RAMP
+            self.ramp = self.ramp + dt
+        end
+        self.rise = self.rise - GRAVITY * dt
+        self.height = math.min(self.height + self.rise * dt, radius - 0.05)
+        self.spin = self.spin + BALL_SPIN * dt
+        self.fallTime = self.fallTime + dt
+        if (self.testLog) then
+            print(string.format("AIR frame %.2f height %.3f angle %.1f rise %.2f steer %.1f", self.frame, self.height, self.angle, self.rise, self.steer))
+        end
+        if (self.height <= 0.0) then self.height, self.rise, self.diving = 0.0, 0.0, false end
+    elseif (self.height > 0.0) then
+        -- a fall, through the section. Round the pipe: held, the steering carries on; let go,
+        -- it coasts off; either way the whole section (him and his drop) turns with it
+        local target, grip = want * STEER, STEER_GRIP
+        if (want == 0.0) then target, grip = 0.0, STEER_COAST end
+        self.steer = self.steer + (target - self.steer) * math.min(1.0, grip * dt)
+        local turn = self.data.angle_00_side * self.steer * dt * TWO_PI / 256.0
+        local c, sn = math.cos(turn), math.sin(turn)
+        self.cx, self.cy = self.cx * c - self.cy * sn, self.cy * c + self.cx * sn
+        self.vx, self.vy = self.vx * c - self.vy * sn, self.vy * c + self.vx * sn
+        if (not self.diving) then self.vy = self.vy - FALL_GRAVITY * dt end
         self.cx = self.cx + self.vx * dt
         self.cy = self.cy + self.vy * dt
         local r = math.sqrt(self.cx * self.cx + self.cy * self.cy)
-        t = math.atan(self.cx, -self.cy)
+        local t = math.atan(self.cx, -self.cy)                       -- round from the floor
         self.angle = self:WrapAngle(self.data.angle_00_side * t * 256.0 / TWO_PI)
-        self.spin = self.spin + BALL_SPIN * dt
+        self.fallTime = self.fallTime + dt
+        if (self.testLog) then
+            print(string.format("FALL frame %.2f height %.3f angle %.1f vx %.2f vy %.2f", self.frame, radius - r, self.angle, self.vx, self.vy))
+        end
         if (r >= radius) then
-            -- landed: what speed he had along the surface carries into his run
+            -- landed: what speed the drop had along the surface joins his run
             local along = self.vx * math.cos(t) + self.vy * math.sin(t)
-            local steer = self.data.angle_00_side * along / radius * 256.0 / TWO_PI
-            self.steer = math.max(-STEER, math.min(STEER, steer))
-            self.height, self.diving = 0.0, false
+            local steer = self.steer + self.data.angle_00_side * along / radius * 256.0 / TWO_PI
+            self.steer = math.max(-STEER_MAX, math.min(STEER_MAX, steer))
+            self.height, self.diving, self.falling = 0.0, false, false
         else
             self.height = radius - r
         end
     end
 
     -- forward, by himself
-    local before = self.frame
     if (self.hold > 0.0) then
         self.hold = self.hold - dt
     elseif (self.over < 0.0 or self.section > #self.data.sections) then
@@ -826,7 +910,7 @@ function SpecialStage:Tick(deltaTime)
     self.thumbs = math.max(0.0, self.thumbs - dt)
     local airborne = (self.height > 0.0)
     local mesh
-    if (airborne) then
+    if (airborne and not self.falling) then
         mesh = self.meshBall
     elseif (self.hold > 0.0) then
         mesh = self.sonicIdle
@@ -842,12 +926,21 @@ function SpecialStage:Tick(deltaTime)
     local lift = airborne and (BALL_RADIUS + self.height) or 0.0
     local place, fwd, inward = self:Place(self.frame, self.angle, lift)
     self.player:SetWorldPosition(ToVec(place))
-    if (airborne) then
+    if (airborne and not self.falling) then
         -- the ball rolls forward as it flies
         local c, sn = math.cos(self.spin), math.sin(self.spin)
         local f = Add(Scale(fwd, c), Scale(inward, -sn))
         local u = Add(Scale(fwd, sn), Scale(inward, c))
         self.player:SetWorldRotationQuat(FacingQuat(f, u))
+    elseif (airborne) then
+        -- dropped off the wall: he swings upright as the fall starts, and falls feet first
+        -- (turned about the track's forward, so upside down at the start is no trouble)
+        local _, _, upHere = self:TrackAt(self.frame)
+        local left = Cross(upHere, fwd)
+        local theta = math.atan(Dot(inward, left), Dot(inward, upHere))
+        local swing = theta * (1.0 - math.min(1.0, self.fallTime / FALL_TURN))
+        local u = Add(Scale(upHere, math.cos(swing)), Scale(left, math.sin(swing)))
+        self.player:SetWorldRotationQuat(FacingQuat(fwd, u))
     else
         self.player:SetWorldRotationQuat(FacingQuat(fwd, inward))
     end
