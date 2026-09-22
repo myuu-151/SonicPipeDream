@@ -108,7 +108,7 @@ local SHADOW_RIM = 58.0         -- 256ths round from the floor's centre line: th
 local BOMB_COST = 10            -- rings a bomb takes, as in the original
 local STUN = 0.6                -- seconds of stumbling after a bomb
 local SEE_AHEAD, SEE_BEHIND = 110, 6    -- frames of rings and bombs kept alive round the player
-local START_HOLD = 3.0          -- seconds running on the spot at the start while START plays (2.5 s)
+local START_HOLD = 4.5          -- seconds running up the lead-in at the start while START plays (2.5 s)
 local SONIC_FPS = 42.0          -- his animations were made at 24 frames a second, but at the speed
                                 -- he covers the track that reads as a jog: played faster, by eye
 local SONIC_FRAMES = 16         -- in a run cycle
@@ -118,10 +118,15 @@ local THUMBS_TIME = 2.8         -- seconds of thumbs-up running after a check is
 -- round him: away behind, down his side, low across his front looking up at him, and round
 -- back up into its place as he sets off.
 local INTRO_TIME = START_HOLD   -- seconds: the whole of the hold
-local INTRO_RADIUS = 7.5        -- how far from him
-local INTRO_LOW = -1.4          -- how far below his chest at the front of the sweep (a low angle, looking up)
-local INTRO_HIGH = 3.5          -- and how far above it at the back, looking down on him a little
-local INTRO_BLEND = 0.6         -- seconds to ease out of the ordinary camera and back into it
+local LEAD_PIECES = 10          -- straights laid BEHIND the start for him to run up during it: he sets
+                                -- off from START_HOLD seconds back up the track and reaches its
+                                -- proper start as the hold ends (10 x 8 frames > 4.5 s x 15 a second)
+local INTRO_RADIUS = 6.5        -- how far from him. It has to stay INSIDE the pipe all the way round:
+                                -- beside him the wall is only 2.4 up at this distance out
+local INTRO_LOW = -1.0          -- how far below his chest at the front of the sweep (a low angle, looking up)
+local INTRO_HIGH = 3.5          -- and how far above it round the back and sides
+local INTRO_IN = 1.3            -- seconds to ease out of the ordinary camera into the circuit, softly:
+local INTRO_OUT = 0.9           -- no speed at either end of the move (smootherstep, below); and back
 local ORBIT_TIME = 0.75         -- of that, seconds the camera takes to swing round to his front, and back
 local ORBIT_RADIUS = 6.5        -- how far from him it orbits. It has to stay INSIDE the pipe: at 11 the
                                 -- camera was through the wall (which is about 8 out at that height) and
@@ -198,6 +203,12 @@ end
 -- The centre line at a (fractional) frame: where the floor is, forward, up.
 function SpecialStage:TrackAt(frame)
     local path = self.data.path
+    if (frame < 0.0) then
+        -- the lead-in: straight back from the start along its own heading, a frame a step
+        local a, b = path[1], path[2]
+        local pos = { a[1] + (b[1] - a[1]) * frame, a[2] + (b[2] - a[2]) * frame, a[3] + (b[3] - a[3]) * frame }
+        return pos, Normalize({ a[4], a[5], a[6] }), Normalize({ a[7], a[8], a[9] })
+    end
     local f = math.max(0.0, math.min(frame, #path - 1.001))
     local i = math.floor(f)
     local t = f - i
@@ -374,6 +385,19 @@ function SpecialStage:LoadStage(n)
             self.pieceNodes[#self.pieceNodes + 1] = { node = node, name = name }
         end
     end
+    -- and the lead-in behind the start: the first piece (a straight: every level opens on
+    -- them) laid again and again back along its own heading
+    local first = self.data.pieces[1]
+    local a, b = self.data.path[1], self.data.path[9]                -- one straight is eight frames
+    for k = 1, LEAD_PIECES do
+        for _, name in ipairs({ first.mesh, first.gloss }) do
+            local node = SpawnMesh(world, self:PieceMesh(name, self.palette))
+            node:SetWorldPosition(Vec(first.pos[1] - (b[1] - a[1]) * k, first.pos[2] - (b[2] - a[2]) * k,
+                                      first.pos[3] - (b[3] - a[3]) * k))
+            node:SetWorldRotationQuat(Vec(first.quat[1], first.quat[2], first.quat[3], first.quat[4]))
+            self.pieceNodes[#self.pieceNodes + 1] = { node = node, name = name }
+        end
+    end
 
     -- every ring and bomb in one list, in the order they are met
     self.objects = {}
@@ -493,7 +517,7 @@ function SpecialStage:Restart()
         o.taken = false
         if (o.node ~= nil) then self:Release(o) end
     end
-    self.frame = 0.0
+    self.frame = -SPEED * START_HOLD    -- back up the lead-in: at the start proper as START scatters
     self.angle = 0.0                -- 0 is the floor's centre line; it wraps at +-128
     self.steer = 0.0
     self.height = 0.0               -- off the pipe's surface
@@ -939,6 +963,7 @@ function SpecialStage:Tick(deltaTime)
     if (self.hold > 0.0) then
         self.hold = self.hold - dt
         self.intro = self.hold
+        self.frame = math.min(self.frame + SPEED * dt, 0.0)
     elseif (self.over < 0.0 or self.section > #self.data.sections) then
         local speed = SPEED
         if (self.stun > 0.0) then speed = SPEED * 0.45 end
@@ -959,7 +984,7 @@ function SpecialStage:Tick(deltaTime)
     if (airborne and not self.falling) then
         mesh = self.meshBall
     else
-        -- (at the start he runs on the spot, as in the original, while START is up)
+        -- (at the start he is already running, up the lead-in, while START is up)
         local k = math.floor(self.runClock * SONIC_FPS) % SONIC_FRAMES
         mesh = (self.thumbs > 0.0) and self.sonicThumbs[k] or self.sonicRun[k]
     end
@@ -1047,12 +1072,13 @@ function SpecialStage:Tick(deltaTime)
     local introPhi, introLift = nil, 0.0
     if (self.intro > 0.0) then
         local u = 1.0 - self.intro / INTRO_TIME                 -- 0 at the start, 1 at the end
-        local w = math.min(1.0, (INTRO_TIME - self.intro) / INTRO_BLEND, self.intro / INTRO_BLEND)
-        swing = w * w * (3.0 - 2.0 * w)
+        local w = math.min(1.0, (INTRO_TIME - self.intro) / INTRO_IN, self.intro / INTRO_OUT)
+        swing = w * w * w * (w * (w * 6.0 - 15.0) + 10.0)      -- smootherstep: starts and stops dead soft
         local ease = u * u * (3.0 - 2.0 * u)
         introPhi = ease * TWO_PI
-        -- low at the front (phi near 180), up to ORBIT_LIFT at the back
+        -- low at the front (phi near 180), up round the back and sides
         local front = 0.5 - 0.5 * math.cos(introPhi)            -- 0 behind, 1 in front
+        front = front * front * front                           -- the dip is only at the front, not the sides
         introLift = INTRO_HIGH + (INTRO_LOW - INTRO_HIGH) * front
     end
     if (swing > 0.0) then
