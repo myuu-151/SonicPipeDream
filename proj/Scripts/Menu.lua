@@ -39,6 +39,14 @@ local UNLOCKED = { main_game = true, marathon = false, records = false, options 
 
 local REPEAT_FIRST, REPEAT_AFTER = 0.40, 0.12       -- held up/down: the first wait, then the rest
 
+-- The watermark scrolls, and wraps: copies of the same art in a row, moving left, each one
+-- coming back round when it has gone. The art fills its picture edge to edge with no margin,
+-- so a gap is put between copies or DREAM would run straight into the next SONIC.
+local MARK_SPEED = 22.0                 -- mockup pixels a second
+local MARK_GAP = 60.0                   -- between one SONIC PIPE DREAM and the next
+local MARK_COPIES = 6                   -- enough to cross any window; the spare ones hide
+
+
 local function MakeQuad(parent, texture)
     local q = parent:CreateChild("Quad")
     q:SetAnchorMode(AnchorMode.TopLeft)
@@ -63,10 +71,13 @@ function Menu:Build()
     -- Back to front: the panel, then what sits on it.
     -- No picture on this screen: the frame, the stage shot, the emerald and its label belong
     -- to the stage select, where there is a stage for them to be about.
-    local order = { "T_Menu_Panel", "T_Menu_Circles", "T_Menu_Watermark", "T_Menu_TitleBanner",
-                    "T_Menu_TitleText", "T_Menu_SelectBar", "T_Menu_ButtonA", "T_Menu_LabelSelect",
-                    "T_Menu_ButtonB", "T_Menu_LabelBack", "T_Menu_Cursor" }
-    for _, name in ipairs(order) do
+    for _, name in ipairs({ "T_Menu_Panel", "T_Menu_Circles" }) do
+        self.quads[name] = MakeQuad(self, LoadAsset(name))
+    end
+    self:BuildWatermark()               -- over the panel, under everything else
+    for _, name in ipairs({ "T_Menu_TitleBanner", "T_Menu_TitleText", "T_Menu_SelectBar",
+                            "T_Menu_ButtonA", "T_Menu_LabelSelect",
+                            "T_Menu_ButtonB", "T_Menu_LabelBack", "T_Menu_Cursor" }) do
         self.quads[name] = MakeQuad(self, LoadAsset(name))
     end
 
@@ -120,6 +131,7 @@ function Menu:Layout()
     self.quads.T_Menu_Panel:SetDimensions(width, panel.h * self.k * panel.ch / panel.ah)
 
     for i, quad in ipairs(self.itemQuads) do self:Place(quad, L.parts[self.items[i].name]) end
+    self:PlaceWatermark()
     self:PlaceSelection()
 end
 
@@ -135,6 +147,42 @@ function Menu:PlaceSelection()
     self.quads.T_Menu_SelectBar:SetPosition(self.left + bar.x * self.k, self.top + (bar.y + dy) * self.k)
     local cur = L.parts.T_Menu_Cursor
     self.quads.T_Menu_Cursor:SetPosition(self.left + cur.x * self.k, self.top + (cur.y + dy) * self.k)
+end
+
+
+-- ------------------------------------------------------------------ the scrolling watermark
+function Menu:BuildWatermark()
+    self.mark, self.markAt = {}, 0.0
+    for i = 1, MARK_COPIES do
+        self.mark[i] = MakeQuad(self, LoadAsset("T_Menu_Watermark"))
+    end
+end
+
+function Menu:PlaceWatermark()
+    if (self.mark == nil or self.k == nil) then return end
+    local p = MenuLayout.parts.T_Menu_Watermark
+    local period = (p.w + MARK_GAP) * self.k
+    local width = (self.layoutSize ~= nil) and self.layoutSize.w or 0.0
+    local wanted = math.min(MARK_COPIES, math.ceil(width / period) + 1)
+    -- The run starts one whole copy to the left of the window, so a copy is always coming in
+    -- as another goes out. p.x is where the mockup put it, a little off the left edge.
+    local start = p.x * self.k - period + (self.markAt % period)
+    for i, quad in ipairs(self.mark) do
+        local on = (self.open ~= false) and i <= wanted
+        quad:SetVisible(on)
+        if (on) then
+            quad:SetPosition(start + (i - 1) * period, self.top + p.y * self.k)
+            quad:SetDimensions(p.w * self.k * p.cw / p.aw, p.h * self.k * p.ch / p.ah)
+        end
+    end
+end
+
+function Menu:ScrollWatermark(deltaTime)
+    if (self.mark == nil or self.k == nil) then return end
+    local p = MenuLayout.parts.T_Menu_Watermark
+    local period = (p.w + MARK_GAP) * self.k
+    self.markAt = (self.markAt - MARK_SPEED * self.k * deltaTime) % period
+    self:PlaceWatermark()
 end
 
 -- ------------------------------------------------------------------ state
@@ -156,6 +204,7 @@ function Menu:Show(visible)
     if (not self.built) then return end
     for _, quad in pairs(self.quads) do quad:SetVisible(self.open) end
     for _, quad in ipairs(self.itemQuads) do quad:SetVisible(self.open) end
+    self:PlaceWatermark()
 end
 
 function Menu:Open() self:Show(true) end
@@ -208,6 +257,7 @@ function Menu:Tick(deltaTime)
         self:Layout()
     end
     if (not self.open) then return end
+    self:ScrollWatermark(deltaTime)
 
     local up = Input.IsKeyDown(Key.Up) or Input.IsKeyDown(Key.W)
     local down = Input.IsKeyDown(Key.Down) or Input.IsKeyDown(Key.S)
