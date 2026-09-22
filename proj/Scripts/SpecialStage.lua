@@ -2,7 +2,7 @@
 -- A basic playable special stage.
 --
 --     A / D      steer left and right round the inside of the pipe
---     Space      jump
+--     Space      jump; again in the air to drop straight back down
 --     R          start again
 --
 -- Sonic runs forward by himself, as in the original: the player only ever moves ROUND the
@@ -38,8 +38,15 @@ local SPEED = 15.0              -- frames a second, forward. The original never 
 local STEER = 150.0             -- 256ths of a circle a second, at full tilt: round the pipe in 1.7 s
 local STEER_GRIP = 9.0          -- how fast steering speed is reached and lost
 local SLIDE = 55.0              -- hands off, he slides back down toward the floor, this hard
-local JUMP = 16.0               -- off the surface, units a second
-local GRAVITY = 42.0            -- back onto it
+-- The jump is S2's: he leaves the surface as a ball and FALLS, under gravity, across the
+-- pipe's section. Off the floor it is a straight high hop; off the wall he drops away from
+-- it and lands wherever gravity takes him, spinning as he goes. Holding a direction in the
+-- air pushes him round a little; letting go leaves him to fall.
+local JUMP = 30.0               -- off the surface, units a second: 7.5 units up a 10 unit pipe
+local GRAVITY = 60.0            -- units a second a second, toward the floor
+local AIR_CONTROL = 45.0        -- units a second a second, round the pipe, while a direction is held
+local DIVE = 45.0               -- jump again in the air: straight back down onto the pipe, units a second
+local BALL_SPIN = 12.0          -- radians a second: two turns a second in the air
 local REACH_FRAMES = 0.55       -- a hit: within this far along the track...
 local REACH_ANGLE = 11.0        -- ...this far round it (256ths)...
 local REACH_HEIGHT = 2.6        -- ...and no higher off the surface than this
@@ -162,6 +169,12 @@ end
 
 -- (frame, angle, height off the pipe's surface) -> a place, and which way is "up" there:
 -- toward the pipe's axis, so things stand square to the bit of pipe under them.
+function SpecialStage:WrapAngle(angle)
+    if (angle > 128.0) then return angle - 256.0 end        -- over the top and on
+    if (angle < -128.0) then return angle + 256.0 end
+    return angle
+end
+
 function SpecialStage:Place(frame, angle, height)
     local pos, fwd, up = self:TrackAt(frame)
     local left = Cross(up, fwd)
@@ -419,7 +432,10 @@ function SpecialStage:Restart()
     self.angle = 0.0                -- 0 is the floor's centre line; it wraps at +-128
     self.steer = 0.0
     self.height = 0.0               -- off the pipe's surface
-    self.rise = 0.0
+    self.cx, self.cy = 0.0, 0.0     -- in the air: where he is in the pipe's section, and
+    self.vx, self.vy = 0.0, 0.0     -- how he is moving through it
+    self.spin = 0.0
+    self.diving = false             -- jumped again in the air: dropping straight back down
     self.rings = 0
     -- For testing the checks without playing to them: set S2_TEST_RINGS in the environment.
     if (os ~= nil and os.getenv ~= nil and os.getenv("S2_TEST_RINGS") ~= nil) then
@@ -719,32 +735,64 @@ function SpecialStage:Tick(deltaTime)
         end
     end
 
-    -- steering: round the pipe, and only round it
+    -- steering: round the pipe, and only round it, while his feet are on it
     local want = 0.0
     if (self.hold <= 0.0 and self.stun <= 0.0) then
         if (Input.IsKeyDown(Key.A)) then want = want + 1.0 end
         if (Input.IsKeyDown(Key.D)) then want = want - 1.0 end
     end
     want = want * self.data.angle_00_side                 -- A is always the player's left
-    local target = want * STEER
-    if (want == 0.0 and self.height <= 0.0) then
-        -- hands off: gravity slides him back down toward the floor
-        target = -math.sin(self.angle * TWO_PI / 256.0) * SLIDE
+    if (self.height <= 0.0) then
+        local target = want * STEER
+        if (want == 0.0) then
+            -- hands off: gravity slides him back down toward the floor
+            target = -math.sin(self.angle * TWO_PI / 256.0) * SLIDE
+        end
+        self.steer = self.steer + (target - self.steer) * math.min(1.0, STEER_GRIP * dt)
+        self.angle = self:WrapAngle(self.angle + self.steer * dt)
     end
-    self.steer = self.steer + (target - self.steer) * math.min(1.0, STEER_GRIP * dt)
-    self.angle = self.angle + self.steer * dt
-    if (self.angle > 128.0) then self.angle = self.angle - 256.0 end       -- over the top and on
-    if (self.angle < -128.0) then self.angle = self.angle + 256.0 end
 
-    -- jumping: off the pipe's surface, toward its axis, and back
-    if (self.height <= 0.0 and self.hold <= 0.0 and Input.IsKeyJustDown(Key.Space)) then
-        self.rise = JUMP
-        self:Sound("Jump")
+    -- jumping: off the surface, and then falling. In the air he is a point in the pipe's
+    -- section, (cx, cy) from its axis, cy up; the floor is at cy = -radius
+    local radius = self.data.pipe_radius
+    if (self.hold <= 0.0 and Input.IsKeyJustDown(Key.Space)) then
+        if (self.height <= 0.0) then
+            local t = self.data.angle_00_side * self.angle * TWO_PI / 256.0
+            local along = self.data.angle_00_side * self.steer * TWO_PI / 256.0 * radius
+            self.cx, self.cy = radius * math.sin(t), -radius * math.cos(t)
+            self.vx = -math.sin(t) * JUMP + math.cos(t) * along      -- inward, plus the run round
+            self.vy = math.cos(t) * JUMP + math.sin(t) * along
+            self.height = 0.001
+            self:Sound("Jump")
+        elseif (not self.diving) then
+            -- jump again in the air: he drops straight back onto the pipe under him
+            local r = math.sqrt(self.cx * self.cx + self.cy * self.cy)
+            self.vx, self.vy = self.cx / r * DIVE, self.cy / r * DIVE
+            self.diving = true
+        end
     end
-    if (self.height > 0.0 or self.rise > 0.0) then
-        self.height = self.height + self.rise * dt
-        self.rise = self.rise - GRAVITY * dt
-        if (self.height <= 0.0) then self.height, self.rise = 0.0, 0.0 end
+    if (self.height > 0.0) then
+        local t = math.atan(self.cx, -self.cy)                       -- round from the floor
+        if (not self.diving) then
+            self.vy = self.vy - GRAVITY * dt
+            self.vx = self.vx + math.cos(t) * want * AIR_CONTROL * dt
+            self.vy = self.vy + math.sin(t) * want * AIR_CONTROL * dt
+        end
+        self.cx = self.cx + self.vx * dt
+        self.cy = self.cy + self.vy * dt
+        local r = math.sqrt(self.cx * self.cx + self.cy * self.cy)
+        t = math.atan(self.cx, -self.cy)
+        self.angle = self:WrapAngle(self.data.angle_00_side * t * 256.0 / TWO_PI)
+        self.spin = self.spin + BALL_SPIN * dt
+        if (r >= radius) then
+            -- landed: what speed he had along the surface carries into his run
+            local along = self.vx * math.cos(t) + self.vy * math.sin(t)
+            local steer = self.data.angle_00_side * along / radius * 256.0 / TWO_PI
+            self.steer = math.max(-STEER, math.min(STEER, steer))
+            self.height, self.diving = 0.0, false
+        else
+            self.height = radius - r
+        end
     end
 
     -- forward, by himself
@@ -784,7 +832,15 @@ function SpecialStage:Tick(deltaTime)
     local lift = airborne and (BALL_RADIUS + self.height) or 0.0
     local place, fwd, inward = self:Place(self.frame, self.angle, lift)
     self.player:SetWorldPosition(ToVec(place))
-    self.player:SetWorldRotationQuat(FacingQuat(fwd, inward))
+    if (airborne) then
+        -- the ball rolls forward as it flies
+        local c, sn = math.cos(self.spin), math.sin(self.spin)
+        local f = Add(Scale(fwd, c), Scale(inward, -sn))
+        local u = Add(Scale(fwd, sn), Scale(inward, c))
+        self.player:SetWorldRotationQuat(FacingQuat(f, u))
+    else
+        self.player:SetWorldRotationQuat(FacingQuat(fwd, inward))
+    end
     self.player:SetVisible(self.stun <= 0.0 or (math.floor(self.stun * 20.0) % 2 == 0))   -- flickers when hit
     -- his shadow stays on the pipe under him, and draws in as he jumps away from it
     if (self.playerShadow ~= nil) then
