@@ -568,16 +568,8 @@ def fitted_word(part, text, scale=1.0, outline=OUTLINE, face=WHITE, ink=BLUE):
 
 def build_all():
     made = {}
-    made["item_main_game"] = fitted_word("item_main_game", "Main Game")
-    made["item_marathon"] = fitted_word("item_marathon", "Marathon")
-    made["item_records"] = fitted_word("item_records", "Records")
-    made["item_options"] = fitted_word("item_options", "Options")
-    made["item_time_attack"] = fitted_word("item_time_attack", "Time Attack")
-    made["title_text"] = fitted_word("title_text", "SONIC PIPE DREAM", scale=16.0 / CAP, outline=2.3)
-    # The labels are 12 px tall and their letters touch, so they cannot be fitted letter by
-    # letter; set plainly and condensed to fit, which at that size is all the eye can tell.
-    made["label_select"] = word_part("label_select", "Select", scale=10.0 / CAP, outline=0.0, face=BLUE)
-    made["label_back"] = word_part("label_back", "Back", scale=10.0 / CAP, outline=0.0, face=BLUE)
+    # The words are no longer drawn here: gen_menu_type.py sets them in a typeface. The font
+    # below is kept for the letters on the two button spheres, and for the record.
     made["cursor_arrow"] = cursor()
     made["preview_frame"] = frame()
     made["title_banner"] = banner()
