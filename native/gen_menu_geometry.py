@@ -342,15 +342,20 @@ def banner():                                  # 323 x 35: the title's orange pl
     return out
 
 
-def bar():                                     # 288 x 45: the highlight plate
-    size = (288, 45)
+def bar(height=45):                            # 288 x 45: the highlight plate
+    """The mockup's plate is 45 tall. The stage select's rows are 27 apart, so it gets a
+    thinner one: the same slant on the right, the same yellow line and blue underline,
+    less orange between."""
+    size = (288, height)
     W, H = size[0] * SS, size[1] * SS
-    plate = Shape().poly([(0.3, 0.6), (287.2, 0.6), (269.8, 44.4), (0.3, 44.4)])
+    slant = (287.2 - 269.8) / (44.4 - 0.6)            # how far the right edge leans, per px of height
+    bottom = height - 0.6
+    plate = Shape().poly([(0.3, 0.6), (287.2, 0.6), (287.2 - slant * (bottom - 0.6), bottom), (0.3, bottom)])
     mask = np.asarray(plate.draw(Image.new("L", (W, H), 0), SS))
     rows = np.zeros((H, 3), float)
     for y in range(H):
         my = y / float(SS)
-        rows[y] = (247, 155, 7) if my < 39 else (251, 200, 43) if my < 41 else (4, 45, 173)
+        rows[y] = (247, 155, 7) if my < height - 6 else (251, 200, 43) if my < height - 4 else (4, 45, 173)
     rgb = np.broadcast_to(rows[:, None, :], (H, W, 3)).astype(np.uint8)
     return Image.fromarray(np.dstack([rgb, mask]), "RGBA")
 
@@ -576,6 +581,7 @@ def build_all():
     made["preview_frame"] = frame()
     made["title_banner"] = banner()
     made["select_bar"] = bar()
+    made["select_bar_thin"] = bar(25)              # the stage select's, between 27 px rows
     made["button_a"] = button("A", (26, 27), (12.7, 13.2), 12.0, (36, 79, 24), (61, 139, 63),
                               (211, 219, 212), 10.0 / CAP, (9.0, 8.0))
     made["button_b"] = button("B", (25, 27), (12.2, 13.2), 12.0, (114, 19, 13), (217, 53, 57),
@@ -591,7 +597,8 @@ def main():
         four = big.resize((big.width // 2, big.height // 2), Image.BOX)
         four.save(os.path.join(PARTS, part + "_4x.png"))
         one = big.resize((big.width // SS, big.height // SS), Image.BOX)
-        orig = Image.open(os.path.join(PARTS, part + ".png")).convert("RGBA")
+        src = os.path.join(PARTS, part + ".png")
+        orig = Image.open(src).convert("RGBA") if os.path.exists(src) else one
         err = ""
         if orig.size == one.size:
             a, b = np.array(orig)[..., 3].astype(float) / 255, np.array(one)[..., 3].astype(float) / 255

@@ -20,6 +20,7 @@ MenuLayout = {
         T_Menu_TitleText = { x = 29, y = 18, w = 246, h = 24, aw = 984, ah = 96, cw = 1024, ch = 128 },
         T_Menu_Watermark = { x = -17, y = 344, w = 549, h = 47, aw = 1104, ah = 94, cw = 2048, ch = 128 },
         T_Menu_SelectBar = { x = 28, y = 98, w = 288, h = 45, aw = 1152, ah = 180, cw = 2048, ch = 256 },
+        T_Menu_SelectBarThin = { x = 28, y = 98, w = 288, h = 25, aw = 1152, ah = 100, cw = 2048, ch = 128 },
         T_Menu_Cursor = { x = 10, y = 108, w = 15, h = 24, aw = 60, ah = 96, cw = 64, ch = 128 },
         T_Menu_PreviewFrame = { x = 330, y = 118, w = 173, h = 151, aw = 692, ah = 604, cw = 1024, ch = 1024 },
         T_Menu_Preview = { x = 334, y = 122, w = 165, h = 143, aw = 165, ah = 143, cw = 256, ch = 256 },

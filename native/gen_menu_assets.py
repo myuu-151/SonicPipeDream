@@ -60,6 +60,11 @@ ITEMS = [
 # real size, so the screen layout does not change. To sharpen a piece, draw it bigger.
 BIGGER = ("_4x", "_2x")
 
+# Pieces that exist only as a bigger drawing (gen_menu_geometry.py makes them) and have no
+# cut-out in layout.json: where they go is another piece's place, at their own size in
+# mockup pixels. The thin highlight is the menu's highlight, 25 tall instead of 45.
+DERIVED = {"select_bar_thin": ("select_bar", 288, 25)}
+
 # Everything else, as (texture name, part file). Order fixes the UUIDs, so only ever append.
 PIECES = [
     ("T_Menu_Panel", "bg_scanlines_full"),
@@ -68,6 +73,7 @@ PIECES = [
     ("T_Menu_TitleText", "title_text"),
     ("T_Menu_Watermark", "watermark_text"),
     ("T_Menu_SelectBar", "select_bar"),
+    ("T_Menu_SelectBarThin", "select_bar_thin"),    # the stage select's; see DERIVED
     ("T_Menu_Cursor", "cursor_arrow"),
     ("T_Menu_PreviewFrame", "preview_frame"),
     ("T_Menu_Preview", "preview_picture"),
@@ -209,6 +215,9 @@ def main():
     for name, part in PIECES:
         img = load(part)
         p = where.get(part)
+        if part in DERIVED:
+            base, dw, dh = DERIVED[part]
+            p = dict(where[base], w=dw, h=dh)
         if part == "bg_scanlines_full":
             # One column of the panel's colours, stretched across the window: the panel is
             # horizontal scanlines, so every row is one colour and nothing is lost widthways.

@@ -60,6 +60,8 @@ local ROW_TOP = 104.0                   -- on the mockup's 522 x 386 screen
 local ROW_PITCH = 27.0
 local ROW_X = 41.0
 local ROW_SIZE = 19.0
+local BAR_DROP = 5.0                    -- the bar sits this much below the row's text box, so
+                                        -- its underline runs under the letters, not through them
 
 local REPEAT_FIRST, REPEAT_AFTER = 0.40, 0.12
 
@@ -148,7 +150,7 @@ function StageSelect:Build()
         self.quads[name] = MakeQuad(self, LoadAsset(name))
     end
     self:BuildWatermark()               -- over the panel, under everything else
-    for _, name in ipairs({ "T_Menu_TitleBanner", "T_Menu_TitleText", "T_Menu_SelectBar",
+    for _, name in ipairs({ "T_Menu_TitleBanner", "T_Menu_TitleText", "T_Menu_SelectBarThin",
                             "T_Menu_PreviewFrame",
                             "T_Menu_ButtonA", "T_Menu_LabelSelect",
                             "T_Menu_ButtonB", "T_Menu_LabelBack", "T_Menu_Cursor" }) do
@@ -266,13 +268,13 @@ function StageSelect:Layout()
     self:PlaceSelection()
 end
 
--- The bar and the arrow follow the cursor. The bar was drawn to sit behind a row of the
--- menu's own art, which is taller than a line of text, so it is lifted by the difference.
+-- The bar and the arrow follow the cursor. This screen's bar is a thinner drawing of the
+-- menu's (the rows here are 27 apart, the menu's plate 45 tall), centred on the row.
 function StageSelect:PlaceSelection()
     local L = MenuLayout
-    local bar = L.parts.T_Menu_SelectBar
-    local y = ROW_TOP + (self.index - 1) * ROW_PITCH - (bar.h - ROW_SIZE) * 0.5
-    self.quads.T_Menu_SelectBar:SetPosition(self.left + bar.x * self.k, self.top + y * self.k)
+    local bar = L.parts.T_Menu_SelectBarThin
+    local y = ROW_TOP + (self.index - 1) * ROW_PITCH - (bar.h - ROW_SIZE) * 0.5 + BAR_DROP
+    self.quads.T_Menu_SelectBarThin:SetPosition(self.left + bar.x * self.k, self.top + y * self.k)
     local cur = L.parts.T_Menu_Cursor
     self.quads.T_Menu_Cursor:SetPosition(self.left + cur.x * self.k,
                                          self.top + (y + (bar.h - cur.h) * 0.5) * self.k)
