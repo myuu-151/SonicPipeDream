@@ -108,12 +108,20 @@ local SHADOW_RIM = 58.0         -- 256ths round from the floor's centre line: th
 local BOMB_COST = 10            -- rings a bomb takes, as in the original
 local STUN = 0.6                -- seconds of stumbling after a bomb
 local SEE_AHEAD, SEE_BEHIND = 110, 6    -- frames of rings and bombs kept alive round the player
-local START_HOLD = 2.0          -- seconds standing at the start while START plays
+local START_HOLD = 3.0          -- seconds running on the spot at the start while START plays (2.5 s)
 local SONIC_FPS = 42.0          -- his animations were made at 24 frames a second, but at the speed
                                 -- he covers the track that reads as a jog: played faster, by eye
 local SONIC_FRAMES = 16         -- in a run cycle
 local THUMBS_TIME = 2.8         -- seconds of thumbs-up running after a check is passed. The ring
                                 -- check leaves 44 empty frames past the arch: 2.9 s at this speed.
+-- THE INTRO. While START is on the screen and he runs on the spot, the camera goes once right
+-- round him: away behind, down his side, low across his front looking up at him, and round
+-- back up into its place as he sets off.
+local INTRO_TIME = START_HOLD   -- seconds: the whole of the hold
+local INTRO_RADIUS = 7.5        -- how far from him
+local INTRO_LOW = -1.4          -- how far below his chest at the front of the sweep (a low angle, looking up)
+local INTRO_HIGH = 3.5          -- and how far above it at the back, looking down on him a little
+local INTRO_BLEND = 0.6         -- seconds to ease out of the ordinary camera and back into it
 local ORBIT_TIME = 0.75         -- of that, seconds the camera takes to swing round to his front, and back
 local ORBIT_RADIUS = 6.5        -- how far from him it orbits. It has to stay INSIDE the pipe: at 11 the
                                 -- camera was through the wall (which is about 8 out at that height) and
@@ -512,6 +520,7 @@ function SpecialStage:Restart()
     self.section = 1
     self.stun = 0.0
     self.hold = START_HOLD
+    self.intro = INTRO_TIME         -- > 0: the camera is going round him while START is up
     self.over = -1.0                -- >= 0: the stage has ended, and this is the countdown to starting again
     self.spin = 0.0
     self.thumbs = 0.0               -- > 0: running with the thumb up
@@ -801,7 +810,7 @@ function SpecialStage:Tick(deltaTime)
         end
         return
     end
-    if (Input.IsKeyJustDown(Key.Escape) and self.hold <= 0.0 and self.over < 0.0) then
+    if (Input.IsKeyJustDown(Key.Escape) and self.hold <= 0.0 and self.intro <= 0.0 and self.over < 0.0) then
         self:SetPaused(true)
         return
     end
@@ -831,7 +840,7 @@ function SpecialStage:Tick(deltaTime)
     local before = self.frame
     -- steering: round the pipe, and only round it, while his feet are on it
     local want = 0.0
-    if (self.hold <= 0.0 and self.stun <= 0.0) then
+    if (self.hold <= 0.0 and self.intro <= 0.0 and self.stun <= 0.0) then
         if (Input.IsKeyDown(Key.A)) then want = want + 1.0 end
         if (Input.IsKeyDown(Key.D)) then want = want - 1.0 end
     end
@@ -867,7 +876,7 @@ function SpecialStage:Tick(deltaTime)
     -- For testing the jump without playing: S2_AUTOJUMP=<frame> jumps there and logs the flight.
     local autoJump = false
     if (self.testJump ~= nil and self.frame >= self.testJump) then autoJump, self.testJump = true, nil end
-    if (self.hold <= 0.0 and (Input.IsKeyJustDown(Key.Space) or autoJump)) then
+    if (self.hold <= 0.0 and self.intro <= 0.0 and (Input.IsKeyJustDown(Key.Space) or autoJump)) then
         if (self.height <= 0.0) then
             self:LeaveSurface(JUMP, want ~= 0.0)
             self:Sound("Jump")
@@ -929,6 +938,7 @@ function SpecialStage:Tick(deltaTime)
     -- forward, by himself
     if (self.hold > 0.0) then
         self.hold = self.hold - dt
+        self.intro = self.hold
     elseif (self.over < 0.0 or self.section > #self.data.sections) then
         local speed = SPEED
         if (self.stun > 0.0) then speed = SPEED * 0.45 end
@@ -948,9 +958,8 @@ function SpecialStage:Tick(deltaTime)
     local mesh
     if (airborne and not self.falling) then
         mesh = self.meshBall
-    elseif (self.hold > 0.0) then
-        mesh = self.sonicIdle
     else
+        -- (at the start he runs on the spot, as in the original, while START is up)
         local k = math.floor(self.runClock * SONIC_FPS) % SONIC_FRAMES
         mesh = (self.thumbs > 0.0) and self.sonicThumbs[k] or self.sonicRun[k]
     end
@@ -1033,17 +1042,32 @@ function SpecialStage:Tick(deltaTime)
         end
         swing = swing * swing * (3.0 - 2.0 * swing)             -- ease in and out
     end
+    -- THE INTRO: a full circuit, blended out of the ordinary camera and back into it at its
+    -- ends (both are behind him, where the circuit starts and ends). `phi` runs 0 .. 360.
+    local introPhi, introLift = nil, 0.0
+    if (self.intro > 0.0) then
+        local u = 1.0 - self.intro / INTRO_TIME                 -- 0 at the start, 1 at the end
+        local w = math.min(1.0, (INTRO_TIME - self.intro) / INTRO_BLEND, self.intro / INTRO_BLEND)
+        swing = w * w * (3.0 - 2.0 * w)
+        local ease = u * u * (3.0 - 2.0 * u)
+        introPhi = ease * TWO_PI
+        -- low at the front (phi near 180), up to ORBIT_LIFT at the back
+        local front = 0.5 - 0.5 * math.cos(introPhi)            -- 0 behind, 1 in front
+        introLift = INTRO_HIGH + (INTRO_LOW - INTRO_HIGH) * front
+    end
     if (swing > 0.0) then
         -- In SONIC'S OWN frame, not the track's: his left, and his up (toward the pipe's axis).
         -- So wherever he is round the pipe the camera is beside him and inside it, and he is
         -- upright on the screen.
         local chest = Add(place, Scale(inward, 2.4))
         local left = Cross(inward, fwdHere)
-        local phi = swing * math.rad(ORBIT_DEGREES)
-        local orbit = Add(chest, Add(Scale(fwdHere, -math.cos(phi) * ORBIT_RADIUS),
-                                     Add(Scale(left, math.sin(phi) * ORBIT_RADIUS), Scale(inward, ORBIT_LIFT))))
+        local phi, radius, lift = swing * math.rad(ORBIT_DEGREES), ORBIT_RADIUS, ORBIT_LIFT
+        if (introPhi ~= nil) then phi, radius, lift = introPhi, INTRO_RADIUS, introLift end
+        local orbit = Add(chest, Add(Scale(fwdHere, -math.cos(phi) * radius),
+                                     Add(Scale(left, math.sin(phi) * radius), Scale(inward, lift))))
         eye = Add(Scale(eye, 1.0 - swing), Scale(orbit, swing))
         local aim = Add(chest, Scale(inward, 1.6))              -- a little over his chest: he sits low, the emblem above him
+        if (introPhi ~= nil) then aim = chest end               -- the intro looks straight at him
         target = Add(Scale(target, 1.0 - swing), Scale(aim, swing))
     end
     local look = Normalize(Add(target, Scale(eye, -1.0)))
