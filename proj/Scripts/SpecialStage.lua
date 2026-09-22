@@ -62,6 +62,11 @@ local AIR_COAST = 0.8           -- a second: with the direction let go, his run 
 local AIR_PULL = 450.0          -- 256ths a second a second, times sin(angle): and gravity swings him round
                                 -- toward the floor as he flies, the section turning under him -- the slide
                                 -- down the wall of a jump let go of
+-- Near the centre line none of that: a jump from level ground goes straight up and comes
+-- straight down. (The surface's normal there leans toward the axis, and with the swing on top
+-- a hop from a hair to one side crossed the axis and came down swinging on the other.)
+local LEVEL = 12.0              -- within this (256ths) of the centre line it is a plain hop...
+local LEVEL_BLEND = 24.0        -- ...and by here it is the full thing
 local FALL_ANGLE = 64.0         -- past here (256ths; 64 is the wall gone vertical) the surface overhangs:
 local CLING = 0.45              -- with the steering let go he keeps his feet this long, then falls off it
 local FALL_TURN = 0.25          -- seconds to swing from feet-on-the-wall to upright as the fall starts
@@ -198,7 +203,12 @@ function SpecialStage:LeaveSurface(push)
     local t = self.data.angle_00_side * self.angle * TWO_PI / 256.0
     local r = radius - 0.05                 -- a hair inside, so he is not "landed" again next tick
     self.cx, self.cy = r * math.sin(t), -r * math.cos(t)
-    self.nx, self.ny = -math.sin(t), math.cos(t)              -- the push's direction, away from the surface
+    -- the push's direction: away from the surface, but straight up from level ground
+    local k = math.max(0.0, math.min(1.0, (math.abs(self.angle) - LEVEL) / (LEVEL_BLEND - LEVEL)))
+    local nx, ny = -math.sin(t) * k, (1.0 - k) + math.cos(t) * k
+    local n = math.sqrt(nx * nx + ny * ny)
+    self.nx, self.ny = nx / n, ny / n
+    self.level = 1.0 - k                                      -- how much of a plain hop this is
     local wall = math.min(1.0, math.abs(math.sin(t)))         -- 0 on the floor, 1 at the vertical wall
     push = push * (1.0 + (WALL_PUSH - 1.0) * wall)
     self.vx, self.vy = self.nx * push * JUMP_START, self.ny * push * JUMP_START
@@ -477,6 +487,7 @@ function SpecialStage:Restart()
     self.nx, self.ny = 0.0, 1.0     -- which way the jump pushed him, and how much of the push
     self.push, self.ramp = 0.0, 0.0 -- is still building (LeaveSurface)
     self.gravity = GRAVITY          -- the pull down through this flight, softer for a throw off the wall
+    self.level = 1.0                -- 1 for a plain hop off level ground, 0 for a throw off the wall
     self.spin = 0.0
     self.cling = 0.0                -- how long he has hung on up the overhang with the steering let go
     self.falling = false            -- in the air because he let go up there, on his feet, not as the ball
@@ -841,7 +852,7 @@ function SpecialStage:Tick(deltaTime)
         if (want == 0.0) then target, grip = 0.0, AIR_COAST end
         self.steer = self.steer + (target - self.steer) * math.min(1.0, grip * dt)
         if (want == 0.0 and not self.diving) then
-            self.steer = self.steer - math.sin(self.angle * TWO_PI / 256.0) * AIR_PULL * dt
+            self.steer = self.steer - math.sin(self.angle * TWO_PI / 256.0) * AIR_PULL * (1.0 - self.level) * dt
         end
         local turn = self.data.angle_00_side * self.steer * dt * TWO_PI / 256.0
         local c, sn = math.cos(turn), math.sin(turn)
@@ -912,8 +923,17 @@ function SpecialStage:Tick(deltaTime)
         self.playerMesh = mesh
         self.player:SetStaticMesh(mesh)
     end
-    local lift = airborne and (BALL_RADIUS + self.height) or 0.0
-    local place, fwd, inward = self:Place(self.frame, self.angle, lift)
+    local place, fwd, inward = self:Place(self.frame, self.angle, 0.0)
+    if (airborne) then
+        -- in the air he is his point in the section, (cx, cy) from the axis, with the ball's
+        -- radius added ALONG THE PUSH: added along his line to the axis instead, it would push
+        -- his middle through the axis and out the other side near the top of a hop, a bob
+        local pos, fwdHere, upHere = self:TrackAt(self.frame)
+        local left = Cross(upHere, fwdHere)
+        local x = self.cx + self.nx * BALL_RADIUS
+        local y = self.cy + self.ny * BALL_RADIUS
+        place = Add(pos, Add(Scale(left, x), Scale(upHere, self.data.pipe_radius + y)))
+    end
     self.player:SetWorldPosition(ToVec(place))
     if (airborne and not self.falling) then
         -- the ball rolls forward as it flies, about the track's own up: not `inward`, which
