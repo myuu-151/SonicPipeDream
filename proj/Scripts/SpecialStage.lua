@@ -855,6 +855,7 @@ function SpecialStage:Tick(deltaTime)
         if (Input.IsKeyJustDown(Key.Up) or Input.IsKeyJustDown(Key.W)
                 or Input.IsKeyJustDown(Key.Down) or Input.IsKeyJustDown(Key.S)) then
             self.pauseIndex = 3 - self.pauseIndex
+            self:Sound("MenuMove")
             if (self.uiReady) then TheSpecialStageUI:ShowPause(true, self.pauseIndex) end
         end
         if (Input.IsKeyJustDown(Key.Escape)) then
@@ -863,6 +864,7 @@ function SpecialStage:Tick(deltaTime)
             if (self.pauseIndex == 1) then
                 self:SetPaused(false)
             else
+                self:Sound("MenuChoose")
                 self:SetPaused(false)
                 self:Leave()
                 if (self.onExit ~= nil) then self.onExit() end
@@ -871,6 +873,7 @@ function SpecialStage:Tick(deltaTime)
         return
     end
     if (Input.IsKeyJustDown(Key.Escape) and self.hold <= 0.0 and self.intro <= 0.0 and self.over < 0.0) then
+        self:Sound("MenuChoose")                    -- the warp, on pausing as on leaving
         self:SetPaused(true)
         return
     end
