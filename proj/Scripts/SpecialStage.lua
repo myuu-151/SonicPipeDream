@@ -67,6 +67,11 @@ local AIR_PULL = 450.0          -- 256ths a second a second, times sin(angle): a
 -- a hop from a hair to one side crossed the axis and came down swinging on the other.)
 local LEVEL = 12.0              -- within this (256ths) of the centre line it is a plain hop...
 local LEVEL_BLEND = 24.0        -- ...and by here it is the full thing
+-- The slide (hands let go, gravity taking him down the wall) carries into a jump from up the
+-- wall: it is what arcs him down across to the other side instead of level into its lip. But
+-- carried from near the centre it twirls him, so it is kept out of a hop from there:
+local CARRY_FROM = 24.0         -- none of the slide carried within this (256ths) of the centre line...
+local CARRY_FULL = 44.0         -- ...all of it from here up the wall
 local FALL_ANGLE = 64.0         -- past here (256ths; 64 is the wall gone vertical) the surface overhangs:
 local CLING = 0.45              -- with the steering let go he keeps his feet this long, then falls off it
 local FALL_TURN = 0.25          -- seconds to swing from feet-on-the-wall to upright as the fall starts
@@ -209,9 +214,11 @@ function SpecialStage:LeaveSurface(push, held)
     local n = math.sqrt(nx * nx + ny * ny)
     self.nx, self.ny = nx / n, ny / n
     self.level = 1.0 - k                                      -- how much of a plain hop this is
-    -- only a HELD direction carries into the air: the slide toward the floor of hands let go
-    -- does not. Carried, it turned the whole section under him through the flight, a twirl
-    if (not held) then self.steer = 0.0 end
+    -- a HELD direction carries into the air whole; the slide of hands let go only from up
+    -- the wall (CARRY_FROM .. CARRY_FULL)
+    if (not held) then
+        self.steer = self.steer * math.max(0.0, math.min(1.0, (math.abs(self.angle) - CARRY_FROM) / (CARRY_FULL - CARRY_FROM)))
+    end
     local wall = math.min(1.0, math.abs(math.sin(t)))         -- 0 on the floor, 1 at the vertical wall
     push = push * (1.0 + (WALL_PUSH - 1.0) * wall)
     self.vx, self.vy = self.nx * push * JUMP_START, self.ny * push * JUMP_START
