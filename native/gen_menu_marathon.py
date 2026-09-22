@@ -38,8 +38,15 @@ OUT = os.path.join(PARTS, "item_marathon.png")
 CHECK = os.path.join(PARTS, "_marathon_check.png")
 
 GAP = 3                             # px of daylight between faces, where the art does not say
-SS = 4                              # the word is drawn this much larger, then shrunk: the edge
-INK = (3, 38, 174)                  # the outline blue, straight off the mockup
+
+# Whether to level the letters' heights. The mockup's words are not drawn to one ruler, so
+# the r (from Records) is a pixel shorter than its neighbours and the M a pixel taller. That
+# can be evened out -- but only by RESAMPLING those two letters, and rescaling 4 px of
+# outline by 16/17 cannot land on whole pixels, so their stroke comes out a pixel thin or
+# thick in places. Every other letter is untouched either way.
+#   True  -> heights even, two letters with a slightly wobbly stroke
+#   False -> every letter exactly as drawn, the r a pixel short
+MATCH_HEIGHTS = False
 
 WORDS = {                           # the item art, and the letters in it (spaces have no face)
     "item_main_game": "MainGame",
@@ -143,7 +150,7 @@ def match_xheight(tiles, word):
     "Records" has both a capital and an ascender, R and d, and draws them the same height,
     so the tall letters here are levelled too.
 
-    A pixel in sixteen, nearest-neighbour, on art this blocky: it does not show.
+    A pixel in sixteen, resampled: it does not show.
     """
     heights = [face_box(t)[3] - face_box(t)[1] + 1 for t in tiles]
     big = max(heights)
@@ -156,6 +163,12 @@ def match_xheight(tiles, word):
         if target is None or h == target:
             out.append(t)
             continue
+        # Resample properly, never nearest-neighbour. Nearest was the first try and it is
+        # what made the stroke look botched: stretching 16 rows to 17 by DUPLICATING one of
+        # them doubles whatever row it lands on, so the outline goes 3 px thick in one place
+        # and the letter reads as damaged. The art is anti-aliased already, so resampling it
+        # is the right tool -- it spreads the extra row across the letter instead.
+        #
         # Scaling the TILE by the face's ratio overshoots -- the tile is the face plus its
         # outline, and the outline scales too. Try the heights either side of the estimate
         # and take the one whose FACE comes out the size asked for.
@@ -164,7 +177,7 @@ def match_xheight(tiles, word):
         for th in range(guess - 2, guess + 3):
             if th < 1:
                 continue
-            got = t.resize((t.width, th), Image.NEAREST)
+            got = t.resize((t.width, th), Image.LANCZOS)
             b = face_box(got)
             err = abs((b[3] - b[1] + 1) - target)
             if best is None or err < best[0]:
@@ -173,53 +186,8 @@ def match_xheight(tiles, word):
     return out
 
 
-def stroke_of(name):
-    """How thick the blue outline is around the lettering of one drawn word: for each
-    column, how far the ink reaches above and below the face."""
-    img = Image.open(os.path.join(PARTS, name + ".png")).convert("RGBA")
-    a = np.array(img).astype(int)
-    f, ink = face(img), a[..., 3] > 100
-    out = []
-    for x in range(img.width):
-        fr, ir = np.where(f[:, x])[0], np.where(ink[:, x])[0]
-        if len(fr) and len(ir):
-            out += [fr[0] - ir[0], ir[-1] - fr[-1]]
-    return out
 
 
-def outline_width():
-    """One stroke for the whole word, taken from the art.
-
-    The four words do not agree: Records is outlined 4 px below its faces where Main Game
-    and Options use 3. Marathon draws its r from Records and everything else from the other
-    two, so inheriting each letter's own outline put two different stroke weights inside one
-    word -- which is what made it look botched, and no amount of resampling would have fixed
-    it. So the letters here contribute their FACES only, and one outline is drawn round the
-    lot at the commonest width the art uses.
-    """
-    seen = []
-    for name in WORDS:
-        seen += stroke_of(name)
-    seen = [v for v in seen if 1 <= v <= 6]
-    return max(set(seen), key=seen.count)
-
-
-def disc(radius):
-    """The offsets of a filled circle: a dilation by this grows a shape evenly in every
-    direction, where growing by a square would square off every corner."""
-    r = int(radius)
-    return [(dy, dx) for dy in range(-r, r + 1) for dx in range(-r, r + 1)
-            if dy * dy + dx * dx <= radius * radius]
-
-
-def grow(mask, radius):
-    out = np.zeros_like(mask)
-    h, w = mask.shape
-    for dy, dx in disc(radius):
-        ys0, ys1 = max(0, dy), min(h, h + dy)
-        xs0, xs1 = max(0, dx), min(w, w + dx)
-        out[ys0:ys1, xs0:xs1] |= mask[ys0 - dy:ys1 - dy, xs0 - dx:xs1 - dx]
-    return out
 
 
 def row_edges(mask):
@@ -267,11 +235,11 @@ def compose(word):
     the distance between their bounding boxes. Boxes were the first try, and they put the
     letter after r three pixels from the TIP OF ITS ARM, which is nothing at all lower down.
     Their outlines overlap, which is how the drawn words are made."""
-    tiles = match_xheight([graft_h() if ch == "h" else letter(ch) for ch in word], word)
+    tiles = [graft_h() if ch == "h" else letter(ch) for ch in word]
+    if MATCH_HEIGHTS:
+        tiles = match_xheight(tiles, word)
     boxes = [face_box(t) for t in tiles]
     kern = kerning()
-    global SS_OUTLINE
-    SS_OUTLINE = outline_width()
 
     baseline = max(b[3] for b in boxes)
     height = max(t.height + (baseline - b[3]) for t, b in zip(tiles, boxes))
@@ -311,29 +279,101 @@ def compose(word):
     xs = [x + shift for x in xs]
     width = max(x + t.width for x, t in zip(xs, tiles))
 
-    # Only the FACES are taken from the letters; the outline is drawn once, round all of
-    # them, at one width. It is done at four times the size and shrunk down, which is where
-    # the smooth edge comes from.
-    pad = (SS_OUTLINE + 2)
-    W, H = (width + 2 * pad) * SS, (height + 2 * pad) * SS
-    faces = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    # Each letter is laid down AS DRAWN -- its face, its blue outline and the soft graded
+    # edge the two have. Drawing a fresh outline round the faces instead was tried, to make
+    # one even stroke: it came out thin, flat and hard-cornered beside the words it sits
+    # with, because the artist's edge fades over a pixel or two and a dilated mask does not.
+    # Evenness is not worth that; it is fixed in match_xheight instead, which is where the
+    # unevenness came from.
+    #
+    # Letters are UNIONED, one over the next, the way they were drawn.
+    #
+    # Taking the greater alpha instead was tried and it punched holes in the outline: where
+    # two letters meet, each brings its own anti-aliased edge, and two edges of half alpha
+    # keep half alpha under a max -- so the yellow behind showed through the seam as a notch.
+    # Compositing adds them up to solid. It cannot muddy the colour either, because what
+    # overlaps is the same blue: split_letters hands every letter the WHOLE of an outline it
+    # shares with its neighbour, so the two agree about what is there.
+    out = np.zeros((height, width, 4), float)
     for t, b, x in zip(tiles, boxes, xs):
         y = baseline - b[3]
-        a = np.array(t).astype(np.uint8)
-        only = a.copy()
-        only[~face(t)] = 0                      # the face, and nothing else
-        big = Image.fromarray(only, "RGBA").resize((t.width * SS, t.height * SS), Image.NEAREST)
-        faces.alpha_composite(big, ((x + pad) * SS, (y + pad) * SS))
-
-    mask = np.array(faces)[..., 3] > 128
-    ring = grow(mask, SS_OUTLINE * SS) & ~mask
-
-    out = np.zeros((H, W, 4), np.uint8)
-    out[ring] = list(INK) + [255]
+        src = np.array(t).astype(float)
+        dst = out[y:y + t.height, x:x + t.width]
+        sa = src[..., 3:4] / 255.0
+        da = dst[..., 3:4] / 255.0
+        oa = sa + da * (1.0 - sa)
+        safe = np.where(oa > 0.0, oa, 1.0)
+        dst[..., :3] = (src[..., :3] * sa + dst[..., :3] * da * (1.0 - sa)) / safe
+        dst[..., 3:4] = oa * 255.0
+    out = np.clip(out + 0.5, 0, 255).astype(np.uint8)
+    close_seams(out)
+    smooth_joins(out)
     img = Image.fromarray(out, "RGBA")
-    img.alpha_composite(faces)
-    img = img.resize((W // SS, H // SS), Image.BOX)     # down again: this is the anti-aliasing
     return img.crop(img.getbbox())
+
+
+def close_seams(px):
+    """Fill the pinholes the joins leave.
+
+    Even unioned, two letters can fail to meet: each was cropped to its own ink, and where
+    the kerning sets them a little further apart than the word they were cut from did, a
+    sliver of nothing is left between their outlines. It is one pixel wide and you would not
+    find it on a drawing -- but the menu draws this on a bright orange bar, and the bar came
+    through the gap. Anything enclosed by solid ink on all four sides and not solid itself
+    is such a hole, and is filled with the outline's own blue.
+
+    The letters' counters -- the hole in an o, an a, an e -- are NOT caught by this: the
+    mockup was cut from a flattened picture, so they are opaque background, not transparency,
+    and the drawn words measure zero holes by this same test.
+    """
+    solid = px[..., 3] > 250
+    h, w = solid.shape
+    between_x = np.zeros_like(solid)
+    for y in range(h):
+        xs = np.where(solid[y])[0]
+        if len(xs) > 1:
+            between_x[y, xs[0]:xs[-1] + 1] = True
+    between_y = np.zeros_like(solid)
+    for x in range(w):
+        ys = np.where(solid[:, x])[0]
+        if len(ys) > 1:
+            between_y[ys[0]:ys[-1] + 1, x] = True
+    holes = between_x & between_y & ~solid
+    px[holes] = [3, 38, 174, 255]           # the outline blue, straight off the mockup
+
+
+def _shift(mask, dy, dx):
+    out = np.zeros_like(mask)
+    h, w = mask.shape
+    ys0, ys1 = max(0, dy), min(h, h + dy)
+    xs0, xs1 = max(0, dx), min(w, w + dx)
+    out[ys0:ys1, xs0:xs1] = mask[ys0 - dy:ys1 - dy, xs0 - dx:xs1 - dx]
+    return out
+
+
+OFFSETS = [(dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1)]
+
+
+def smooth_joins(px):
+    """Fill the nicks where two letters' outlines meet at different angles.
+
+    Letters drawn side by side in one word share a single continuous outer contour. These
+    are cut from four different words, so where one letter's outline ends and the next one's
+    begins the two outer edges need not line up, and the step between them reads as a wedge
+    of background bitten out of the letter -- on the a after the r, most of all.
+
+    A morphological closing (grow, then shrink by the same amount) fills any concavity
+    narrower than what it grows by and leaves every other edge exactly where it was. Only
+    the pixels it ADDS are painted, in the outline's blue; nothing is ever taken away.
+    """
+    solid = px[..., 3] > 128
+    grown = np.zeros_like(solid)
+    for dy, dx in OFFSETS:
+        grown |= _shift(solid, dy, dx)
+    shrunk = np.ones_like(grown)
+    for dy, dx in OFFSETS:
+        shrunk &= _shift(grown, dy, dx)
+    px[shrunk & ~solid] = [3, 38, 174, 255]
 
 
 if __name__ == "__main__":
