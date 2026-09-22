@@ -40,7 +40,8 @@ local STEER = 150.0             -- 256ths of a circle a second, at full tilt: ro
 local STEER_GRIP = 9.0          -- how fast steering speed is reached and lost
 -- Momentum: keep the direction held and he winds up past STEER, faster and faster round the
 -- pipe, to STEER_MAX; let go and it bleeds off at STEER_COAST rather than stopping dead
-local STEER_BUILD = 90.0        -- 256ths a second a second, once he is at STEER and still holding
+local STEER_BUILD = 160.0       -- 256ths a second a second, once he is at STEER and still holding: the
+                                -- first loop round is the speeding up, the second is at STEER_MAX
 local STEER_MAX = 320.0         -- round the pipe in 0.8 s
 local STEER_COAST = 2.5         -- how fast the wound-up speed is lost with the direction let go
 local SLIDE = 55.0              -- hands off, he slides back down toward the floor, this hard
@@ -399,19 +400,6 @@ function SpecialStage:LoadStage(n)
         self.arches[s] = rings
     end
     self.rainbowStep = -1
-
-    -- the emerald, past the last check
-    local last = self.data.sections[#self.data.sections]
-    -- SM_Emerald_<stage>: each stage has its own chaos emerald (native/export_emeralds.py).
-    -- Its reflection is fixed to the gem and drawn to be seen along its X, so it is turned to
-    -- face back down the track, as a ring is.
-    local emeraldFrame = last.check_frame + 10.0
-    -- For looking at the emerald without playing to it: S2_TEST_EMERALD puts it just past the start.
-    if (os ~= nil and os.getenv ~= nil and os.getenv("S2_TEST_EMERALD") ~= nil) then emeraldFrame = 16.0 end
-    local where, emeraldFwd, emeraldUp = self:Place(emeraldFrame, 0.0, 4.0)
-    self.emerald = SpawnMesh(world, LoadAsset("SM_Emerald_" .. self.data.stage) or LoadAsset("SM_Emerald"))
-    self.emerald:SetWorldPosition(ToVec(where))
-    self.emerald:SetWorldRotationQuat(FacingQuat(emeraldFwd, emeraldUp))
 
     -- the emerald, past the last check
     local last = self.data.sections[#self.data.sections]
@@ -850,8 +838,9 @@ function SpecialStage:Tick(deltaTime)
     want = want * self.data.angle_00_side                 -- A is always the player's left
     local radius = self.data.pipe_radius
     if (self.height <= 0.0) then
-        if (want ~= 0.0 and self.steer * want >= STEER) then
-            -- already at full tilt and still holding: momentum builds
+        if (want ~= 0.0 and self.steer * want >= STEER * 0.97) then
+            -- at full tilt (near enough: the grip only ever approaches it) and still holding:
+            -- momentum builds
             self.steer = math.max(-STEER_MAX, math.min(STEER_MAX, self.steer + want * STEER_BUILD * dt))
         else
             local target, grip = want * STEER, STEER_GRIP
@@ -927,10 +916,10 @@ function SpecialStage:Tick(deltaTime)
             print(string.format("AIR frame %.2f height %.3f angle %.1f vx %.2f vy %.2f", self.frame, radius - r, self.angle, self.vx, self.vy))
         end
         if (r >= radius) then
-            -- landed: what speed the flight had along the surface joins his run
-            local along = self.vx * math.cos(t) + self.vy * math.sin(t)
-            local steer = self.steer + self.data.angle_00_side * along / radius * 256.0 / TWO_PI
-            self.steer = math.max(-STEER_MAX, math.min(STEER_MAX, steer))
+            -- landed. His run round the pipe goes on as it was: the flight's own speed along
+            -- the surface is NOT added (it sent him round faster off every landing, a boost
+            -- the wind-up below is meant to be earned by holding)
+            self.steer = math.max(-STEER_MAX, math.min(STEER_MAX, self.steer))
             self.height, self.diving, self.falling = 0.0, false, false
         else
             self.height = radius - r

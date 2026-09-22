@@ -152,6 +152,7 @@ function SpecialStageUI:ShowPause(visible, index)
         t:SetVisible(self.pauseOn)
         t:SetColor((i == self.pauseIndex) and YELLOW or WHITE)
     end
+    if (self.k ~= nil) then self:PlacePause() end
 end
 
 -- A line of words across the middle for a few seconds: NOT ENOUGH RINGS, EMERALD GET !
@@ -272,11 +273,17 @@ function SpecialStageUI:Layout()
     self:PlaceTotal()
     self.coolText:SetTextSize(26.0 * self.k)
     self.banner:SetTextSize(22.0 * self.k)
-    -- the pause menu, centred, one line over the other
+    for _, t in ipairs(self.pauseItems) do t:SetTextSize(22.0 * self.k) end
+    self:PlacePause()
+end
+
+-- The pause menu: each line centred on the window by its measured width, one over the other
+-- about the middle of the screen.
+function SpecialStageUI:PlacePause()
+    local width = self:WindowSize()
     for i, t in ipairs(self.pauseItems) do
-        local word = (i == 1) and "CONTINUE" or "EXIT"
-        t:SetTextSize(22.0 * self.k)
-        self:Place(t, SCREEN_W * 0.5 - 5.6 * #word, 84.0 + (i - 1) * 28.0)
+        local wide = (t.GetTextWidth ~= nil) and t:GetTextWidth() or 0.0
+        t:SetPosition(width * 0.5 - wide * 0.5, (self.top or 0.0) + (92.0 + (i - 1) * 28.0) * self.k)
     end
 end
 
@@ -419,4 +426,5 @@ function SpecialStageUI:Tick(deltaTime)
     end
     self:TickStart(deltaTime)
     self:TickCool(deltaTime)
+    if (self.pauseOn) then self:PlacePause() end        -- the width is only known once drawn
 end
