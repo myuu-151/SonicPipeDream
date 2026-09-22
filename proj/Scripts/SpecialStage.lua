@@ -42,8 +42,9 @@ local SLIDE = 55.0              -- hands off, he slides back down toward the flo
 -- pipe's section. Off the floor it is a straight high hop; off the wall he drops away from
 -- it and lands wherever gravity takes him, spinning as he goes. Holding a direction in the
 -- air pushes him round a little; letting go leaves him to fall.
-local JUMP = 30.0               -- off the surface, units a second: 7.5 units up a 10 unit pipe
-local GRAVITY = 60.0            -- units a second a second, toward the floor
+local JUMP = 38.0               -- off the surface, units a second: 9 units up a 10 unit pipe, the ball's
+                                -- middle past its axis at the top of the hop
+local GRAVITY = 80.0            -- units a second a second, toward the floor
 local AIR_CONTROL = 45.0        -- units a second a second, round the pipe, while a direction is held
 local DIVE = 45.0               -- jump again in the air: straight back down onto the pipe, units a second
 local BALL_SPIN = 12.0          -- radians a second: two turns a second in the air
@@ -169,6 +170,20 @@ end
 
 -- (frame, angle, height off the pipe's surface) -> a place, and which way is "up" there:
 -- toward the pipe's axis, so things stand square to the bit of pipe under them.
+-- Off the surface where he stands, into the air: pushed away from it at `push`, and keeping
+-- whatever speed he had round the pipe. Gravity does the rest (Tick).
+function SpecialStage:LeaveSurface(push)
+    local side = self.data.angle_00_side
+    local radius = self.data.pipe_radius
+    local t = side * self.angle * TWO_PI / 256.0
+    local along = side * self.steer * TWO_PI / 256.0 * radius
+    self.cx, self.cy = radius * math.sin(t), -radius * math.cos(t)
+    self.vx = -math.sin(t) * push + math.cos(t) * along
+    self.vy = math.cos(t) * push + math.sin(t) * along
+    self.height = 0.001
+    self.diving = false
+end
+
 function SpecialStage:WrapAngle(angle)
     if (angle > 128.0) then return angle - 256.0 end        -- over the top and on
     if (angle < -128.0) then return angle + 256.0 end
@@ -742,6 +757,7 @@ function SpecialStage:Tick(deltaTime)
         if (Input.IsKeyDown(Key.D)) then want = want - 1.0 end
     end
     want = want * self.data.angle_00_side                 -- A is always the player's left
+    local radius = self.data.pipe_radius
     if (self.height <= 0.0) then
         local target = want * STEER
         if (want == 0.0) then
@@ -754,15 +770,9 @@ function SpecialStage:Tick(deltaTime)
 
     -- jumping: off the surface, and then falling. In the air he is a point in the pipe's
     -- section, (cx, cy) from its axis, cy up; the floor is at cy = -radius
-    local radius = self.data.pipe_radius
     if (self.hold <= 0.0 and Input.IsKeyJustDown(Key.Space)) then
         if (self.height <= 0.0) then
-            local t = self.data.angle_00_side * self.angle * TWO_PI / 256.0
-            local along = self.data.angle_00_side * self.steer * TWO_PI / 256.0 * radius
-            self.cx, self.cy = radius * math.sin(t), -radius * math.cos(t)
-            self.vx = -math.sin(t) * JUMP + math.cos(t) * along      -- inward, plus the run round
-            self.vy = math.cos(t) * JUMP + math.sin(t) * along
-            self.height = 0.001
+            self:LeaveSurface(JUMP)
             self:Sound("Jump")
         elseif (not self.diving) then
             -- jump again in the air: he drops straight back onto the pipe under him
