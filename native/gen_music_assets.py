@@ -47,6 +47,8 @@ EFFECTS = [
     ("Fail.wav", "SW_Fail", 0x51C0FFEE00300019),
     ("Explosion2.wav", "SW_Explosion", 0x51C0FFEE0030001A),
     ("Exit_SS.wav", "SW_ExitStage", 0x51C0FFEE0030001B),
+    ("MenuButton.ogg", "SW_MenuMove", 0x51C0FFEE0030001C),      # the menus: the highlight moving...
+    ("SpecialWarp.ogg", "SW_MenuChoose", 0x51C0FFEE0030001D),   # ...and a choice made
 ]
 
 

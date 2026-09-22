@@ -220,18 +220,26 @@ end
 function Menu:Open() self:Show(true) end
 function Menu:Close() self:Show(false) end
 
+-- The menus' own two sounds: the highlight moving, and a choice made. (For a while the menu
+-- borrowed the stage's ring and checkpoint, and they were the wrong sounds for it.)
+function MenuSound(name, volume)
+    MenuSounds = MenuSounds or {}
+    if (MenuSounds[name] == nil) then MenuSounds[name] = LoadAsset("SW_" .. name) or false end
+    if (MenuSounds[name]) then Audio.PlaySound2D(MenuSounds[name], volume or 0.6) end
+end
+
 function Menu:Move(by)
     self.index = self.index + by
     if (self.index < 1) then self.index = #self.items end
     if (self.index > #self.items) then self.index = 1 end
     self:PlaceSelection()
+    MenuSound("MenuMove")
 end
 
--- The menu is silent. It borrowed the stage's effects for a moment -- a ring for moving, a
--- checkpoint for choosing -- and they are the wrong sounds for a menu; it wants its own.
 function Menu:Choose()
     local item = self.items[self.index]
     if (not self.unlocked[item.key]) then return end        -- a locked row does nothing
+    MenuSound("MenuChoose", 0.7)
     if (self.onChoose ~= nil) then self.onChoose(item.key) end
 end
 
