@@ -852,7 +852,10 @@ function SpecialStage:Tick(deltaTime)
         if (want == 0.0) then target, grip = 0.0, AIR_COAST end
         self.steer = self.steer + (target - self.steer) * math.min(1.0, grip * dt)
         if (want == 0.0 and not self.diving) then
-            self.steer = self.steer - math.sin(self.angle * TWO_PI / 256.0) * AIR_PULL * (1.0 - self.level) * dt
+            -- by how far he is to the side, not by his angle: the angle flips as he passes
+            -- near the axis at the top of a side jump, and the swing would snap the other way
+            local side = self.data.angle_00_side * self.cx / radius
+            self.steer = self.steer - side * AIR_PULL * (1.0 - self.level) * dt
         end
         local turn = self.data.angle_00_side * self.steer * dt * TWO_PI / 256.0
         local c, sn = math.cos(turn), math.sin(turn)
