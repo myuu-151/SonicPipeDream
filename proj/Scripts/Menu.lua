@@ -61,9 +61,10 @@ function Menu:Build()
     local L = MenuLayout
     self.quads = {}
     -- Back to front: the panel, then what sits on it.
+    -- No picture on this screen: the frame, the stage shot, the emerald and its label belong
+    -- to the stage select, where there is a stage for them to be about.
     local order = { "T_Menu_Panel", "T_Menu_Circles", "T_Menu_Watermark", "T_Menu_TitleBanner",
-                    "T_Menu_TitleText", "T_Menu_SelectBar", "T_Menu_PreviewFrame", "T_Menu_Preview",
-                    "T_Menu_Emerald", "T_Menu_LabelStage", "T_Menu_ButtonA", "T_Menu_LabelSelect",
+                    "T_Menu_TitleText", "T_Menu_SelectBar", "T_Menu_ButtonA", "T_Menu_LabelSelect",
                     "T_Menu_ButtonB", "T_Menu_LabelBack", "T_Menu_Cursor" }
     for _, name in ipairs(order) do
         self.quads[name] = MakeQuad(self, LoadAsset(name))

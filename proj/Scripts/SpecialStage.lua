@@ -247,6 +247,7 @@ function SpecialStage:Build()
 
     local ui = world:SpawnNode("Canvas")
     ui:SetScript("SpecialStageUI")
+    self.uiNode = ui                -- kept so the HUD can be hidden when the stage is left
 
     -- the music: its script only needs to be on some node, and nothing in the scene has it
     local music = world:SpawnNode("Node3D")
@@ -374,16 +375,39 @@ function SpecialStage:ClearStage()
     self.emerald = nil
 end
 
--- The gauntlet: stage 1 to 7, and the seventh emerald unlocks MARATHON in the menu. There is
--- nowhere else to go afterwards yet, so it leads back to the first stage.
-function SpecialStage:NextStage()
-    local next_ = self.stage + 1
-    if (next_ > LAST_STAGE) then
-        next_ = 1
-        if (TheMenu ~= nil) then TheMenu:SetUnlocked("marathon", true) end
+-- ------------------------------------------------------------------ coming and going
+-- The emerald ends the stage: it is won, and the stage select comes back with that emerald
+-- in colour. One stage does not run into the next -- you choose the next one yourself.
+function SpecialStage:Finish()
+    local won = self.stage
+    self:Leave()
+    if (self.onFinished ~= nil) then self.onFinished(won) end
+end
+
+-- Put the stage away: everything it spawned goes, and what it keeps is hidden. The world
+-- is left as it was before the stage started -- the sky, and a menu over it.
+function SpecialStage:Leave()
+    self.active = false
+    self:ClearStage()
+    for _, node in ipairs({ self.player, self.playerShadow, self.uiNode }) do
+        if (node ~= nil) then node:SetVisible(false) end
     end
-    self:LoadStage(next_)
-    self.announce = next_           -- shown once the UI says it is ready, in UpdateUI
+    for _, fx in ipairs(self.fx or {}) do fx.node:SetVisible(false) end
+    if (TheSpecialStageMusic ~= nil and TheSpecialStageMusic.Stop ~= nil) then
+        TheSpecialStageMusic:Stop()
+    end
+end
+
+-- And back in, at whichever stage was chosen.
+function SpecialStage:Enter(n)
+    self.active = true
+    for _, node in ipairs({ self.player, self.playerShadow, self.uiNode }) do
+        if (node ~= nil) then node:SetVisible(true) end
+    end
+    self:LoadStage(n or self.stage)
+    if (TheSpecialStageMusic ~= nil and TheSpecialStageMusic.Restart ~= nil) then
+        TheSpecialStageMusic:Restart()
+    end
 end
 
 function SpecialStage:Restart()
@@ -670,6 +694,7 @@ local PALETTE_KEYS = { Key.N1, Key.N2, Key.N3, Key.N4, Key.N5, Key.N6, Key.N7 }
 -- ------------------------------------------------------------------ every frame
 function SpecialStage:Tick(deltaTime)
     if (not self.built) then self:Build() end
+    if (self.active == false) then return end       -- put away; the menu has the screen
     local dt = math.min(deltaTime, 0.05)
 
     if (Input.IsKeyJustDown(Key.R)) then self:Restart() end
@@ -689,7 +714,7 @@ function SpecialStage:Tick(deltaTime)
                 self:Sound("ExitStage")
                 self:Restart()                  -- a failed stage is played again
             else
-                self:NextStage()                -- the emerald was taken: on to the next
+                self:Finish()                   -- the emerald was taken: back to the menu
             end
         end
     end

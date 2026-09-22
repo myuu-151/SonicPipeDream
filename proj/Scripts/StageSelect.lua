@@ -2,12 +2,12 @@
 -- Where Main Game leads: the seven emerald stages, one to a row.
 --
 --     [SONIC PIPE DREAM]
---                                        (emerald, or its shadow)
+--                                        (that stage's emerald)
 --      > STAGE 1                        +-----------+
 --        STAGE 2                        |  the      |
 --        ...                            |  stage    |
 --        STAGE 7                        +-----------+
---                                        SPECIAL STAGE
+--                                             BLUE
 --                                        (A) Select  (B) Back
 --
 -- It borrows the menu's furniture -- the panel, the title, the frame round the picture, the
@@ -16,8 +16,11 @@
 --
 --   * the picture is a photograph of that stage, taken by native/make_stage_previews.py by
 --     running the game at it. Each one is its own pipe colours under its own sky.
---   * the emerald is that stage's chaos emerald in colour once it has been won, and a dark
---     silhouette until then. What has been won is remembered between sessions (see Save).
+--   * the emerald is that stage's chaos emerald. Until it is won it is barely there -- its
+--     own colour, nearly transparent -- so you can see which one is missing and what it will
+--     look like when it is not. Taking it in the stage brings you straight back here with it
+--     in full colour. What has been won is remembered between sessions (see Save).
+--   * under the picture is that emerald's COLOUR, where the mockup said SPECIAL STAGE.
 --
 -- The rows are text, not art: the mockup drew four words and none of them is a number, and
 -- the menu's lettering has no digits to cut one out of. F_SonicUI is the game's own Sonic
@@ -35,6 +38,12 @@ local SAVE = "emeralds"                 -- one character a stage: "1" won, "0" n
 
 local WHITE = Vec(1.0, 1.0, 1.0, 1.0)
 local DIM = Vec(0.62, 0.66, 0.78, 1.0)  -- a row the cursor is not on
+local GHOST = Vec(1.0, 1.0, 1.0, 0.30)  -- an emerald still out there: its colour, barely there
+local LABEL = Vec(0.01, 0.15, 0.68, 1.0)    -- the mockup's lettering blue
+
+-- Which emerald belongs to which stage, as native/export_emeralds.py assigns them. The name
+-- goes under the picture, where the mockup said SPECIAL STAGE.
+local EMERALD_NAME = { "BLUE", "YELLOW", "PURPLE", "GREEN", "RED", "SKY", "WHITE" }
 
 local ROW_TOP = 104.0                   -- on the mockup's 522 x 386 screen
 local ROW_PITCH = 27.0
@@ -86,6 +95,14 @@ function StageSelect:SaveWon()
     System.WriteSave(SAVE, stream)
 end
 
+-- All seven: what unlocks MARATHON in the menu.
+function StageSelect:AllWon()
+    for i = 1, STAGES do
+        if (not self.won[i]) then return false end
+    end
+    return true
+end
+
 function StageSelect:SetWon(stage, won)
     if (stage < 1 or stage > STAGES) then return end
     self.won[stage] = won and true or false
@@ -108,24 +125,29 @@ function StageSelect:Build()
     self.quads = {}
     for _, name in ipairs({ "T_Menu_Panel", "T_Menu_Circles", "T_Menu_Watermark",
                             "T_Menu_TitleBanner", "T_Menu_TitleText", "T_Menu_SelectBar",
-                            "T_Menu_PreviewFrame", "T_Menu_LabelStage",
+                            "T_Menu_PreviewFrame",
                             "T_Menu_ButtonA", "T_Menu_LabelSelect",
                             "T_Menu_ButtonB", "T_Menu_LabelBack", "T_Menu_Cursor" }) do
         self.quads[name] = MakeQuad(self, LoadAsset(name))
     end
     -- the picture and the emerald change with the cursor, so they are one quad each
     self.preview = MakeQuad(self, LoadAsset("T_Menu_Preview1"))
-    self.emerald = MakeQuad(self, LoadAsset("T_Menu_EmeraldOff"))
-    self.previewTex, self.emeraldTex, self.emeraldOff = {}, {}, LoadAsset("T_Menu_EmeraldOff")
+    self.emerald = MakeQuad(self, LoadAsset("T_Menu_Emerald1"))
+    self.previewTex, self.emeraldTex = {}, {}
     for i = 1, STAGES do
         self.previewTex[i] = LoadAsset("T_Menu_Preview" .. i)
         self.emeraldTex[i] = LoadAsset("T_Menu_Emerald" .. i)
     end
+    -- and the name of that emerald, where the mockup's SPECIAL STAGE label was
+    self.label = MakeText(self, EMERALD_NAME[1])
+    self.label:SetColor(LABEL)
 
     self.rows = {}
     for i = 1, STAGES do self.rows[i] = MakeText(self, "STAGE " .. i) end
 
     self.built = true
+    -- A save from a previous session may already have every emerald in it.
+    if (self:AllWon() and TheMenu ~= nil) then TheMenu:SetUnlocked("marathon", true) end
     self:Refresh()
     self:Layout()
     self:Show(self.open)
@@ -160,7 +182,12 @@ function StageSelect:Layout()
     self.quads.T_Menu_Panel:SetDimensions(width, panel.h * self.k * panel.ch / panel.ah)
 
     self:Place(self.preview, L.parts.T_Menu_Preview1)
-    self:Place(self.emerald, L.parts.T_Menu_EmeraldOff)
+    self:Place(self.emerald, L.parts.T_Menu_Emerald1)
+    -- the colour's name, centred on the rectangle the SPECIAL STAGE label used
+    local where = L.parts.T_Menu_LabelStage
+    self.label:SetTextSize(13.0 * self.k)
+    self.labelAt = { x = where.x + where.w * 0.5, y = where.y - 3.0 }
+    self:PlaceLabel()
 
     for i, row in ipairs(self.rows) do
         row:SetTextSize(ROW_SIZE * self.k)
@@ -182,13 +209,26 @@ function StageSelect:PlaceSelection()
 end
 
 -- ------------------------------------------------------------------ state
+-- The label is centred on the picture, so where it starts depends on how wide the word is.
+function StageSelect:PlaceLabel()
+    if (self.labelAt == nil or self.label == nil) then return end
+    local wide = (self.label.GetTextWidth ~= nil) and self.label:GetTextWidth() or 0.0
+    self.label:SetPosition(self.left + self.labelAt.x * self.k - wide * 0.5,
+                           self.top + self.labelAt.y * self.k)
+end
+
 function StageSelect:Refresh()
     for i, row in ipairs(self.rows) do
         row:SetColor((i == self.index) and WHITE or DIM)
     end
     local n = self.index
     if (self.previewTex[n] ~= nil) then self.preview:SetTexture(self.previewTex[n]) end
-    self.emerald:SetTexture(self.won[n] and self.emeraldTex[n] or self.emeraldOff)
+    -- Always that stage's own emerald, in its own colour. Until it is won it is barely
+    -- there: you can see which one is missing, and what it will look like when it is not.
+    if (self.emeraldTex[n] ~= nil) then self.emerald:SetTexture(self.emeraldTex[n]) end
+    self.emerald:SetColor(self.won[n] and WHITE or GHOST)
+    self.label:SetText(EMERALD_NAME[n] or "")
+    self:PlaceLabel()
 end
 
 function StageSelect:Show(visible)
@@ -197,6 +237,7 @@ function StageSelect:Show(visible)
     for _, quad in pairs(self.quads) do quad:SetVisible(self.open) end
     self.preview:SetVisible(self.open)
     self.emerald:SetVisible(self.open)
+    self.label:SetVisible(self.open)
     for _, row in ipairs(self.rows) do row:SetVisible(self.open) end
 end
 

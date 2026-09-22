@@ -202,14 +202,19 @@ end
 -- `startSpecialStage` and untick `showMenu` in the inspector to skip straight to playing,
 -- which is what the S2_NOMENU environment variable does as well.
 function Sky:StartSpecialStage(which)
-    if (self.startedSpecialStage) then return end
-    self.startedSpecialStage = true
-    local stage = self:GetWorld():SpawnNode("Node3D")
-    stage:SetName("SpecialStage")
-    stage:SetScript("SpecialStage")
-    -- The script's Create picked stage 1 (or S2_STAGE); the stage select overrides it before
-    -- the first Tick builds anything.
-    if (which ~= nil and TheSpecialStage ~= nil) then TheSpecialStage.stage = which end
+    if (not self.startedSpecialStage) then
+        self.startedSpecialStage = true
+        local stage = self:GetWorld():SpawnNode("Node3D")
+        stage:SetName("SpecialStage")
+        stage:SetScript("SpecialStage")
+        -- The script's Create picked stage 1 (or S2_STAGE); the stage select overrides it
+        -- before the first Tick builds anything.
+        if (which ~= nil and TheSpecialStage ~= nil) then TheSpecialStage.stage = which end
+        return
+    end
+    -- Been here before: the node is still in the world with its meshes loaded, so it is put
+    -- back to work rather than built again.
+    if (TheSpecialStage ~= nil) then TheSpecialStage:Enter(which) end
 end
 
 -- Three screens in one world: the menu, the stage select it leads to, and the stage itself.
@@ -231,6 +236,17 @@ function Sky:ShowMenu()
         TheStageSelect.onChoose = function(stage)
             TheStageSelect:Close()
             self:StartSpecialStage(stage)
+            -- The stage hands back here when its emerald is taken.
+            if (TheSpecialStage ~= nil) then
+                TheSpecialStage.onFinished = function(won)
+                    TheStageSelect:SetWon(won, true)
+                    -- All seven emeralds is what MARATHON waits for.
+                    if (TheStageSelect:AllWon() and TheMenu ~= nil) then
+                        TheMenu:SetUnlocked("marathon", true)
+                    end
+                    TheStageSelect:Open()
+                end
+            end
         end
         TheStageSelect.onBack = function()
             TheStageSelect:Close()

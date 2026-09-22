@@ -15,6 +15,7 @@ function SpecialStageMusic:Create()
     self.started = false
     self.looping = false
     self.elapsed = 0.0
+    TheSpecialStageMusic = self     -- so the stage can stop it when it hands back to the menu
 end
 
 function SpecialStageMusic:GatherProperties()
@@ -68,4 +69,16 @@ end
 function SpecialStageMusic:Stop()
     if (self.intro ~= nil) then Audio.StopSounds(self.intro) end
     if (self.loop ~= nil) then Audio.StopSounds(self.loop) end
+    self.looping = false
+end
+
+-- Played again from the top: the stage was left and another one has been chosen.
+function SpecialStageMusic:Restart()
+    self:Stop()
+    self.elapsed = 0.0
+    if (self.playIntro and self.intro ~= nil) then
+        Audio.PlaySound2D(self.intro, self.volume)
+    else
+        self:StartLoop()
+    end
 end
