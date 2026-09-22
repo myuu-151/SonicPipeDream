@@ -55,7 +55,7 @@ local JUMP_RAMP = 0.12          -- a weighted bounce off the surface rather than
 local GRAVITY = 110.0           -- units a second a second, toward the floor, off the floor: up and down
                                 -- in 0.87 s. Off the wall the flight is softer, the throw across slower:
 local WALL_GRAVITY = 80.0       -- this, at the wall gone vertical, and in between in between; and the push
-local WALL_PUSH = 0.7           -- off it only this much of JUMP, so it is the swing (AIR_PULL) that carries
+local WALL_PUSH = 0.9           -- off it only this much of JUMP, so it is the swing (AIR_PULL) that carries
                                 -- him across, at its own pace, not the throw
 local AIR_COAST = 0.8           -- a second: with the direction let go, his run round the pipe carries on
                                 -- through the flight, losing only this much (STEER_COAST on the ground)
