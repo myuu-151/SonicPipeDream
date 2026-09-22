@@ -52,6 +52,8 @@ local ROW_SIZE = 19.0
 
 local REPEAT_FIRST, REPEAT_AFTER = 0.40, 0.12
 
+local BLINK = 0.45                      -- seconds the cursor is on, and off again
+
 -- The watermark scrolls, and wraps: copies of the same art in a row, moving left, each one
 -- coming back round when it has gone. The art fills its picture edge to edge with no margin,
 -- so a gap is put between copies or DREAM would run straight into the next SONIC.
@@ -192,6 +194,14 @@ function StageSelect:PlaceWatermark()
     end
 end
 
+-- The cursor blinks, so the eye goes to the row it is on.
+function StageSelect:BlinkCursor(deltaTime)
+    local arrow = self.quads.T_Menu_Cursor
+    if (arrow == nil) then return end
+    self.blinkAt = (self.blinkAt or 0.0) + deltaTime
+    arrow:SetVisible(self.open and (self.blinkAt % (BLINK * 2.0)) < BLINK)
+end
+
 function StageSelect:ScrollWatermark(deltaTime)
     if (self.mark == nil or self.k == nil) then return end
     local p = MenuLayout.parts.T_Menu_Watermark
@@ -321,6 +331,7 @@ function StageSelect:Tick(deltaTime)
     end
     if (not self.open) then return end
     self:ScrollWatermark(deltaTime)
+    self:BlinkCursor(deltaTime)
 
     local up = Input.IsKeyDown(Key.Up) or Input.IsKeyDown(Key.W)
     local down = Input.IsKeyDown(Key.Down) or Input.IsKeyDown(Key.S)
