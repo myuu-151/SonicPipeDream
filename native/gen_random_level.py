@@ -125,11 +125,13 @@ def make_rise(drop):
     Made here, in memory; the pack file is read, never written."""
     curve = drop.data.copy()
     curve.name = "TP_Rise"
-    for spline in curve.splines:
-        for bp in spline.bezier_points:
-            for attr in ("co", "handle_left", "handle_right"):
-                v = getattr(bp, attr)
-                v.z = -v.z
+    # Mirrored as ONE transform, never point by point. The first version negated z on each
+    # point's co and two handles in turn, and between those assignments Blender re-derives
+    # the automatic handles -- so the "mirror" came out kinked, three times the drop's
+    # length, and the curve modifier squeezed the pipe onto it: the rise's last stretch
+    # pinched to a wedge with its rails and deck through it. Curve.transform moves points
+    # and handles together and leaves the length exactly the drop's.
+    curve.transform(Matrix.Diagonal((1.0, 1.0, -1.0, 1.0)))
     rise = drop.copy()
     rise.data = curve
     rise.name = "TP_Rise"
