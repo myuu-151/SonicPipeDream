@@ -713,7 +713,7 @@ function SpecialStage:PassChecks(fromFrame)
         self.over = 3.5
         self.failed = true
         self:Sound("Fail")
-        if (self.uiReady) then TheSpecialStageUI:ShowTooBad() end
+        if (self.uiReady) then TheSpecialStageUI:ShowBanner("NOT ENOUGH RINGS", 3.2) end
     end
 end
 
