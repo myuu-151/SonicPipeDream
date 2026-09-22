@@ -164,23 +164,14 @@ function Menu:Move(by)
     if (self.index < 1) then self.index = #self.items end
     if (self.index > #self.items) then self.index = 1 end
     self:PlaceSelection()
-    self:Sound("Ring")
 end
 
+-- The menu is silent. It borrowed the stage's effects for a moment -- a ring for moving, a
+-- checkpoint for choosing -- and they are the wrong sounds for a menu; it wants its own.
 function Menu:Choose()
     local item = self.items[self.index]
-    if (not self.unlocked[item.key]) then
-        self:Sound("LoseRings")             -- a locked row says no
-        return
-    end
-    self:Sound("Checkpoint")
+    if (not self.unlocked[item.key]) then return end        -- a locked row does nothing
     if (self.onChoose ~= nil) then self.onChoose(item.key) end
-end
-
-function Menu:Sound(name)
-    self.sounds = self.sounds or {}
-    if (self.sounds[name] == nil) then self.sounds[name] = LoadAsset("SW_" .. name) or false end
-    if (self.sounds[name]) then Audio.PlaySound2D(self.sounds[name], 0.6) end
 end
 
 -- ------------------------------------------------------------------ every frame
