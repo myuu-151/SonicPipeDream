@@ -6,17 +6,18 @@
 
 The mockup's lettering was drawn, not typeset, and drawing it again as geometry -- see
 gen_menu_geometry.py -- got within a few percent of it, which the eye could still tell.
-This sets the words in Russo One instead (external/ui/RussoOne-Regular.ttf, SIL Open Font
-Licence, RussoOne-OFL.txt beside it): a rounded-square display face close to the mockup's,
-with the counters, the single-storey a and the square-shouldered letters it has. It is not
-the mockup pixel for pixel; it is a typeface, so it is crisp at any size and any word can be
-set in it later without surgery.
+This sets the words in a typeface instead -- Archivo Black (external/ui/ArchivoBlack-
+Regular.ttf, SIL Open Font Licence, ArchivoBlack-OFL.txt beside it), chosen off a sheet of
+thirty-four candidates (parts/_font_sampler*.png). It is not the mockup pixel for pixel; it
+is a typeface, so it is crisp at any size and any word can be set in it later without
+surgery. Russo One was the nearest match to the mockup's own lettering and was tried
+first; this is the bolder choice.
 
 Each word is drawn with Pillow's stroke -- the outline is exact -- at 8x, then halved to 4x,
 on a canvas exactly 4x the mockup's cut-out, with its face where the cut-out's face is, so
 the layout on screen does not move. The size is chosen so capitals stand as tall as the
-mockup's; Russo One is a little narrower than the mockup's lettering, so a word is
-stretched sideways up to STRETCH to fill the room its cut-out had.
+mockup's; a face narrower than the mockup's lettering has its words
+stretched sideways up to STRETCH to fill the room the cut-out had, a wider one condensed.
 """
 
 import os
@@ -26,10 +27,10 @@ from PIL import Image, ImageFont, ImageDraw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PARTS = os.path.abspath(os.path.join(HERE, "..", "external", "ui", "menu", "parts"))
-TTF = os.path.abspath(os.path.join(HERE, "..", "external", "ui", "RussoOne-Regular.ttf"))
+TTF = os.path.abspath(os.path.join(HERE, "..", "external", "ui", "ArchivoBlack-Regular.ttf"))
 
 SS = 8                          # drawn at this many times the mockup, then halved to 4x
-STRETCH = 1.12                  # the most a word is widened to fill its cut-out
+STRETCH = 1.12                  # the most a word is widened to fill its cut-out (a wider face is condensed instead)
 
 WHITE = (254, 254, 254)
 BLUE = (3, 38, 174)
@@ -120,7 +121,7 @@ def main():
     d = ImageDraw.Draw(sheet)
     y = 6
     for part, orig, one in rows:
-        d.text((10, y), part + "   top: mockup    bottom: Russo One", fill=(0, 0, 0, 255))
+        d.text((10, y), part + "   top: mockup    bottom: the typeface", fill=(0, 0, 0, 255))
         y += 12
         for im in (orig, one):
             big = im.resize((im.width * Z, im.height * Z), Image.NEAREST)
