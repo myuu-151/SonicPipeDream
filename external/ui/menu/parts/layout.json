@@ -1,0 +1,153 @@
+{
+ "reference_size": [
+  522,
+  386
+ ],
+ "panel_top": 47,
+ "parts": [
+  {
+   "name": "title_banner",
+   "x": 0,
+   "y": 12,
+   "w": 323,
+   "h": 35,
+   "note": ""
+  },
+  {
+   "name": "title_text",
+   "x": 29,
+   "y": 18,
+   "w": 246,
+   "h": 24,
+   "note": ""
+  },
+  {
+   "name": "select_bar",
+   "x": 28,
+   "y": 98,
+   "w": 288,
+   "h": 45,
+   "note": ""
+  },
+  {
+   "name": "item_main_game",
+   "x": 41,
+   "y": 105,
+   "w": 198,
+   "h": 30,
+   "note": ""
+  },
+  {
+   "name": "cursor_arrow",
+   "x": 10,
+   "y": 108,
+   "w": 15,
+   "h": 24,
+   "note": ""
+  },
+  {
+   "name": "item_time_attack",
+   "x": 38,
+   "y": 161,
+   "w": 207,
+   "h": 29,
+   "note": ""
+  },
+  {
+   "name": "item_records",
+   "x": 39,
+   "y": 213,
+   "w": 139,
+   "h": 29,
+   "note": ""
+  },
+  {
+   "name": "item_options",
+   "x": 39,
+   "y": 266,
+   "w": 135,
+   "h": 34,
+   "note": ""
+  },
+  {
+   "name": "label_special_stage",
+   "x": 363,
+   "y": 273,
+   "w": 107,
+   "h": 10,
+   "note": ""
+  },
+  {
+   "name": "button_a",
+   "x": 370,
+   "y": 314,
+   "w": 26,
+   "h": 27,
+   "note": ""
+  },
+  {
+   "name": "button_b",
+   "x": 453,
+   "y": 314,
+   "w": 25,
+   "h": 27,
+   "note": ""
+  },
+  {
+   "name": "label_select",
+   "x": 400,
+   "y": 321,
+   "w": 38,
+   "h": 12,
+   "note": ""
+  },
+  {
+   "name": "label_back",
+   "x": 481,
+   "y": 321,
+   "w": 30,
+   "h": 12,
+   "note": ""
+  },
+  {
+   "name": "watermark_text",
+   "x": -17,
+   "y": 344,
+   "w": 549,
+   "h": 47,
+   "note": "redrawn whole; runs past the mockup edges (x < 0, bottom below 386)"
+  },
+  {
+   "name": "preview_frame",
+   "x": 330,
+   "y": 118,
+   "w": 173,
+   "h": 151,
+   "note": ""
+  },
+  {
+   "name": "preview_picture",
+   "x": 334,
+   "y": 122,
+   "w": 165,
+   "h": 143,
+   "note": ""
+  },
+  {
+   "name": "emerald",
+   "x": 402,
+   "y": 93,
+   "w": 30,
+   "h": 24,
+   "note": ""
+  },
+  {
+   "name": "bg_circles",
+   "x": -128,
+   "y": -176,
+   "w": 292,
+   "h": 292,
+   "note": "full disc; centre at (17.5, -30.5) in the mockup"
+  }
+ ]
+}

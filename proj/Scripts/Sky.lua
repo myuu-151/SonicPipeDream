@@ -64,8 +64,10 @@ function Sky:Create()
     -- set up in the editor: SpecialStage.lua spawns the track, the rings, Sonic, the camera
     -- and the UI for itself. Untick it in the inspector to look at the sky alone.
     self.startSpecialStage = true
+    self.showMenu = true            -- the title menu opens over the sky; Main Game starts the stage
     TheSky = self                   -- so a stage can set `sky` to the one its palette names
     self.startedSpecialStage = false
+    self.started = false
 end
 
 function Sky:GatherProperties()
@@ -73,6 +75,7 @@ function Sky:GatherProperties()
     {
         { name = "sky", type = DatumType.Integer },
         { name = "startSpecialStage", type = DatumType.Bool },
+        { name = "showMenu", type = DatumType.Bool },
         { name = "twinklesPerSecond", type = DatumType.Float },
         { name = "medleyFramesPerSecond", type = DatumType.Float },
         { name = "colourShiftsPerSecond", type = DatumType.Float },
@@ -195,13 +198,42 @@ function Sky:UpdateSky(deltaTime)
     end
 end
 
+-- The menu comes first, over the sky, and the stage starts when Main Game is chosen. Set
+-- `startSpecialStage` and untick `showMenu` in the inspector to skip straight to playing,
+-- which is what the S2_NOMENU environment variable does as well.
+function Sky:StartSpecialStage()
+    if (self.startedSpecialStage) then return end
+    self.startedSpecialStage = true
+    local stage = self:GetWorld():SpawnNode("Node3D")
+    stage:SetName("SpecialStage")
+    stage:SetScript("SpecialStage")
+end
+
+function Sky:ShowMenu()
+    local menu = self:GetWorld():SpawnNode("Canvas")
+    menu:SetName("Menu")
+    menu:SetScript("Menu")
+    -- TheMenu is set by the script's Create, which has run by the time SetScript returns.
+    if (TheMenu ~= nil) then
+        TheMenu.onChoose = function(key)
+            if (key == "main_game") then
+                TheMenu:Close()
+                self:StartSpecialStage()
+            end
+        end
+    end
+end
+
 function Sky:Tick(deltaTime)
-    -- Tick is the GAME's; the editor calls EditorTick. So the stage never starts in the editor.
-    if (self.startSpecialStage and not self.startedSpecialStage) then
-        self.startedSpecialStage = true
-        local stage = self:GetWorld():SpawnNode("Node3D")
-        stage:SetName("SpecialStage")
-        stage:SetScript("SpecialStage")
+    -- Tick is the GAME's; the editor calls EditorTick. So nothing starts in the editor.
+    if (not self.started) then
+        self.started = true
+        local skipMenu = (os ~= nil and os.getenv ~= nil and os.getenv("S2_NOMENU") ~= nil)
+        if (self.showMenu and not skipMenu) then
+            self:ShowMenu()
+        elseif (self.startSpecialStage) then
+            self:StartSpecialStage()
+        end
     end
     self:UpdateSky(deltaTime)
 end

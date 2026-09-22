@@ -373,11 +373,14 @@ function SpecialStage:ClearStage()
     self.emerald = nil
 end
 
--- The gauntlet: stage 1 to 7, then round again. (The design has MARATHON unlock here once
--- there is a menu to unlock it in; until then the seventh emerald leads back to the first.)
+-- The gauntlet: stage 1 to 7, and the seventh emerald unlocks MARATHON in the menu. There is
+-- nowhere else to go afterwards yet, so it leads back to the first stage.
 function SpecialStage:NextStage()
     local next_ = self.stage + 1
-    if (next_ > LAST_STAGE) then next_ = 1 end
+    if (next_ > LAST_STAGE) then
+        next_ = 1
+        if (TheMenu ~= nil) then TheMenu:SetUnlocked("marathon", true) end
+    end
     self:LoadStage(next_)
     self.announce = next_           -- shown once the UI says it is ready, in UpdateUI
 end
