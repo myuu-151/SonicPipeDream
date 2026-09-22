@@ -31,7 +31,6 @@ import os
 import subprocess
 import sys
 
-import numpy as np
 from PIL import Image
 
 from gen_s2sky_assets import write_texture
@@ -52,9 +51,14 @@ ITEMS = [
     ("options", "item_options"),
 ]
 
-# A part file that layout.json does not know by name, because it is another drawing of a
-# piece it does know: the artist's 2x watermark is the same words in the same place.
-LAYOUT_ALIAS = {"watermark_text_2x": "watermark_text"}
+# Resolution comes from the art, not from here. Three ways of enlarging the 1:1 mockup
+# pieces in this script were tried and every one looked worse than the GPU's own filtering:
+# nearest-neighbour staircased the anti-aliased edges, and two attempts at redrawing the
+# shapes larger came out ragged or blurred. What did work was the artist's own 2x drawing of
+# the watermark. So: any part may have a bigger drawing beside it, "<part>_2x.png" or
+# "<part>_4x.png", and if it does, that is what gets cooked; MenuLayout.lua carries the art's
+# real size, so the screen layout does not change. To sharpen a piece, draw it bigger.
+BIGGER = ("_4x", "_2x")
 
 # Everything else, as (texture name, part file). Order fixes the UUIDs, so only ever append.
 PIECES = [
@@ -62,7 +66,7 @@ PIECES = [
     ("T_Menu_Circles", "bg_circles"),
     ("T_Menu_TitleBanner", "title_banner"),
     ("T_Menu_TitleText", "title_text"),
-    ("T_Menu_Watermark", "watermark_text_2x"),   # the artist's own bigger copy
+    ("T_Menu_Watermark", "watermark_text"),
     ("T_Menu_SelectBar", "select_bar"),
     ("T_Menu_Cursor", "cursor_arrow"),
     ("T_Menu_PreviewFrame", "preview_frame"),
@@ -85,82 +89,6 @@ EMERALD_HUE = {
 }
 
 
-# How many texels the line art gets for each pixel the mockup drew. Not a blow-up: see
-# upscale(). Art that is already bigger than the mockup -- the artist's own 2x watermark --
-# is enlarged by less, so everything lands at the same resolution in the end.
-SHARPEN = 4
-
-
-def factor_for(img, mockup_w):
-    return max(1, int(round(SHARPEN * float(mockup_w) / max(1, img.width))))
-
-# The pieces that are FLAT COLOUR with hard edges -- lettering, the cursor, the highlight
-# bar, the frame, the gem -- and can be redrawn larger. The panel is a column of colours,
-# the circles are a soft wash, and the stage previews are photographs: those are left alone,
-# having no edges to sharpen and nothing to gain but memory.
-SMOOTH = {"bg_scanlines_full", "bg_circles", "preview_picture"}
-
-
-def upscale(img, factor=SHARPEN):
-    """Redraw flat-colour art at `factor` times the size, with clean edges.
-
-    Nearest-neighbour was tried first, the way gen_ui_assets.py enlarges the HUD's pixel
-    art: this art is anti-aliased, and nearest turned every smooth edge into a staircase.
-    Plain resampling is the other extreme -- it is just the blur the GPU would have applied
-    anyway, at four times the memory.
-
-    So the picture is taken apart instead. Each flat colour in it becomes a mask; the masks
-    are resampled smoothly, which gives a fractional coverage per output pixel; and every
-    output pixel is painted with the colour that covers it most, blended with the runner-up
-    along the boundary. The result has the curves of the original drawn at the new size,
-    with an edge one output pixel wide rather than one input pixel wide -- which is what
-    "higher resolution" means for a picture made of flat shapes.
-    """
-    a = np.array(img.convert("RGBA"))
-    big = (img.width * factor, img.height * factor)
-
-    # The colours actually used, by how much of the picture they cover.
-    opaque = a[..., 3] > 8
-    if not opaque.any():
-        return img.resize(big, Image.NEAREST)
-    flat = a[..., :3][opaque].reshape(-1, 3).astype(int)
-    seen = {}
-    for colour in map(tuple, flat):
-        seen[colour] = seen.get(colour, 0) + 1
-    # Colours within a couple of steps of a more common one are that colour, softened by the
-    # anti-aliasing; they are not separate inks.
-    inks = []
-    for colour, _n in sorted(seen.items(), key=lambda kv: -kv[1]):
-        if all(sum(abs(c - d) for c, d in zip(colour, have)) > 90 for have in inks):
-            inks.append(colour)
-        if len(inks) >= 6:
-            break
-
-    # Each ink's coverage, and the whole shape's, resampled up.
-    def spread(mask):
-        m = Image.fromarray((mask * 255).astype(np.uint8), "L")
-        return np.asarray(m.resize(big, Image.LANCZOS)).astype(float) / 255.0
-
-    dist = np.stack([np.sum(np.abs(a[..., :3].astype(int) - np.array(ink)), axis=2) for ink in inks])
-    owner = np.argmin(dist, axis=0)
-    covers = np.stack([spread(opaque & (owner == i)) for i in range(len(inks))])
-    alpha = spread(a[..., 3] / 255.0)
-
-    # the two strongest inks at each pixel, blended by how much they cover it
-    order = np.argsort(-covers, axis=0)
-    first, second = order[0], order[1] if len(inks) > 1 else order[0]
-    ii, jj = np.indices(first.shape)
-    top, next_ = covers[first, ii, jj], covers[second, ii, jj]
-    total = np.maximum(top + next_, 1e-6)
-    palette = np.array(inks, float)
-    rgb = (palette[first] * top[..., None] + palette[second] * next_[..., None]) / total[..., None]
-
-    # A hard edge at the new size: the coverage ramp is squeezed to about one output pixel.
-    edge = np.clip((alpha - 0.5) * factor + 0.5, 0.0, 1.0)
-    out = np.dstack([np.clip(rgb + 0.5, 0, 255), edge * 255.0]).astype(np.uint8)
-    return Image.fromarray(out, "RGBA")
-
-
 def pot(n):
     p = 1
     while p < n:
@@ -169,7 +97,12 @@ def pot(n):
 
 
 def load(part):
-    return Image.open(os.path.join(PARTS, part + ".png")).convert("RGBA")
+    """The part's art -- the biggest drawing of it there is (see BIGGER)."""
+    for suffix in BIGGER + ("",):
+        path = os.path.join(PARTS, part + suffix + ".png")
+        if os.path.exists(path):
+            return Image.open(path).convert("RGBA")
+    raise IOError("no art for %s" % part)
 
 
 def greyed(img):
@@ -275,7 +208,7 @@ def main():
     rows, index = [], 0
     for name, part in PIECES:
         img = load(part)
-        p = where.get(LAYOUT_ALIAS.get(part, part))
+        p = where.get(part)
         if part == "bg_scanlines_full":
             # One column of the panel's colours, stretched across the window: the panel is
             # horizontal scanlines, so every row is one colour and nothing is lost widthways.
@@ -283,9 +216,6 @@ def main():
             img = img.crop((0, layout["panel_top"], img.width, img.height))
         else:
             x, y, w, h = p["x"], p["y"], p["w"], p["h"]
-        if part not in SMOOTH:
-            # drawn larger, so the window is not magnifying a small picture
-            img = upscale(img, factor_for(img, w))
         (cw, ch), (aw, ah) = save(name, img, index)
         rows.append((name, x, y, w, h, aw, ah, cw, ch))
         index += 1
@@ -293,16 +223,17 @@ def main():
     # the items, and a greyed copy of each
     for i, (key, part) in enumerate(ITEMS):
         img = load(part)
-        drawn = upscale(img)
+        drawn = img
         # Marathon was cut to its own width; it keeps the row Time Attack sat on, and its left
         # edge, so the column of items stays a column.
         p = where.get(part) or where["item_time_attack"]
         x, y = p["x"], p["y"]
-        w, h = img.width, img.height
+        # the row's size on the mockup is the 1:1 drawing's, whatever size the cooked art is
+        base = Image.open(os.path.join(PARTS, part + ".png"))
+        w, h = base.width, base.height
         (cw, ch), (aw, ah) = save("T_Menu_Item%d" % (i + 1), drawn, index)
         rows.append(("T_Menu_Item%d" % (i + 1), x, y, w, h, aw, ah, cw, ch))
         index += 1
-        # greyed AFTER the redraw, so the locked copy is the same shape at the same size
         save("T_Menu_Item%d_Off" % (i + 1), greyed(drawn), index)
         index += 1
 
@@ -310,7 +241,7 @@ def main():
     # and its emerald, in its own colour, nearly transparent until it has been won. Both sit
     # exactly where the menu's own preview and emerald did.
     prev, emer = where["preview_picture"], where["emerald"]
-    gem = upscale(load("emerald"))       # the gem is small and flat: it redraws well
+    gem = load("emerald")
     for stage in range(1, 8):
         shot = "preview_stage%d" % stage
         if os.path.exists(os.path.join(PARTS, shot + ".png")):
