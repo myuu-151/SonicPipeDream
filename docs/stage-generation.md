@@ -212,6 +212,17 @@ holds the other way too: rings over the promise are taken back out, so x1.05 doe
 out as x1.4 and quietly stop being stage 7. Every run prints, per section, what was asked,
 what is on offer, and the margin promised and met.
 
+**On offer is not the same as takeable.** The promise counts every ring in a section, but no
+line takes them all: at some moments rings lie further apart round the pipe than Sonic can
+reach. `native/solve_stages.py` finds the most rings a clean line (no bomb touched) can take
+in each section, with the game's own steering and reach, and checks the running total against
+each quota. It found stage 7 impossible at x1.05: its checks asked for 140, 180 and 280 where
+the best line takes about 104, 177 and 278. So stage 7's checks are set by hand in
+`export_to_octave.py` (`CHECK_ASKS`): 90, 160 and 230, about 90% of the best line with ordinary
+steering -- the layout is the generator's, untouched. Stages 1-5 pass with room; stage 6 needs
+the wound-up steering or jumps from the walls in its last section. Rerun the solver after
+changing a stage or its checks.
+
 ## Two rulebooks, kept apart
 
 **Measured** -- `native/ring_rulebook.json`, written by `native/make_ring_rulebook.py` from

@@ -51,6 +51,29 @@ from mathutils import Matrix, Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+# THE CHECKS, where the generator's cannot be met. gen_stage.py asks each check for a share of the
+# rings its section holds, as if every ring could be taken. native/solve_stages.py found stage 7's
+# cannot: the rings at some moments lie further apart round the pipe than he can reach, and the
+# best line there is is about 104, 177 and 278 rings (of 147, 191 and 294) where its checks asked
+# for 140, 180 and 280. These are what each check newly asks instead -- still close to the best a
+# line can do (about 90% of it, with the ordinary steering), so the stage stays very hard. The
+# layout is the generator's, unchanged; only the checks' numbers are set here. Rerun the solver
+# after changing them.
+CHECK_ASKS = {7: (90, 160, 230)}
+
+
+def check_numbers(stage, secs):
+    """(quota, asks) for each check: the running total asked for, and what the check itself asks."""
+    asks = CHECK_ASKS.get(stage)
+    if asks is None:
+        return [(sec["quota"], sec["asks"]) for sec in secs]
+    out, total = [], 0
+    for a in asks:
+        total += a
+        out.append((total, a))
+    return out
+
+
 args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 STAGE = int(args[0]) if args and args[0].isdigit() else 1
 sys.argv = sys.argv[:sys.argv.index("--") + 1] if "--" in sys.argv else sys.argv   # gen_stage reads argv too
@@ -617,9 +640,9 @@ def main():
         path_list.append(list(to_octave(m.translation)) + list(to_octave(m.col[0].xyz)) + list(to_octave(m.col[2].xyz)))
 
     sections = []
-    for sec in data["sections"]:
+    for sec, (quota, asks) in zip(data["sections"], check_numbers(STAGE, data["sections"])):
         sections.append(dict(first_frame=sec["first_frame"], check_frame=sec["check_frame"], last_frame=sec["last_frame"],
-                             quota=sec["quota"], asks=sec["asks"], rings=sec["rings"], leads_to=sec["leads_to"],
+                             quota=quota, asks=asks, rings=sec["rings"], leads_to=sec["leads_to"],
                              objects=[[o[0], o[1], 1 if o[2] == rm.BOMB else 0] for o in sec["objects"]]))
     arch = data["sections"][0]["ring_check"]["rainbow_arch"]
     table = dict(
