@@ -420,7 +420,10 @@ function SpecialStageUI:Tick(deltaTime)
     if ((self.bannerLeft or 0.0) > 0.0) then
         self.bannerLeft = self.bannerLeft - deltaTime
         self.banner:SetVisible(true)
-        self:Place(self.banner, SCREEN_W * 0.5 - 5.6 * #self.bannerText, 176.0)
+        -- centred on the screen by its measured width (a guess of 5.6 a letter put long lines,
+        -- NOT ENOUGH RINGS above all, off to the right)
+        local wide = (self.banner.GetTextWidth ~= nil) and self.banner:GetTextWidth() or 0.0
+        self.banner:SetPosition(self.left + SCREEN_W * 0.5 * self.k - wide * 0.5, (self.top or 0.0) + 176.0 * self.k)
     elseif (self.banner:IsVisible()) then
         self.banner:SetVisible(false)
     end

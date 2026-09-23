@@ -916,14 +916,18 @@ function SpecialStage:Tick(deltaTime)
     end
 
     local before = self.frame
+    -- THE PLAYER HAS NO CONTROL while the stage has it: the run up at the start (START on the
+    -- screen), the thumbs-up after a check is passed, and from the emerald taken (or a check
+    -- failed) to the end of the stage. Hands off, he slides back down to the floor.
+    local locked = (self.hold > 0.0 or self.intro > 0.0 or self.thumbs > 0.0 or self.over >= 0.0)
     -- steering: round the pipe, and only round it, while his feet are on it
     local want = 0.0
-    if (self.hold <= 0.0 and self.intro <= 0.0 and self.stun <= 0.0) then
+    if (not locked and self.stun <= 0.0) then
         if (Input.IsKeyDown(Key.A)) then want = want + 1.0 end
         if (Input.IsKeyDown(Key.D)) then want = want - 1.0 end
     end
     want = want * self.data.angle_00_side                 -- A is always the player's left
-    if (self.autoplay and self.hold <= 0.0 and self.intro <= 0.0 and self.stun <= 0.0) then
+    if (self.autoplay and not locked and self.stun <= 0.0) then
         want = self:Pilot()                               -- already in the angle's own sense
     end
     if (self.autoplay) then
@@ -969,7 +973,7 @@ function SpecialStage:Tick(deltaTime)
     if (self.testDive ~= nil and self.height > 0.0 and not self.diving and self.fallTime >= self.testDive) then
         autoJump, self.testDive = true, nil
     end
-    if (self.hold <= 0.0 and self.intro <= 0.0 and (Input.IsKeyJustDown(Key.Space) or autoJump)) then
+    if (not locked and (Input.IsKeyJustDown(Key.Space) or autoJump)) then
         if (self.height <= 0.0) then
             self:LeaveSurface(JUMP, want ~= 0.0)
             self:Sound("Jump")
