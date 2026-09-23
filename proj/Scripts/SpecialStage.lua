@@ -57,7 +57,7 @@ local JUMP = 50.0               -- off the surface, units a second, once the pus
 local JUMP_START = 0.4          -- of that at the instant he leaves; the rest builds over JUMP_RAMP seconds,
 local JUMP_RAMP = 0.12          -- a weighted bounce off the surface rather than a flick
 local GRAVITY = 110.0           -- units a second a second, toward the floor, off the floor: up and down
-                                -- in 0.87 s. Off the wall the flight is softer, the throw across slower:
+                                -- in 0.87 s. Off the wall the same, and the same push:
 local WALL_GRAVITY = 110.0      -- this, at the wall gone vertical, and in between in between; and the push
 local WALL_PUSH = 1.0           -- off it this much of JUMP. (80 and 0.9 made a side-to-side hop slower than
                                 -- the rest; the same as a floor jump now, and it still crosses the pipe)
