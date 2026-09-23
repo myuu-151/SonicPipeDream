@@ -79,6 +79,10 @@ local FALL_TURN = 0.25          -- seconds to swing from feet-on-the-wall to upr
 local DIVE = 45.0               -- jump again in the air: straight back down onto the pipe, units a second,
 local DIVE_KEEP = 0.7           -- and this much of the speed he was already flying at on top: a drop dash
                                 -- out of a running jump is a dash, not a brake
+-- A drop dash does not land: it BOUNCES back up off the pipe, this much of a jump, his run round
+-- the pipe kept -- so he bounces along it. Jump again in the bounce and it is another drop dash,
+-- and another bounce; leave it and he comes down from it and lands. (0: no bounce.)
+local BOUNCE = 0.8
 local BALL_SPIN = 12.0          -- radians a second: two turns a second in the air
 local REACH_FRAMES = 0.55       -- a hit: within this far along the track...
 local REACH_ANGLE = 11.0        -- ...this far round it (256ths)...
@@ -549,8 +553,11 @@ function SpecialStage:Restart()
     if (os ~= nil and os.getenv ~= nil and os.getenv("S2_AUTOJUMP") ~= nil) then
         self.testJump = tonumber(os.getenv("S2_AUTOJUMP"))
         self.testLog = true
-        -- and S2_AUTODIVE=<seconds>: drop dash that long into the flight
+        -- and S2_AUTODIVE=<seconds>: drop dash that long into the flight; S2_AUTOBOUNCES=<n>:
+        -- and again that long into each of the next n bounces
         self.testDive = tonumber(os.getenv("S2_AUTODIVE") or "")
+        self.testDiveAt = self.testDive
+        self.testBounces = tonumber(os.getenv("S2_AUTOBOUNCES") or "") or 0
     end
     if (os ~= nil and os.getenv ~= nil and os.getenv("S2_TEST_RINGS") ~= nil) then
         self.rings = tonumber(os.getenv("S2_TEST_RINGS")) or 0
@@ -973,6 +980,7 @@ function SpecialStage:Tick(deltaTime)
     if (self.testJump ~= nil and self.frame >= self.testJump) then autoJump, self.testJump = true, nil end
     if (self.testDive ~= nil and self.height > 0.0 and not self.diving and self.fallTime >= self.testDive) then
         autoJump, self.testDive = true, nil
+        if (self.testBounces > 0) then self.testBounces, self.testDive = self.testBounces - 1, self.testDiveAt end
     end
     if (not locked and (Input.IsKeyJustDown(Key.Space) or autoJump)) then
         if (self.height <= 0.0) then
@@ -1036,7 +1044,15 @@ function SpecialStage:Tick(deltaTime)
             end
             self.steer = math.max(-STEER_MAX, math.min(STEER_MAX, self.steer))
             if (self.testLog) then print(string.format("LAND angle %.1f steer %.1f", self.angle, self.steer)) end
+            local bounce = self.diving and BOUNCE > 0.0 and not locked
             self.height, self.diving, self.falling = 0.0, false, false
+            if (bounce) then
+                -- THE BOUNCE: straight back off the pipe where he hit it, his run round it going on
+                -- as sideways speed (LeaveSurface), so he bounces along the pipe, not on one spot.
+                self:LeaveSurface(JUMP * BOUNCE, true)
+                self:Sound("Jump")
+                if (self.testLog) then print(string.format("BOUNCE angle %.1f steer %.1f", self.angle, self.steer)) end
+            end
         else
             self.height = radius - r
         end
