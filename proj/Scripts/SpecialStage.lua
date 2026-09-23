@@ -48,8 +48,10 @@ local SLIDE = 55.0              -- hands off, he slides back down toward the flo
 -- The jump is S2's: he leaves the surface as a ball and FLIES, straight, under gravity,
 -- across the pipe's section. Off the floor it is a stiff high hop; off the wall it throws
 -- him across to land on the other side, spinning as he goes. His way ROUND the pipe is kept
--- separate: it goes on as steering in the air (held, or coasting off), the whole section
--- turning under him, so a jump while running round is still a full jump.
+-- in it: his run round the pipe leaves with him as speed along the surface, so a jump while
+-- running round flies off the way he was going (lower, the faster he goes, as the pipe curves
+-- up to meet him), and he lands with the speed he came in with. A held direction only nudges
+-- the flight sideways. The drop dash (jump again in the air) is straight down the screen.
 local JUMP = 50.0               -- off the surface, units a second, once the push has built: 9.6 units up a
                                 -- 10 unit pipe, the ball's middle well past its axis at the top of the hop
 local JUMP_START = 0.4          -- of that at the instant he leaves; the rest builds over JUMP_RAMP seconds,
@@ -57,13 +59,9 @@ local JUMP_RAMP = 0.12          -- a weighted bounce off the surface rather than
 local GRAVITY = 110.0           -- units a second a second, toward the floor, off the floor: up and down
                                 -- in 0.87 s. Off the wall the flight is softer, the throw across slower:
 local WALL_GRAVITY = 80.0       -- this, at the wall gone vertical, and in between in between; and the push
-local WALL_PUSH = 0.9           -- off it only this much of JUMP, so it is the swing (AIR_PULL) that carries
-                                -- him across, at its own pace, not the throw
-local AIR_COAST = 0.8           -- a second: with the direction let go, his run round the pipe carries on
-                                -- through the flight, losing only this much (STEER_COAST on the ground)
-local AIR_PULL = 450.0          -- 256ths a second a second, times sin(angle): and gravity swings him round
-                                -- toward the floor as he flies, the section turning under him -- the slide
-                                -- down the wall of a jump let go of
+local WALL_PUSH = 0.9           -- off it only this much of JUMP: a throw across the pipe, not a launch
+local AIR_STEER = 40.0          -- units a second a second: a direction held in the air nudges the flight
+local AIR_STEER_MAX = 30.0      -- ...sideways, up to this sideways speed of its own making
 -- Near the centre line none of that: a jump from level ground goes straight up and comes
 -- straight down. (The surface's normal there leans toward the axis, and with the swing on top
 -- a hop from a hair to one side crossed the axis and came down swinging on the other.)
@@ -245,6 +243,15 @@ function SpecialStage:LeaveSurface(push, held)
     self.vx, self.vy = self.nx * push * JUMP_START, self.ny * push * JUMP_START
     self.push, self.ramp = push * (1.0 - JUMP_START), 0.0     -- what is still to come, and how far along
     self.gravity = GRAVITY + (WALL_GRAVITY - GRAVITY) * wall
+    -- HIS RUN ROUND THE PIPE GOES WITH HIM, as speed: along the surface where he left it, as
+    -- fast as he was going round. The flight is then an ordinary throw -- a straight arc under
+    -- gravity. (It used to be the whole section turning under him in the air, at his steering
+    -- speed: a throw across the pipe curled into a spiral, and the speed he landed with had
+    -- nothing to do with the way he had flown.)
+    local omega = self.data.angle_00_side * self.steer * TWO_PI / 256.0      -- radians a second, in t
+    self.vx = self.vx + r * omega * math.cos(t)
+    self.vy = self.vy + r * omega * math.sin(t)
+    self.takeoffSteer = math.abs(self.steer)
     self.height = radius - r
     self.falling = (push <= 0.0)
     self.diving, self.cling, self.fallTime = false, 0.0, 0.0
@@ -538,6 +545,8 @@ function SpecialStage:Restart()
     if (os ~= nil and os.getenv ~= nil and os.getenv("S2_AUTOJUMP") ~= nil) then
         self.testJump = tonumber(os.getenv("S2_AUTOJUMP"))
         self.testLog = true
+        -- and S2_AUTODIVE=<seconds>: drop dash that long into the flight
+        self.testDive = tonumber(os.getenv("S2_AUTODIVE") or "")
     end
     if (os ~= nil and os.getenv ~= nil and os.getenv("S2_TEST_RINGS") ~= nil) then
         self.rings = tonumber(os.getenv("S2_TEST_RINGS")) or 0
@@ -951,34 +960,32 @@ function SpecialStage:Tick(deltaTime)
     -- For testing the jump without playing: S2_AUTOJUMP=<frame> jumps there and logs the flight.
     local autoJump = false
     if (self.testJump ~= nil and self.frame >= self.testJump) then autoJump, self.testJump = true, nil end
+    if (self.testDive ~= nil and self.height > 0.0 and not self.diving and self.fallTime >= self.testDive) then
+        autoJump, self.testDive = true, nil
+    end
     if (self.hold <= 0.0 and self.intro <= 0.0 and (Input.IsKeyJustDown(Key.Space) or autoJump)) then
         if (self.height <= 0.0) then
             self:LeaveSurface(JUMP, want ~= 0.0)
             self:Sound("Jump")
         elseif (not self.diving) then
-            -- jump again in the air: he drops straight back onto the pipe under him
-            local r = math.sqrt(self.cx * self.cx + self.cy * self.cy)
-            self.vx, self.vy = self.cx / r * DIVE, self.cy / r * DIVE
+            -- THE DROP DASH (jump again in the air): straight DOWN, as the screen has it, from
+            -- wherever he is, onto the pipe below him -- and his run round the pipe is kept for
+            -- when he lands. It used to go away from the pipe's middle, which is down only from
+            -- over the floor: from up a wall it threw him sideways into that wall.
+            self.vx, self.vy = 0.0, -DIVE
             self.push, self.diving = 0.0, true
+            self.diveSteer = self.steer
         end
     end
     if (self.height > 0.0) then
-        -- round the pipe: steering carries on in the air, held or coasting off, and turns the
-        -- whole section (him and his flight) with it
-        local target, grip = want * STEER, STEER_GRIP
-        if (want == 0.0) then target, grip = 0.0, AIR_COAST end
-        self.steer = self.steer + (target - self.steer) * math.min(1.0, grip * dt)
-        if (want == 0.0 and not self.diving) then
-            -- by how far he is to the side, not by his angle: the angle flips as he passes
-            -- near the axis at the top of a side jump, and the swing would snap the other way
-            local side = self.data.angle_00_side * self.cx / radius
-            self.steer = self.steer - side * AIR_PULL * (1.0 - self.level) * dt
+        -- A direction held in the air nudges the flight sideways (screen left or right), no
+        -- more; a drop dash goes straight down regardless.
+        if (want ~= 0.0 and not self.diving) then
+            local dir = self.data.angle_00_side * want            -- +x is the player's left
+            if (self.vx * dir < AIR_STEER_MAX) then
+                self.vx = self.vx + dir * AIR_STEER * dt
+            end
         end
-        local turn = self.data.angle_00_side * self.steer * dt * TWO_PI / 256.0
-        local c, sn = math.cos(turn), math.sin(turn)
-        self.cx, self.cy = self.cx * c - self.cy * sn, self.cy * c + self.cx * sn
-        self.vx, self.vy = self.vx * c - self.vy * sn, self.vy * c + self.vx * sn
-        self.nx, self.ny = self.nx * c - self.ny * sn, self.ny * c + self.nx * sn
         -- and the flight itself: the rest of the push builds over the first moments, then gravity
         if (not self.diving) then
             if (self.ramp < JUMP_RAMP and self.push > 0.0) then
@@ -997,13 +1004,24 @@ function SpecialStage:Tick(deltaTime)
         self.spin = self.spin + BALL_SPIN * dt
         self.fallTime = self.fallTime + dt
         if (self.testLog) then
-            print(string.format("AIR frame %.2f height %.3f angle %.1f vx %.2f vy %.2f", self.frame, radius - r, self.angle, self.vx, self.vy))
+            print(string.format("AIR frame %.2f height %.3f angle %.1f cx %.2f cy %.2f vx %.2f vy %.2f%s", self.frame,
+                                radius - r, self.angle, self.cx, self.cy, self.vx, self.vy, self.diving and " DIVE" or ""))
         end
         if (r >= radius) then
-            -- landed. His run round the pipe goes on as it was: the flight's own speed along
-            -- the surface is NOT added (it sent him round faster off every landing, a boost
-            -- the wind-up below is meant to be earned by holding)
+            -- LANDED. His run round the pipe goes on at the speed he came in with along the
+            -- surface: a throw across carries its momentum onto the other side. But never faster
+            -- than he left it, or than plain steering -- the wind-up past STEER is earned by
+            -- holding on the pipe, not by bouncing. After a drop dash, the run he had before it.
+            if (self.diving) then
+                self.steer = self.diveSteer or self.steer
+            else
+                local tangent = self.vx * math.cos(t) + self.vy * math.sin(t)     -- along the surface
+                local landed = self.data.angle_00_side * tangent / radius * 256.0 / TWO_PI
+                local cap = math.max(self.takeoffSteer or 0.0, STEER)
+                self.steer = math.max(-cap, math.min(cap, landed))
+            end
             self.steer = math.max(-STEER_MAX, math.min(STEER_MAX, self.steer))
+            if (self.testLog) then print(string.format("LAND angle %.1f steer %.1f", self.angle, self.steer)) end
             self.height, self.diving, self.falling = 0.0, false, false
         else
             self.height = radius - r
@@ -1049,21 +1067,37 @@ function SpecialStage:Tick(deltaTime)
         -- in the air he is his point in the section, (cx, cy) from the axis, with the ball's
         -- radius added ALONG THE PUSH: added along his line to the axis instead, it would push
         -- his middle through the axis and out the other side near the top of a hop, a bob
+        -- (The ball's middle is a radius in from his point, toward the pipe's axis -- so it sits on
+        -- the surface he lands on, whichever side -- and less of one near the axis, where "toward
+        -- the axis" swings right round and would make the ball jump.)
         local pos, fwdHere, upHere = self:TrackAt(self.frame)
         local left = Cross(upHere, fwdHere)
-        local x = self.cx + self.nx * BALL_RADIUS
-        local y = self.cy + self.ny * BALL_RADIUS
+        local rr = math.sqrt(self.cx * self.cx + self.cy * self.cy)
+        local x, y = self.cx, self.cy
+        if (rr > 1e-3) then
+            local k = BALL_RADIUS * math.min(1.0, rr / (self.data.pipe_radius * 0.6)) / rr
+            x, y = x - self.cx * k, y - self.cy * k
+        end
         place = Add(pos, Add(Scale(left, x), Scale(upHere, self.data.pipe_radius + y)))
     end
     self.player:SetWorldPosition(ToVec(place))
     if (airborne and not self.falling) then
-        -- the ball rolls forward as it flies, about the track's own up: not `inward`, which
-        -- swings right round as he passes near the axis and would have the ball curving
-        local _, _, upHere = self:TrackAt(self.frame)
-        local c, sn = math.cos(self.spin), math.sin(self.spin)
-        local f = Add(Scale(fwd, c), Scale(upHere, -sn))
-        local u = Add(Scale(fwd, sn), Scale(upHere, c))
-        self.player:SetWorldRotationQuat(FacingQuat(f, u))
+        -- The ball rolls THE WAY IT IS GOING: about the line square to its flight (on along the
+        -- track, and across and up or down the pipe's section) and to the track's up. It used to
+        -- roll forward only, whichever way he flew, so a throw across the pipe looked like a spin
+        -- on the spot while he sailed sideways.
+        local _, fwdHere, upHere = self:TrackAt(self.frame)
+        local left = Cross(upHere, fwdHere)
+        local along = SPEED * (self.data.step or 1.0)
+        local flight = Add(Scale(fwdHere, along), Add(Scale(left, self.vx), Scale(upHere, self.vy)))
+        local axis = Cross(flight, upHere)
+        if (Dot(axis, axis) < 1e-6) then axis = Cross(fwdHere, upHere) end
+        axis = Normalize(axis)
+        local function Turn(v)                                    -- v turned by spin about axis
+            local c, sn = math.cos(self.spin), math.sin(self.spin)
+            return Add(Add(Scale(v, c), Scale(Cross(axis, v), sn)), Scale(axis, Dot(axis, v) * (1.0 - c)))
+        end
+        self.player:SetWorldRotationQuat(FacingQuat(Turn(fwdHere), Turn(upHere)))
     elseif (airborne) then
         -- dropped off the wall: he swings upright as the fall starts, and falls feet first
         -- (turned about the track's forward, so upside down at the start is no trouble)
