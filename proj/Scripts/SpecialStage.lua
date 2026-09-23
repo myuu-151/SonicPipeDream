@@ -890,7 +890,10 @@ function SpecialStage:Tick(deltaTime)
         return
     end
 
-    if (Input.IsKeyJustDown(Key.R)) then self:Restart() end
+    if (Input.IsKeyJustDown(Key.R)) then
+        self:Sound("MenuWarp")                          -- SpecialWarp, as for EXIT and a failed check
+        self:Restart()
+    end
     for n, key in ipairs(PALETTE_KEYS) do
         if (Input.IsKeyJustDown(key)) then self:SetPalette(n) end
     end
@@ -904,7 +907,7 @@ function SpecialStage:Tick(deltaTime)
         self.over = self.over - dt
         if (self.over < 0.0) then
             if (self.failed) then
-                self:Sound("ExitStage")
+                self:Sound("MenuWarp")                  -- SpecialWarp: the stage starts again
                 self:Restart()                  -- a failed stage is played again
             else
                 self:Finish()                   -- the emerald was taken: back to the menu
