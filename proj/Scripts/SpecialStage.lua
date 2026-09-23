@@ -136,6 +136,17 @@ local SONIC_FPS = 42.0          -- his animations were made at 24 frames a secon
 local SONIC_FRAMES = 16         -- in a run cycle
 local THUMBS_TIME = 2.8         -- seconds of thumbs-up running after a check is passed. The ring
                                 -- check leaves 44 empty frames past the arch: 2.9 s at this speed.
+-- THE MARATHON (StageDataMarathon, made ahead of time by gen_stage.py and written by
+-- export_to_octave.py `-- marathon <seed>`): one run, zone after zone, each three checks, each
+-- harder. A zone's third check leads to an ITEM (the chaos emerald, for now), and taking it is
+-- THE HOLD: the thumbs-up, the camera on him, running on down plain straight pipe -- the zone's
+-- ring check zone runs long for it (gen_stage.py, HOLD_PLAYS) -- while the pipe and the sky
+-- change into the next zone's colours. A check failed ends the run: back to the menu.
+-- (For now the colours SWITCH, once, with the camera on him. A crossfade drawn as a second copy
+-- of the pipe over the first strobed -- two surfaces in one place fight over which is in front
+-- -- and is not to come back; the crossfade is to be done in the pipe's material instead.)
+local HOLD_MARGIN = 0.4         -- seconds before the hold's straights run out that control comes back
+local SWITCH_AT = 1.6           -- seconds into the hold when the colours change
 -- THE INTRO. While START is on the screen and he runs on the spot, the camera goes once right
 -- round him: away behind, down his side, low across his front looking up at him, and round
 -- back up into its place as he sets off.
@@ -415,7 +426,7 @@ function SpecialStage:LoadStage(n)
             local node = SpawnMesh(world, self:PieceMesh(name, self.palette))
             node:SetWorldPosition(Vec(piece.pos[1], piece.pos[2], piece.pos[3]))
             node:SetWorldRotationQuat(Vec(piece.quat[1], piece.quat[2], piece.quat[3], piece.quat[4]))
-            self.pieceNodes[#self.pieceNodes + 1] = { node = node, name = name }
+            self.pieceNodes[#self.pieceNodes + 1] = { node = node, name = name, frame = piece.first_frame }
         end
     end
     -- and the lead-in behind the start: the first piece (a straight: every level opens on
@@ -474,10 +485,26 @@ function SpecialStage:LoadStage(n)
     local emeraldFrame = last.check_frame + 10.0
     -- For looking at the emerald without playing to it: S2_TEST_EMERALD puts it just past the start.
     if (os ~= nil and os.getenv ~= nil and os.getenv("S2_TEST_EMERALD") ~= nil) then emeraldFrame = 16.0 end
-    local where, emeraldFwd, emeraldUp = self:Place(emeraldFrame, 0.0, 4.0)
-    self.emerald = SpawnMesh(world, LoadAsset("SM_Emerald_" .. self.data.stage) or LoadAsset("SM_Emerald"))
-    self.emerald:SetWorldPosition(ToVec(where))
-    self.emerald:SetWorldRotationQuat(FacingQuat(emeraldFwd, emeraldUp))
+    self.items = {}
+    if (self.data.marathon) then
+        -- an item past each zone's third check: the emeralds in turn, for now
+        local z = 0
+        for s, section in ipairs(self.data.sections) do
+            if (section.leads_to == "PALETTE SHIFT") then
+                z = z + 1
+                local at, fwd, up = self:Place(section.check_frame + 10.0, 0.0, 4.0)
+                local node = SpawnMesh(world, LoadAsset("SM_Emerald_" .. ((z - 1) % LAST_STAGE + 1)) or LoadAsset("SM_Emerald"))
+                node:SetWorldPosition(ToVec(at))
+                node:SetWorldRotationQuat(FacingQuat(fwd, up))
+                self.items[s] = node
+            end
+        end
+    else
+        local where, emeraldFwd, emeraldUp = self:Place(emeraldFrame, 0.0, 4.0)
+        self.emerald = SpawnMesh(world, LoadAsset("SM_Emerald_" .. self.data.stage) or LoadAsset("SM_Emerald"))
+        self.emerald:SetWorldPosition(ToVec(where))
+        self.emerald:SetWorldRotationQuat(FacingQuat(emeraldFwd, emeraldUp))
+    end
 
     -- the sky that goes with this stage's colours (stage_palettes.py's SKY). Sky.lua picks
     -- up a change of `sky` on its next tick.
@@ -500,13 +527,16 @@ function SpecialStage:ClearStage()
     self.objects = {}
     if (self.emerald ~= nil) then self.emerald:Destruct() end
     self.emerald = nil
+    for _, node in pairs(self.items or {}) do node:Destruct() end
+    self.items = {}
+    self:EndFade(false)
 end
 
 -- ------------------------------------------------------------------ coming and going
 -- The emerald ends the stage: it is won, and the stage select comes back with that emerald
 -- in colour. One stage does not run into the next -- you choose the next one yourself.
 function SpecialStage:Finish()
-    local won = self.stage
+    local won = (not self.data.marathon) and self.stage or nil
     self:Leave()
     if (self.onFinished ~= nil) then self.onFinished(won) end
 end
@@ -589,8 +619,15 @@ function SpecialStage:Restart()
     self.over = -1.0                -- >= 0: the stage has ended, and this is the countdown to starting again
     self.spin = 0.0
     self.thumbs = 0.0               -- > 0: running with the thumb up
+    self.thumbsTotal = THUMBS_TIME  -- how long this thumbs-up is, all told (a marathon's hold is longer)
     self.runClock = 0.0
-    self.emerald:SetVisible(true)
+    if (self.emerald ~= nil) then self.emerald:SetVisible(true) end
+    for _, node in pairs(self.items or {}) do node:SetVisible(true) end
+    self.holding = nil
+    if (self.data.marathon) then
+        self:EndFade(false)
+        self:SetPalette(self.data.palette)          -- from the first zone's colours again
+    end
     self.uiReady = false
     self.failed = false
     self.fxPool = self.fxPool or { sparkle = {}, boom = {} }
@@ -777,9 +814,14 @@ function SpecialStage:PassChecks(fromFrame)
     if (section == nil or self.frame < section.check_frame or fromFrame >= section.check_frame) then return end
     -- the instant he passes under the rainbow arch
     if (self.rings >= section.quota) then
+        if (self.data.marathon and section.leads_to == "PALETTE SHIFT") then
+            self:PassZone(section)
+            self.section = self.section + 1
+            return
+        end
         -- COOL ! and the thumbs-up emblem are for a CHECK. The emerald has its own words.
         if (self.uiReady and section.leads_to ~= "EMERALD") then TheSpecialStageUI:ShowCool() end
-        self.thumbs = THUMBS_TIME
+        self.thumbs, self.thumbsTotal = THUMBS_TIME, THUMBS_TIME
         self:Sound((section.leads_to == "EMERALD") and "GetEmerald" or "Checkpoint")
         if (section.leads_to == "EMERALD") then
             self.emerald:SetVisible(false)
@@ -796,6 +838,41 @@ function SpecialStage:PassChecks(fromFrame)
         self:Sound("Fail")
         if (self.uiReady) then TheSpecialStageUI:ShowBanner("NOT ENOUGH RINGS", 3.2) end
     end
+end
+
+-- A marathon zone's third check passed: its item is taken, and THE HOLD begins -- thumbs up,
+-- the camera on him, running on down the long straight after the check while the colours
+-- crossfade into the next zone's. The last zone of the run ends it instead.
+function SpecialStage:PassZone(section)
+    local s = self.section
+    if (self.items[s] ~= nil) then self.items[s]:SetVisible(false) end
+    self:Sound("GetEmerald")
+    local nextSection = self.data.sections[s + 1]
+    -- the thumbs-up lasts as long as the straights past the check do, less a moment to take hold
+    self.thumbs = math.max(THUMBS_TIME, (section.last_frame - section.check_frame) / SPEED - HOLD_MARGIN)
+    self.thumbsTotal = self.thumbs
+    if (nextSection == nil) then
+        if (self.uiReady) then TheSpecialStageUI:ShowBanner("MARATHON CLEAR !", 4.5) end
+        self.over = 5.0
+        return
+    end
+    if (self.uiReady) then TheSpecialStageUI:ShowBanner("EMERALD GET !", 3.0) end   -- (the item's own words, later)
+    self.holding = { clock = 0.0, to = nextSection.palette or self.palette }
+end
+
+-- The hold's change of colours: the pipe and the sky, at once, SWITCH_AT into it.
+function SpecialStage:TickFade(dt)
+    local h = self.holding
+    if (h == nil) then return end
+    h.clock = h.clock + dt
+    if (h.clock >= SWITCH_AT) then
+        self:SetPalette(h.to)
+        self.holding = nil
+    end
+end
+
+function SpecialStage:EndFade()
+    self.holding = nil
 end
 
 function SpecialStage:UpdateUI()
@@ -931,10 +1008,13 @@ function SpecialStage:Tick(deltaTime)
         TheSky.sky = 1
         self.palette = 0                -- so pressing the current stage again restores its sky
     end
+    self:TickFade(dt)
     if (self.over >= 0.0) then
         self.over = self.over - dt
         if (self.over < 0.0) then
-            if (self.failed) then
+            if (self.failed and self.data.marathon) then
+                self:Finish()                   -- a marathon is one run: a failed check ends it
+            elseif (self.failed) then
                 self:Sound("MenuWarp")                  -- SpecialWarp: the stage starts again
                 self:Restart()                  -- a failed stage is played again
             else
@@ -1249,7 +1329,9 @@ function SpecialStage:Tick(deltaTime)
     -- where the camera was and comes back to exactly where it will be.
     local swing = 0.0
     if (self.thumbs > 0.0) then
-        local t = THUMBS_TIME - self.thumbs
+        -- measured against THIS thumbs-up's length: against the ordinary one, a marathon's longer
+        -- hold came out as a negative time, and the easing threw the camera about every frame
+        local t = (self.thumbsTotal or THUMBS_TIME) - self.thumbs
         if (t < ORBIT_TIME) then
             swing = t / ORBIT_TIME
         elseif (self.thumbs < ORBIT_TIME) then
@@ -1257,6 +1339,7 @@ function SpecialStage:Tick(deltaTime)
         else
             swing = 1.0
         end
+        swing = math.max(0.0, math.min(1.0, swing))
         swing = swing * swing * (3.0 - 2.0 * swing)             -- ease in and out
     end
     -- THE INTRO: a full circuit, blended out of the ordinary camera and back into it at its

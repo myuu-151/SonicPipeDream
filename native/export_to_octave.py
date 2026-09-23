@@ -78,6 +78,9 @@ def check_numbers(stage, secs):
 
 args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 STAGE = int(args[0]) if args and args[0].isdigit() else 1
+# `-- marathon <seed>`: a marathon gen_stage.py made ahead of time (Marathon_seed<seed>.json), written
+# as StageDataMarathon.lua -- for playing one on the PC, where the zones need not be built on the fly.
+MARATHON_SEED = int(args[1]) if len(args) > 1 and args[0] == "marathon" else None
 sys.argv = sys.argv[:sys.argv.index("--") + 1] if "--" in sys.argv else sys.argv   # gen_stage reads argv too
 
 import gen_random_level as grl
@@ -570,9 +573,13 @@ def checkers(number, mesh_name, slots):
 
 def main():
     os.makedirs(ASSETS, exist_ok=True)
-    name = "Stage%d_seed%d" % (STAGE, GAUNTLET_SEED[STAGE])
+    if MARATHON_SEED is not None:
+        name = "Marathon_seed%d" % MARATHON_SEED
+    else:
+        name = "Stage%d_seed%d" % (STAGE, GAUNTLET_SEED[STAGE])
     data = json.load(open(os.path.join(STAGES, name + ".json"), encoding="utf-8"))
-    palette = stage_palettes.palette(STAGE)
+    first_palette = data["sections"][0].get("palette") or STAGE
+    palette = stage_palettes.palette(first_palette if MARATHON_SEED is not None else STAGE)
 
     print("\nmeshes -> %s" % ASSETS)
     write_materials()
@@ -645,23 +652,26 @@ def main():
     for sec, (quota, asks) in zip(data["sections"], check_numbers(STAGE, data["sections"])):
         sections.append(dict(first_frame=sec["first_frame"], check_frame=sec["check_frame"], last_frame=sec["last_frame"],
                              quota=quota, asks=asks, rings=sec["rings"], leads_to=sec["leads_to"],
-                             objects=[[o[0], o[1], 1 if o[2] == rm.BOMB else 0] for o in sec["objects"]]))
+                             objects=[[o[0], o[1], 1 if o[2] == rm.BOMB else 0] for o in sec["objects"]],
+                             palette=sec.get("palette") or STAGE))
     arch = data["sections"][0]["ring_check"]["rainbow_arch"]
     table = dict(
-        name=name, stage=STAGE, step=rm.STEP, frames=frames,
+        name=name, stage=("Marathon" if MARATHON_SEED is not None else STAGE), step=rm.STEP, frames=frames,
+        marathon=MARATHON_SEED is not None,
         pipe_radius=rm.PIPE_RADIUS, hover=rm.HOVER,
         angle_00_side=-1 if rm.ANGLE_00_SIDE == "right" else 1,
         arch=dict(rings=arch["rings"], reach=rm.PIPE_RADIUS + 1.6, from_deg=12.0, ring_scale=arch["ring_scale"],
                   toward_player=0.72, steps_per_second=arch["steps_per_second"]),
-        sky=palette["sky"], palette=STAGE,
+        sky=palette["sky"], palette=(first_palette if MARATHON_SEED is not None else STAGE),
         palette_skies=[stage_palettes.palette(n)["sky"] for n in sorted(stage_palettes.S2_LINE)],
         pieces=piece_list, sections=sections, path=path_list)
-    out = os.path.join(PROJ, "Scripts", "StageData%d.lua" % STAGE)
+    which = "Marathon" if MARATHON_SEED is not None else "%d" % STAGE
+    out = os.path.join(PROJ, "Scripts", "StageData%s.lua" % which)
     open(out, "w", encoding="ascii", newline="\n").write(
         "-- Written by native/export_to_octave.py from %s.json. Do not edit by hand.\n"
         "-- path[i] = { px,py,pz, fx,fy,fz, ux,uy,uz } for frame i-1: the floor's centre line, forward, up.\n"
         "-- objects = { frame, angle (256ths from the floor's centre line), 0 ring | 1 bomb }\n"
-        "StageData%d = %s\n" % (name, STAGE, lua(table)))
+        "StageData%s = %s\n" % (name, which, lua(table)))
     print("\nstage -> %s (%d pieces, %d frames, %d objects, %.0f KB)" % (
         out, len(piece_list), frames, sum(len(x["objects"]) for x in sections), os.path.getsize(out) / 1024.0))
 

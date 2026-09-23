@@ -233,6 +233,14 @@ with the game's own steering (the wind-up included), reach, jumps and bombs.
 * **Checking** (`native/solve_stages.py`, `SOLVER_MODEL=strict|real|generous`): every stage,
   every check, against the running total.
 
+**Playing a marathon (PC).** Until zones are built on the fly, one is made ahead of time and
+played as a very long stage: `gen_stage.py -- marathon 6 seed 1` (18 checks, difficulty 2 to
+10.5), then `export_to_octave.py -- marathon 1` writes `StageDataMarathon.lua`. MARATHON on the
+menu plays it (open for testing; it is meant to wait for the seventh emerald). A zone's third
+check leads to an item -- the chaos emerald, for now -- and THE HOLD: the thumbs-up, the camera
+on him, on down a long straight (`HOLD_PLAYS`), and the next zone's colours switch in half way
+through it. A failed check ends the run. The GameCube keeps MARATHON shut.
+
 ## Two rulebooks, kept apart
 
 **Measured** -- `native/ring_rulebook.json`, written by `native/make_ring_rulebook.py` from

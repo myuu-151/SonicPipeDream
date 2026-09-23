@@ -261,6 +261,15 @@ function Sky:ShowMenu()
             if (key == "main_game" and TheStageSelect ~= nil) then
                 TheMenu:Close()
                 TheStageSelect:Open()
+            elseif (key == "marathon") then
+                -- one run, zone after zone (StageDataMarathon); it hands back to the menu when it
+                -- is over, whichever way it ends
+                TheMenu:Close()
+                self:StartSpecialStage("Marathon")
+                if (TheSpecialStage ~= nil) then
+                    TheSpecialStage.onExit = function() TheMenu:Open() end
+                    TheSpecialStage.onFinished = function() TheMenu:Open() end
+                end
             end
         end
     end

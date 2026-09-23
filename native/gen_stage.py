@@ -230,6 +230,11 @@ INTRO_STRAIGHTS = CHECK_LENGTH
 EMERALD_RUN_UP = 3          # the original gives the emerald a longer approach (24-39 frames)
 EMERALD_PLAYS = CHECK_LENGTH * 3       # the pipe past the emerald: he runs on down it while EMERALD GET shows,
                                        # and at one check length he reached the end of it first
+HOLD_PLAYS = 10             # a marathon zone's end: straights past its third check (and the item after
+                            # it) for THE HOLD below -- 80 frames, over five seconds of plain pipe for the
+                            # thumbs-up and the crossfade into the next zone's colours. Where the next
+                            # zone is built ahead of time (the PC) this IS the hold; where it is built
+                            # during it, these are the straights laid under him again and again.
 
 # THE HOLD. After a marathon zone's third check the camera zooms in on Sonic, thumbs up,
 # running on plain straight pipe -- and he KEEPS running on it, the same straight laid under
@@ -706,7 +711,9 @@ def main():
                 need = (d["target"] + boost[k]) / d["per_frame"] * room + (lead if k == 0 else 0)
                 names += plan_section(d["rules"], rng, need, paths, extra[k])
                 emerald = d["leads_to"] == "EMERALD"
-                run_up, plays = (EMERALD_RUN_UP, EMERALD_PLAYS) if emerald else (CHECK_RUN_UP, CHECK_PLAYS)
+                run_up, plays = ((EMERALD_RUN_UP, EMERALD_PLAYS) if emerald else
+                                 (EMERALD_RUN_UP, HOLD_PLAYS) if d["leads_to"] == "PALETTE SHIFT" else
+                                 (CHECK_RUN_UP, CHECK_PLAYS))
                 zones.append((len(names), len(names) + run_up))  # first piece of the zone, piece of the check
                 names += ["Straight"] * (run_up + plays)         # THE RING CHECK ZONE
                 cuts.append(len(names))
