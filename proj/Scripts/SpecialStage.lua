@@ -58,8 +58,9 @@ local JUMP_START = 0.4          -- of that at the instant he leaves; the rest bu
 local JUMP_RAMP = 0.12          -- a weighted bounce off the surface rather than a flick
 local GRAVITY = 110.0           -- units a second a second, toward the floor, off the floor: up and down
                                 -- in 0.87 s. Off the wall the flight is softer, the throw across slower:
-local WALL_GRAVITY = 80.0       -- this, at the wall gone vertical, and in between in between; and the push
-local WALL_PUSH = 0.9           -- off it only this much of JUMP: a throw across the pipe, not a launch
+local WALL_GRAVITY = 110.0      -- this, at the wall gone vertical, and in between in between; and the push
+local WALL_PUSH = 1.0           -- off it this much of JUMP. (80 and 0.9 made a side-to-side hop slower than
+                                -- the rest; the same as a floor jump now, and it still crosses the pipe)
 local AIR_STEER = 40.0          -- units a second a second: a direction held in the air nudges the flight
 local AIR_STEER_MAX = 30.0      -- ...sideways, up to this sideways speed of its own making
 -- Near the centre line none of that: a jump from level ground goes straight up and comes
