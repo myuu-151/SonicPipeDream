@@ -13,7 +13,7 @@ with a guarantee that every ring check can be passed.
 stage select, where any of the seven stages can be played, each in its own colours under its
 own sky. Taking a stage's emerald returns to the select with it lit, and won emeralds are
 saved. `S2_STAGE=<1-7>` with `S2_NOMENU` starts a stage directly. Marathon is generated but
-not yet wired into the engine; Records and Options do not exist yet. The plan says what
+not yet wired into the engine; Extras and Chao Garden do not exist yet. The plan says what
 comes next.
 
 ## Docs

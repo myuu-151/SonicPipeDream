@@ -41,11 +41,24 @@ WORDS = [
     ("item_marathon", "Marathon", 21.0, 3.0, None),
     ("item_records", "Records", 21.0, 3.0, None),
     ("item_options", "Options", 21.0, 3.0, None),
+    ("item_extras", "Extras", 21.0, 3.0, None),
+    ("item_chao_garden", "Chao Garden", 21.0, 3.0, None),
+    ("item_save", "Save", 21.0, 3.0, None),                 # the GameCube's menu only
     ("item_time_attack", "Time Attack", 21.0, 3.0, None),
     ("title_text", "SONIC PIPE DREAM", 16.0, 2.3, None),
     ("label_select", "Select", 10.0, 0.0, BLUE),
     ("label_back", "Back", 10.0, 0.0, BLUE),
 ]
+
+# Words the mockup never had, so there is no cut-out to fit them in. Each is set on the row of
+# the item named here -- its height, its left edge, its top -- in a cut-out made as wide as the
+# word itself, so it is never stretched or squeezed. The 1:1 copy is written as <part>.png too,
+# which is what gen_menu_assets.py measures a row by.
+NEW_WORDS = {
+    "item_extras": "item_records",
+    "item_chao_garden": "item_options",
+    "item_save": "item_options",
+}
 
 _CAP_PER_SIZE = None
 
@@ -70,18 +83,12 @@ def face_box(a, outlined):
     return xs.min(), ys.min(), xs.max(), ys.max()
 
 
-def set_word(part, text, cap, outline, colour):
-    orig = Image.open(os.path.join(PARTS, part + ".png")).convert("RGBA")
-    a = np.array(orig)
-    l, t, r, b = face_box(a, outline > 0)
-    room = r - l + 1
-
+def render_word(text, cap, outline, colour):
+    """The word by itself, at 8x, generously padded, and where its face is in that picture."""
     size = int(round(cap / cap_per_size() * SS))
     font = ImageFont.truetype(TTF, size)
     stroke = int(round(outline * SS))
     face = colour or WHITE
-
-    # the word by itself, at 8x, generously padded, then measured
     bl, bt, br, bb = font.getbbox(text, stroke_width=0)
     pad = stroke + SS
     W, H = (br - bl) + 2 * pad, (bb - bt) + 2 * pad
@@ -89,9 +96,31 @@ def set_word(part, text, cap, outline, colour):
     d = ImageDraw.Draw(img)
     d.text((pad - bl, pad - bt), text, font=font, fill=face + (255,),
            stroke_width=stroke, stroke_fill=BLUE + (255,))
+    return img, face_box(np.array(img), outline > 0)
 
-    # where its face is, to line it up with the mockup's
-    fl, ft, fr, fb = face_box(np.array(img), outline > 0)
+
+def cut_out(part, text, cap, outline, colour):
+    """The mockup's cut-out for a word -- or, for a new word (NEW_WORDS), one made for it: the
+    template item's row and margins, as wide as the word at its natural width."""
+    if part not in NEW_WORDS:
+        return Image.open(os.path.join(PARTS, part + ".png")).convert("RGBA")
+    template = Image.open(os.path.join(PARTS, NEW_WORDS[part] + ".png")).convert("RGBA")
+    l, t, r, b = face_box(np.array(template), outline > 0)
+    _img, (fl, _ft, fr, _fb) = render_word(text, cap, outline, colour)
+    face_w = int(np.ceil((fr - fl + 1) / float(SS)))
+    width = l + face_w + (template.width - 1 - r)
+    # only its face box matters to set_word: a white face where the template's was
+    out = Image.new("RGBA", (width, template.height), (0, 0, 0, 0))
+    out.paste((254, 254, 254, 255), (l, t, l + face_w, b + 1))
+    return out
+
+
+def set_word(part, text, cap, outline, colour):
+    orig = cut_out(part, text, cap, outline, colour)
+    l, t, r, b = face_box(np.array(orig), outline > 0)
+    room = r - l + 1
+
+    img, (fl, ft, fr, fb) = render_word(text, cap, outline, colour)
     face_w = (fr - fl + 1) / float(SS)
     stretch = min(STRETCH, room / face_w)
     if abs(stretch - 1.0) > 0.01:
@@ -110,6 +139,8 @@ def main():
         four = big.resize((big.width // 2, big.height // 2), Image.BOX)
         four.save(os.path.join(PARTS, part + "_4x.png"))
         one = big.resize((big.width // SS, big.height // SS), Image.BOX)
+        if part in NEW_WORDS:
+            one.save(os.path.join(PARTS, part + ".png"))      # its 1:1 size, for gen_menu_assets.py
         orig = Image.open(os.path.join(PARTS, part + ".png")).convert("RGBA")
         print("%-18s %-18s stretch %.2f -> %s" % (part, text, stretch, four.size))
         rows.append((part, orig, one))

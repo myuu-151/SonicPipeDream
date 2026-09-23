@@ -32,8 +32,8 @@ MenuLayout = {
         T_Menu_LabelBack = { x = 481, y = 321, w = 30, h = 12, aw = 120, ah = 48, cw = 128, ch = 64 },
         T_Menu_Item1 = { x = 41, y = 105, w = 198, h = 30, aw = 792, ah = 120, cw = 1024, ch = 128 },
         T_Menu_Item2 = { x = 38, y = 161, w = 167, h = 30, aw = 668, ah = 120, cw = 1024, ch = 128 },
-        T_Menu_Item3 = { x = 39, y = 213, w = 139, h = 29, aw = 556, ah = 116, cw = 1024, ch = 128 },
-        T_Menu_Item4 = { x = 39, y = 266, w = 135, h = 34, aw = 540, ah = 136, cw = 1024, ch = 256 },
+        T_Menu_Item3 = { x = 39, y = 213, w = 113, h = 29, aw = 452, ah = 116, cw = 512, ch = 128 },
+        T_Menu_Item4 = { x = 39, y = 266, w = 219, h = 34, aw = 876, ah = 136, cw = 1024, ch = 256 },
         T_Menu_Preview1 = { x = 334, y = 122, w = 165, h = 143, aw = 165, ah = 143, cw = 256, ch = 256 },
         T_Menu_Emerald1 = { x = 402, y = 93, w = 30, h = 24, aw = 120, ah = 96, cw = 128, ch = 128 },
         T_Menu_Preview2 = { x = 334, y = 122, w = 165, h = 143, aw = 165, ah = 143, cw = 256, ch = 256 },
@@ -50,7 +50,7 @@ MenuLayout = {
         T_Menu_Emerald7 = { x = 402, y = 93, w = 30, h = 24, aw = 120, ah = 96, cw = 128, ch = 128 },
         T_Menu_EmeraldOff = { x = 402, y = 93, w = 30, h = 24, aw = 120, ah = 96, cw = 128, ch = 128 },
     },
-    items = { "main_game", "marathon", "records", "options" },
+    items = { "main_game", "marathon", "extras", "chao_garden" },
     preview_frames = 16,      -- a stage's preview clip: T_Menu_Preview<n>, then _01 .. this - 1
     preview_fps = 6,
 }

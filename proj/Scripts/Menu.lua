@@ -5,8 +5,8 @@
 --                                       +-----------+
 --      > Main Game                      |  preview  |
 --        Marathon   (locked)            +-----------+
---        Records    (not written)        SPECIAL STAGE
---        Options    (not written)
+--        Extras      (not written)       SPECIAL STAGE
+--        Chao Garden (not written)
 --                                        (A) Select  (B) Back
 --     SONIC PIPE DREAM  (watermark)
 --
@@ -24,8 +24,8 @@
 --     TheMenu.onChoose        called with "main_game" / "marathon" / ... when A is pressed
 --     TheMenu:SetUnlocked(k, true)    light a locked item up
 --
--- Marathon is locked until the seventh emerald; Records and Options are locked because they
--- do not exist. A locked item can be walked onto -- it is part of the picture -- but A does
+-- Marathon is locked until the seventh emerald; Extras and Chao Garden are locked because they
+-- do not exist yet. A locked item can be walked onto -- it is part of the picture -- but A does
 -- nothing on it.
 
 Menu = {}
@@ -35,7 +35,7 @@ Script.Require("MenuLayout")            -- where every piece goes; written by ge
 local WHITE = Vec(1.0, 1.0, 1.0, 1.0)
 
 -- Which items can be chosen. Marathon is switched on by the game when the gauntlet is done.
-local UNLOCKED = { main_game = true, marathon = false, records = false, options = false }
+local UNLOCKED = { main_game = true, marathon = false, extras = false, chao_garden = false }
 
 local REPEAT_FIRST, REPEAT_AFTER = 0.40, 0.12       -- held up/down: the first wait, then the rest
 

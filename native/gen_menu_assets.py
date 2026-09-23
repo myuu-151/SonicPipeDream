@@ -17,8 +17,8 @@ Two things are worth knowing about the textures:
     into a rectangle scaled by canvas/art, which lands the art exactly where layout.json says
     and leaves the padding off the edge of it.
 
-  * The four menu items each get a GREYED copy as well, T_Menu_Item<n>_Off. Marathon is
-    locked until the seventh emerald, and Records and Options are not written yet; a menu that
+  * The menu items each get a GREYED copy as well, T_Menu_Item<n>_Off. Marathon is locked
+    until the seventh emerald, and Extras and Chao Garden are not written yet; a menu that
     lets you walk onto them and does nothing would be worse than one that shows them as shut.
 
 MARATHON replaces the mockup's TIME ATTACK. Its lettering is cut from the other items by
@@ -42,14 +42,23 @@ LUA = os.path.abspath(os.path.join(HERE, "..", "proj", "Scripts", "MenuLayout.lu
 
 UUID_MENU = 0x51C0FFEE00002200      # + index; clear of the UI's (…2000) and the font's (…2100)
 
-# The menu's items, top to bottom: the art, and the y the mockup put that row at. Marathon
-# takes Time Attack's place and its row.
+# The menu's items, top to bottom: the key the menu script knows it by, and its art. Marathon
+# takes Time Attack's place and its row; Extras and Chao Garden (set by gen_menu_type.py) take
+# the mockup's Records and Options rows.
 ITEMS = [
     ("main_game", "item_main_game"),
     ("marathon", "item_marathon"),
-    ("records", "item_records"),
-    ("options", "item_options"),
+    ("extras", "item_extras"),
+    ("chao_garden", "item_chao_garden"),
 ]
+
+# The mockup row an item without one of its own sits on.
+ROW_OF = {"item_marathon": "item_time_attack", "item_extras": "item_records",
+          "item_chao_garden": "item_options"}
+
+# Rows placed by hand, part -> (x, y) on the mockup's screen, over ROW_OF. The GameCube's
+# export sets this for the items it adds and respaces.
+ROW_AT = {}
 
 # Resolution comes from the art, not from here. Three ways of enlarging the 1:1 mockup
 # pieces in this script were tried and every one looked worse than the GPU's own filtering:
@@ -238,8 +247,8 @@ def main():
         drawn = img
         # Marathon was cut to its own width; it keeps the row Time Attack sat on, and its left
         # edge, so the column of items stays a column.
-        p = where.get(part) or where["item_time_attack"]
-        x, y = p["x"], p["y"]
+        p = where.get(part) or where[ROW_OF[part]]
+        x, y = ROW_AT.get(part, (p["x"], p["y"]))
         # the row's size on the mockup is the 1:1 drawing's, whatever size the cooked art is
         base = Image.open(os.path.join(PARTS, part + ".png"))
         w, h = base.width, base.height
