@@ -213,6 +213,106 @@ def write_mesh(name, index, mesh, colour_of_slot, material="M_StageGloss", keep_
     return True
 
 
+# --- textured and lit: the bomb -------------------------------------------------------------
+# native/texture_bomb.py unwraps the bomb and bakes its metal detail (grain, scratches, worn
+# edges, the grooves' shadow) into Bomb_albedo.png. It goes in the game as ONE texture on a lit
+# metal material -- the look of M_StageMetal, reading the picture instead of vertex colours.
+TYPE_TEXTURE = 0xCDBBDA30
+BOMB_TEXTURED = os.path.join(os.path.dirname(BOMB_BLEND), "Bomb_Textured.blend")
+BOMB_ALBEDO = os.path.join(os.path.dirname(BOMB_BLEND), "Bomb_albedo.png")
+# the texture the game uses: the albedo LIT, its shading, highlights and reflections painted in
+BOMB_LIT = os.path.join(os.path.dirname(BOMB_BLEND), "Bomb_lit.png")
+# ...so its material is a BASIC lit one: the stage's light over it, and only a faint highlight of
+# its own (the shine is in the texture). (specular, shininess, wrap)
+BOMB_BASIC_LIT = (0.15, 24.0, 0.30)
+UUID_BOMB_TEX, UUID_BOMB_MAT = UUID_BASE + 0x901, UUID_BASE + 0x902
+
+
+def write_lit_textured(name, index, mesh, png, tex_name, mat_name, look="M_StageMetal", size=None,
+                       base=1.0, force_hq=False, basic=None):
+    """A mesh with its own UVs, a texture from `png` and a lit material with `look`'s highlight.
+    size: square side to scale the texture to (None: as it is). base: how much of the painted
+    colour is kept as diffuse (a metal keeps little, as write_mesh's METAL_BASE did)."""
+    import numpy as np
+    image = bpy.data.images.load(png, check_existing=True)
+    w, h = image.size
+    px = np.array(image.pixels[:], dtype=np.float32).reshape(h, w, 4)[::-1]      # top row first
+    if size is not None and size != w:
+        ys, xs = np.arange(size) * h // size, np.arange(size) * w // size
+        # a box filter, not nearest: the detail is fine and would sparkle
+        step = w // size
+        px = px[:size * step, :size * step].reshape(size, step, size, step, 4).mean(axis=(1, 3)) if step > 1 \
+            else px[ys][:, xs]
+        w = h = size
+    px[:, :, :3] *= base
+    px[:, :, 3] = 1.0
+    pixels = (np.clip(px, 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8).tobytes()
+    d = header(TYPE_TEXTURE, UUID_BOMB_TEX, tex_name)
+    d += u32(w) + u32(h) + u32(1) + u32(1)
+    d += u32(2) + u32(1) + u32(0)                          # RGBA8, LINEAR, clamp
+    d += u8(0) + u8(0) + u8(1)                             # no mips, not a render target, sRGB
+    d += u8(1 if force_hq else 0) + u8(1)
+    d += pixels
+    open(os.path.join(ASSETS, tex_name + ".oct"), "wb").write(d)
+
+    _uuid, specular, shininess, _fresnel, emission, wrap = MATERIALS[look]
+    if basic is not None:                   # (specular, shininess, wrap), no emission
+        (specular, shininess, wrap), emission = basic, 0.0
+    d = header(TYPE_MATERIALLITE, UUID_BOMB_MAT, mat_name)
+    d += u32(0)                     # numParameters
+    d += u32(1)                     # Lit
+    d += u32(0)                     # Opaque
+    d += u32(0)                     # VertexColorMode::None: the colour is the texture's
+    d += u32(1)                     # numTextures
+    d += asset_ref(UUID_BOMB_TEX, tex_name) + u8(0) + u8(1)        # uv0, modulate
+    for _ in range(3):
+        d += null_ref() + u8(0) + u8(1)
+    for _ in range(2):
+        d += f32(0) + f32(0) + f32(1) + f32(1)
+    d += f32(1) + f32(1) + f32(1) + f32(1)
+    d += f32(0.85) + f32(0.92) + f32(1.0) + f32(1)
+    d += f32(2.6) + f32(emission) + f32(wrap) + f32(specular)
+    d += u32(2) + f32(1.0) + f32(0.5) + f32(shininess)
+    d += i32(0)
+    d += u8(0) + u8(0) + u8(1)
+    d += u8(0)
+    open(os.path.join(ASSETS, mat_name + ".oct"), "wb").write(d)
+
+    mesh.calc_loop_triangles()
+    uv = mesh.uv_layers.active.data
+    normals = [Vector(n.vector) for n in mesh.corner_normals]
+    verts, index_of, idx = [], {}, []
+    lo, hi = Vector((1e9,) * 3), Vector((-1e9,) * 3)
+    for tri in mesh.loop_triangles:
+        for corner, loop in zip(tri.vertices, tri.loops):
+            p = to_octave(mesh.vertices[corner].co)
+            n = to_octave(normals[loop] if tri.use_smooth else Vector(tri.normal))
+            u, v = uv[loop].uv
+            key = (round(p[0], 4), round(p[1], 4), round(p[2], 4), round(n[0], 3), round(n[1], 3), round(n[2], 3),
+                   round(u, 5), round(v, 5))
+            if key not in index_of:
+                index_of[key] = len(verts)
+                verts.append((p, n, u, 1.0 - v))                    # the texture's top row is first
+                for k in range(3):
+                    lo[k], hi[k] = min(lo[k], p[k]), max(hi[k], p[k])
+            idx.append(index_of[key])
+    centre = (lo + hi) * 0.5
+    radius = max((Vector(v[0]) - centre).length for v in verts)
+    d = header(TYPE_STATICMESH, UUID_BASE + 1 + index, name)
+    d += u32(len(verts)) + u32(len(idx)) + u32(1)
+    d += asset_ref(UUID_BOMB_MAT, mat_name)
+    d += u8(0) + u8(0)                                  # no triangle collision; NO vertex colour
+    for p, n, su, sv in verts:
+        d += f32(p[0]) + f32(p[1]) + f32(p[2]) + f32(su) + f32(sv) + f32(0) + f32(0)
+        d += f32(n[0]) + f32(n[1]) + f32(n[2])
+    for i in idx:
+        d += u32(i)
+    d += u8(0) + u32(0)
+    d += f32(centre.x) + f32(centre.y) + f32(centre.z) + f32(radius)
+    open(os.path.join(ASSETS, name + ".oct"), "wb").write(d)
+    print("  %-30s %-13s %6d verts %6d tris, texture %d x %d" % (name, mat_name, len(verts), len(idx) // 3, w, h))
+
+
 # --- gold ---------------------------------------------------------------------------------
 # WHY THE RINGS ARE PAINTED, NOT LIT. The engine's simple material has one highlight and
 # nothing else, and one highlight is plastic. Metal reads as metal because it REFLECTS: a
@@ -483,10 +583,16 @@ def main():
     from gen_stage import RAINBOW
     for i, c in enumerate(RAINBOW):
         write_mesh("SM_RingRainbow_%d" % i, 210 + i, ring, lambda k, c=c: c, material="M_StageGlow")
-    bomb_colours = [tuple(linear_to_srgb(x) for x in m.diffuse_color[:3]) for m in bomb.materials]
     METAL_BASE = 0.78               # how much of its painted colour a metal keeps as diffuse
-    write_mesh("SM_Bomb", 220, bomb, lambda k: tuple(c * METAL_BASE for c in bomb_colours[k]),
-               material="M_StageMetal")
+    if os.path.exists(BOMB_TEXTURED) and os.path.exists(BOMB_LIT):
+        # textured: native/texture_bomb.py's unwrapped bomb, its metal detail and lighting baked in,
+        # on a basic lit material
+        write_lit_textured("SM_Bomb", 220, load(BOMB_TEXTURED, "Bomb"), BOMB_LIT, "T_Bomb", "M_Bomb",
+                           force_hq=True, basic=BOMB_BASIC_LIT)            # at its full 1024
+    else:
+        bomb_colours = [tuple(linear_to_srgb(x) for x in m.diffuse_color[:3]) for m in bomb.materials]
+        write_mesh("SM_Bomb", 220, bomb, lambda k: tuple(c * METAL_BASE for c in bomb_colours[k]),
+                   material="M_StageMetal")
     write_mesh("SM_PlayerBall", 221, simple("Ball", lambda bm: bmesh.ops.create_icosphere(bm, subdivisions=3, radius=1.7)),
                lambda k: (0.12, 0.30, 0.95))
     write_mesh("SM_Emerald", 222, simple("Emerald", octahedron), lambda k: (0.10, 0.85, 0.95))
