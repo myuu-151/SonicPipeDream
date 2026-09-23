@@ -48,7 +48,7 @@ local SLIDE = 55.0              -- hands off, he slides back down toward the flo
 -- The jump is S2's: he leaves the surface as a ball and FLIES, straight, under gravity,
 -- across the pipe's section. Off the floor it is a stiff high hop; off the wall it throws
 -- him across to land on the other side, spinning as he goes. His way ROUND the pipe is kept
--- in it: his run round the pipe leaves with him as speed along the surface, so a jump while
+-- in it: his run round the pipe leaves with him as sideways speed, so a jump while
 -- running round flies off the way he was going (lower, the faster he goes, as the pipe curves
 -- up to meet him), and he lands with the speed he came in with. A held direction only nudges
 -- the flight sideways. The drop dash (jump again in the air) is straight down the screen.
@@ -75,7 +75,9 @@ local CARRY_FULL = 44.0         -- ...all of it from here up the wall
 local FALL_ANGLE = 64.0         -- past here (256ths; 64 is the wall gone vertical) the surface overhangs:
 local CLING = 0.45              -- with the steering let go he keeps his feet this long, then falls off it
 local FALL_TURN = 0.25          -- seconds to swing from feet-on-the-wall to upright as the fall starts
-local DIVE = 45.0               -- jump again in the air: straight back down onto the pipe, units a second
+local DIVE = 45.0               -- jump again in the air: straight back down onto the pipe, units a second,
+local DIVE_KEEP = 0.7           -- and this much of the speed he was already flying at on top: a drop dash
+                                -- out of a running jump is a dash, not a brake
 local BALL_SPIN = 12.0          -- radians a second: two turns a second in the air
 local REACH_FRAMES = 0.55       -- a hit: within this far along the track...
 local REACH_ANGLE = 11.0        -- ...this far round it (256ths)...
@@ -243,14 +245,15 @@ function SpecialStage:LeaveSurface(push, held)
     self.vx, self.vy = self.nx * push * JUMP_START, self.ny * push * JUMP_START
     self.push, self.ramp = push * (1.0 - JUMP_START), 0.0     -- what is still to come, and how far along
     self.gravity = GRAVITY + (WALL_GRAVITY - GRAVITY) * wall
-    -- HIS RUN ROUND THE PIPE GOES WITH HIM, as speed: along the surface where he left it, as
-    -- fast as he was going round. The flight is then an ordinary throw -- a straight arc under
-    -- gravity. (It used to be the whole section turning under him in the air, at his steering
-    -- speed: a throw across the pipe curled into a spiral, and the speed he landed with had
-    -- nothing to do with the way he had flown.)
+    -- HIS RUN ROUND THE PIPE GOES WITH HIM, as SIDEWAYS speed: the part of it across the
+    -- screen. The flight is then an ordinary throw -- a straight arc under gravity. (It used to
+    -- be the whole section turning under him in the air, at his steering speed: a throw across
+    -- the pipe curled into a spiral, and the speed he landed with had nothing to do with the way
+    -- he had flown.) Only the sideways part: all of it off the floor, little of it up a wall.
+    -- Given the whole of it, a jump from a wall he was running up launched him up past the rim
+    -- into the sky.
     local omega = self.data.angle_00_side * self.steer * TWO_PI / 256.0      -- radians a second, in t
     self.vx = self.vx + r * omega * math.cos(t)
-    self.vy = self.vy + r * omega * math.sin(t)
     self.takeoffSteer = math.abs(self.steer)
     self.height = radius - r
     self.falling = (push <= 0.0)
@@ -972,7 +975,10 @@ function SpecialStage:Tick(deltaTime)
             -- wherever he is, onto the pipe below him -- and his run round the pipe is kept for
             -- when he lands. It used to go away from the pipe's middle, which is down only from
             -- over the floor: from up a wall it threw him sideways into that wall.
-            self.vx, self.vy = 0.0, -DIVE
+            -- As fast as DIVE, and faster the faster he was flying: at a flat 45 it was a jolt of
+            -- speed out of a standing hop but a brake out of a running jump.
+            local speed = math.sqrt(self.vx * self.vx + self.vy * self.vy)
+            self.vx, self.vy = 0.0, -(DIVE + DIVE_KEEP * speed)
             self.push, self.diving = 0.0, true
             self.diveSteer = self.steer
         end
