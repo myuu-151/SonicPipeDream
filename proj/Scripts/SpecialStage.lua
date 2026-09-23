@@ -89,12 +89,9 @@ local BOUNCE = true
 local BOUNCE_FIRST = 37.5       -- the first (about 4 units up)...
 local BOUNCE_STEP = 9.5         -- ...each after it this much faster (6, then 9: a jump's height)...
 local BOUNCE_TOP = 66.0         -- ...up to this (about 12 units: past a jump, still inside the pipe)
--- AND TIMING IS REACH: the press that asks for the next drop dash, if it comes near the top of the
--- bounce, sends the next bounce straight to BOUNCE_TOP. Near the top = moving at no more than this
--- much of the speed the bounce left the pipe at, rising or falling (the last 30% of the rise and
--- the first 30% of the fall). Only a bounce's FIRST press counts, so mashing earns nothing. The
--- drop dash itself still goes at the top however early it was asked for.
-local BOUNCE_TIMING = 0.3
+-- AND HOLDING IS REACH: jump still HELD down as he hits the pipe sends the bounce straight to
+-- BOUNCE_TOP. Tapped (let go before he lands), it is one step up from the last, as ever. The drop
+-- dash itself still goes at the top of a bounce however early it was asked for.
 local BOUNCE_GRAVITY = 1.6      -- times GRAVITY while bouncing
 -- and the ball squashes and stretches as a tennis ball does (visual only): tall as it drops, flat
 -- as it hits, then springing tall and wobbling back to round
@@ -580,6 +577,7 @@ function SpecialStage:Restart()
         self.testDive = tonumber(os.getenv("S2_AUTODIVE") or "")
         self.testDiveAt = self.testDive
         self.testBounces = tonumber(os.getenv("S2_AUTOBOUNCES") or "") or 0
+        self.testHold = os.getenv("S2_AUTOHOLD") ~= nil           -- as if jump were held down
     end
     if (os ~= nil and os.getenv ~= nil and os.getenv("S2_TEST_RINGS") ~= nil) then
         self.rings = tonumber(os.getenv("S2_TEST_RINGS")) or 0
@@ -1001,8 +999,7 @@ function SpecialStage:Tick(deltaTime)
     local autoJump = false
     -- A BOUNCE CANNOT BE CUT SHORT: in one, a press on the way up is REMEMBERED and the drop dash
     -- goes at the top (so every bounce gets its full height, however early it was asked for). Out
-    -- of a jump it is there at once, as ever. When in the bounce the first press came decides how
-    -- high the next one goes (BOUNCE_TIMING).
+    -- of a jump it is there at once, as ever. Held until he lands, the next bounce goes all the way.
     local inBounce = self.bounceClock ~= nil
     local rising = inBounce and self.vy > 0.0
     if (self.testJump ~= nil and self.frame >= self.testJump) then autoJump, self.testJump = true, nil end
@@ -1011,9 +1008,8 @@ function SpecialStage:Tick(deltaTime)
         if (self.testBounces > 0) then self.testBounces, self.testDive = self.testBounces - 1, self.testDiveAt end
     end
     local pressed = not locked and (Input.IsKeyJustDown(Key.Space) or autoJump)
-    if (pressed and inBounce and not self.diving and self.bouncePress == nil) then
-        -- the bounce's first press: how near the top it was
-        self.bouncePress = 1.0 - math.abs(self.vy) / math.max(1.0, self.bounceLaunch or 1.0)
+    if (pressed and inBounce and not self.diving) then
+        self.bouncePress = true                 -- remembered: the drop dash goes at the top
     end
     local diveNow = not locked and self.height > 0.0 and not self.diving and not rising and
                     (pressed or (inBounce and self.bouncePress ~= nil))
@@ -1032,8 +1028,6 @@ function SpecialStage:Tick(deltaTime)
             self.vx, self.vy = 0.0, -(DIVE + DIVE_KEEP * speed)
             self.push, self.diving = 0.0, true
             self.diveSteer = self.steer
-            -- a press near the top of a bounce: the next one goes all the way (see BOUNCE_TIMING)
-            self.timedDive = inBounce and (self.bouncePress or 0.0) >= 1.0 - BOUNCE_TIMING
             self.diveClock, self.bounceClock, self.bouncePress = 0.0, nil, nil
         end
     end
@@ -1095,17 +1089,17 @@ function SpecialStage:Tick(deltaTime)
                 self:LeaveSurface(0.0, true)
                 self.falling, self.push = false, 0.0
                 self.nx, self.ny = 0.0, 1.0
-                -- one step up from the last bounce -- or, timed at the top, all the way
+                -- one step up from the last bounce -- or, jump held down as he lands, all the way
                 local up = (self.bounces > 1) and (self.bounceLaunch or BOUNCE_FIRST) + BOUNCE_STEP or BOUNCE_FIRST
-                if (self.timedDive) then up = BOUNCE_TOP end
+                local held = Input.IsKeyDown(Key.Space)
+                if (self.testLog) then held = self.testHold end         -- (a test: the keyboard is not the player's)
+                if (held) then up = BOUNCE_TOP end
                 self.vy = math.min(BOUNCE_TOP, up)
-                self.bounceLaunch, self.timedDive = self.vy, false
+                self.bounceLaunch = self.vy
                 self.gravity = GRAVITY * BOUNCE_GRAVITY
                 self.bounceClock = 0.0
                 self:Sound("Jump")
                 if (self.testLog) then print(string.format("BOUNCE %d angle %.1f steer %.1f up %.1f", self.bounces, self.angle, self.steer, self.vy)) end
-            else
-                self.timedDive = false
             end
         else
             self.height = radius - r
