@@ -233,13 +233,21 @@ with the game's own steering (the wind-up included), reach, jumps and bombs.
 * **Checking** (`native/solve_stages.py`, `SOLVER_MODEL=strict|real|generous`): every stage,
   every check, against the running total.
 
-**Playing a marathon (PC).** Until zones are built on the fly, one is made ahead of time and
-played as a very long stage: `gen_stage.py -- marathon 6 seed 1` (18 checks, difficulty 2 to
-10.5), then `export_to_octave.py -- marathon 1` writes `StageDataMarathon.lua`. MARATHON on the
-menu plays it (open for testing; it is meant to wait for the seventh emerald). A zone's third
-check leads to an item -- the chaos emerald, for now -- and THE HOLD: the thumbs-up, the camera
-on him, on down a long straight (`HOLD_PLAYS`), and the next zone's colours switch in half way
-through it. A failed check ends the run. The GameCube keeps MARATHON shut.
+**Playing a marathon (PC): a new one every run.** Until zones are built in the engine, they
+come from a POOL made ahead of time: `gen_stage.py -- marathon 8 seed <n>` for several seeds (each
+zone of a marathon is built from nothing but its own key, so every seed gives a new version of
+every zone), then `export_to_octave.py -- zones <seed ...>` writes each zone on its own
+(`MarathonZone_<zone>_<seed>.lua`, in the zone's own space) and `MarathonPool.lua` listing them.
+Each run, `SpecialStage:BuildMarathon` takes one version of every zone at random, in order -- zone
+1 always first and easiest, each after it harder -- lays them end to end (each zone's start set on
+the last one's end), and gives each zone a colour theme at random, never the last one's. Every
+section of every version keeps the check rule, so every run can be cleared. Now: seeds 1 and
+101-104, five versions of zones 1-6 and four of zones 7-8 -- about 250,000 runs before the colour
+themes. More seeds, more versions: generate, then export them all again with `-- zones`.
+A zone's third check leads to an item -- the chaos emerald, for now -- and THE HOLD: the
+thumbs-up, the camera on him, on down a long straight (`HOLD_PLAYS`), and the next zone's colours
+switch in half way through it. A failed check ends the run. MARATHON is always open on the PC;
+the GameCube keeps it shut.
 
 ## Two rulebooks, kept apart
 

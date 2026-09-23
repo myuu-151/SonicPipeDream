@@ -220,6 +220,16 @@ local function QuatFromAxes(x, y, z)
     return Vec(qx, qy, qz, qw)
 end
 
+-- Quaternions as plain {x, y, z, w} tables, for laying a marathon's zones end to end.
+local function QuatT(q) return { q.x, q.y, q.z, q.w } end
+local function QuatMul(a, b)
+    return { a[4] * b[1] + a[1] * b[4] + a[2] * b[3] - a[3] * b[2],
+             a[4] * b[2] - a[1] * b[3] + a[2] * b[4] + a[3] * b[1],
+             a[4] * b[3] + a[1] * b[2] - a[2] * b[1] + a[3] * b[4],
+             a[4] * b[4] - a[1] * b[1] - a[2] * b[2] - a[3] * b[3] }
+end
+local function QuatConj(q) return { -q[1], -q[2], -q[3], q[4] } end
+
 -- Something whose own X is forward and whose own Y is up (every exported mesh).
 local function FacingQuat(forward, up)
     return QuatFromAxes(forward, up, Cross(forward, up))
@@ -403,8 +413,12 @@ function SpecialStage:LoadStage(n)
     local world = self:GetWorld()
     self:ClearStage()
     self.stage = n
-    Script.Require("StageData" .. n)
-    self.data = _G["StageData" .. n]
+    if (n == "Marathon") then
+        self.data = self:BuildMarathon()        -- a new one every run
+    else
+        Script.Require("StageData" .. n)
+        self.data = _G["StageData" .. n]
+    end
     if (self.data == nil) then          -- a build that ships fewer stages than seven
         self.stage = 1
         Script.Require("StageData1")
@@ -510,6 +524,76 @@ function SpecialStage:LoadStage(n)
     -- up a change of `sky` on its next tick.
     if (TheSky ~= nil and self.data.sky ~= nil) then TheSky.sky = self.data.sky end
     self:Restart()
+end
+
+-- ------------------------------------------------------------------ a marathon, made for this run
+-- MarathonPool.lua lists, for each zone, the versions of it there are (MarathonZone_<zone>_<seed>,
+-- written by export_to_octave.py -- zones, each in its own space). Every run takes ONE of each, at
+-- random, in order -- zone 1 is always the first and easiest, and each after it harder, whichever
+-- version it is -- and lays them END TO END: each zone's start set down exactly on the last one's
+-- end, turned to carry on from it (the generator builds every zone from nothing, at the origin, so
+-- any version follows any other). Each zone gets a colour theme at random, never the last one's.
+-- The result is a stage table like any other, so everything else plays it as it plays a stage.
+function SpecialStage:BuildMarathon()
+    Script.Require("MarathonPool")
+    local pool = MarathonPool
+    if (pool == nil or pool.zones == nil or #pool.zones == 0) then return nil end
+    if (os ~= nil and os.time ~= nil) then math.randomseed(os.time(), math.floor((os.clock() or 0) * 1000)) end
+    local data = { name = "Marathon", stage = "Marathon", marathon = true, step = pool.step,
+                   pipe_radius = pool.pipe_radius, hover = pool.hover, angle_00_side = pool.angle_00_side,
+                   arch = pool.arch, palette_skies = pool.palette_skies, pieces = {}, sections = {}, path = {} }
+    local offset, quota, lastPalette = 0, 0, nil
+    local endPos, endF, endU, endL = nil, nil, nil, nil
+    local picked = {}
+    for z, seeds in ipairs(pool.zones) do
+        local seed = seeds[math.random(#seeds)]
+        local name = "MarathonZone_" .. z .. "_" .. seed
+        Script.Require(name)
+        local zone = _G[name]
+        picked[#picked + 1] = seed
+        -- the zone's own start, and where it goes: the last zone's end (the first stays put)
+        local s0 = zone.path[1]
+        local o0, f0, u0 = { s0[1], s0[2], s0[3] }, { s0[4], s0[5], s0[6] }, { s0[7], s0[8], s0[9] }
+        local l0 = Cross(f0, u0)
+        local pE, fE, uE, lE = endPos or o0, endF or f0, endU or u0, endL or l0
+        local function Turn(v) return Add(Add(Scale(fE, Dot(v, f0)), Scale(uE, Dot(v, u0))), Scale(lE, Dot(v, l0))) end
+        local function Put(p) return Add(pE, Turn({ p[1] - o0[1], p[2] - o0[2], p[3] - o0[3] })) end
+        local turnQ = QuatMul(QuatT(QuatFromAxes(fE, uE, lE)), QuatConj(QuatT(QuatFromAxes(f0, u0, l0))))
+        local palette
+        repeat palette = math.random(7) until palette ~= lastPalette
+        lastPalette = palette
+
+        for _, piece in ipairs(zone.pieces) do
+            data.pieces[#data.pieces + 1] = { mesh = piece.mesh, gloss = piece.gloss, pos = Put(piece.pos),
+                                              quat = QuatMul(turnQ, piece.quat), first_frame = piece.first_frame + offset }
+        end
+        for i, e in ipairs(zone.path) do
+            if (z == 1 or i > 1) then           -- the join is one frame, the last zone's end
+                local p = Put({ e[1], e[2], e[3] })
+                local f = Turn({ e[4], e[5], e[6] })
+                local u = Turn({ e[7], e[8], e[9] })
+                data.path[#data.path + 1] = { p[1], p[2], p[3], f[1], f[2], f[3], u[1], u[2], u[3] }
+            end
+        end
+        for _, sec in ipairs(zone.sections) do
+            quota = quota + sec.asks
+            local objects = {}
+            for k, o in ipairs(sec.objects) do objects[k] = { o[1] + offset, o[2], o[3] } end
+            data.sections[#data.sections + 1] = {
+                first_frame = sec.first_frame + offset, check_frame = sec.check_frame + offset,
+                last_frame = sec.last_frame + offset, quota = quota, asks = sec.asks, rings = sec.rings,
+                leads_to = sec.leads_to, objects = objects, palette = palette }
+        end
+        offset = offset + zone.frames
+        local last = data.path[#data.path]
+        endPos, endF, endU = { last[1], last[2], last[3] }, { last[4], last[5], last[6] }, { last[7], last[8], last[9] }
+        endL = Cross(endF, endU)
+    end
+    data.frames = offset
+    data.palette = data.sections[1].palette
+    data.sky = data.palette_skies[data.palette]
+    print("MARATHON zones from seeds " .. table.concat(picked, " "))
+    return data
 end
 
 -- What LoadStage spawned, taken down again. The pooled ring and bomb nodes are NOT destroyed:

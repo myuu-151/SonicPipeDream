@@ -81,6 +81,11 @@ STAGE = int(args[0]) if args and args[0].isdigit() else 1
 # `-- marathon <seed>`: a marathon gen_stage.py made ahead of time (Marathon_seed<seed>.json), written
 # as StageDataMarathon.lua -- for playing one on the PC, where the zones need not be built on the fly.
 MARATHON_SEED = int(args[1]) if len(args) > 1 and args[0] == "marathon" else None
+# `-- zones <seed> [<seed> ...]`: the marathons of those seeds cut into their ZONES, each written on its
+# own (MarathonZone_<zone>_<seed>.lua, in the zone's own space), and MarathonPool.lua listing them all.
+# The game draws one of each zone at random every run and lays them end to end (SpecialStage.lua,
+# BuildMarathon), so every run is a new one and each zone keeps its place in the climb.
+ZONE_SEEDS = [int(a) for a in args[1:]] if args and args[0] == "zones" else None
 sys.argv = sys.argv[:sys.argv.index("--") + 1] if "--" in sys.argv else sys.argv   # gen_stage reads argv too
 
 import gen_random_level as grl
@@ -571,8 +576,80 @@ def checkers(number, mesh_name, slots):
     return colour_of_face
 
 
+def write_zones(seeds):
+    """Each zone of each seed's marathon as a table of its own, in the zone's own space: the
+    generator builds every zone from nothing but its key, at the origin, so any version of zone 3
+    follows any version of zone 2 (gen_stage.py, THE HOLD)."""
+    from gen_stage import SECTIONS_PER_ZONE
+    paths = piece_paths()
+    scripts = os.path.join(PROJ, "Scripts")
+    for seed in seeds:
+        name = "Marathon_seed%d" % seed
+        data = json.load(open(os.path.join(STAGES, name + ".json"), encoding="utf-8"))
+        for zi, zone in enumerate(data["zones"]):
+            names = data["pieces"][zone["first_piece"]:zone["first_piece"] + zone["pieces"]]
+            chain = ChainPath([paths[n] for n in names])
+            piece_list = []
+            for piece, (start, origin, path) in zip(names, chain.parts):
+                q = origin.to_quaternion()
+                piece_list.append(dict(mesh="SM_Piece_%s_P" % piece, gloss="SM_Piece_%s_Gloss_P" % piece,
+                                       pos=list(to_octave(origin.translation)), quat=[q.x, q.z, -q.y, q.w],
+                                       first_frame=start / rm.STEP))
+            frames = int(math.floor(chain.length / rm.STEP)) + 1
+            path_list = []
+            for f in range(frames + 1):
+                m = chain.frame(min(f * rm.STEP, chain.length))
+                path_list.append(list(to_octave(m.translation)) + list(to_octave(m.col[0].xyz)) +
+                                 list(to_octave(m.col[2].xyz)))
+            f0 = zone["first_frame"]
+            f0_objects = int(round(f0))           # (the generator shifted the objects by the rounded frame)
+            sections = []
+            for sec in data["sections"][zi * SECTIONS_PER_ZONE:(zi + 1) * SECTIONS_PER_ZONE]:
+                sections.append(dict(first_frame=sec["first_frame"] - f0, check_frame=sec["check_frame"] - f0,
+                                     last_frame=sec["last_frame"] - f0, asks=sec["asks"], rings=sec["rings"],
+                                     leads_to=sec["leads_to"], difficulty=sec["difficulty"],
+                                     best_line=sec.get("best_line"),
+                                     objects=[[o[0] - f0_objects, o[1], 1 if o[2] == rm.BOMB else 0]
+                                              for o in sec["objects"]]))
+            table = dict(zone=zi + 1, seed=seed, frames=frames, pieces=piece_list, sections=sections, path=path_list)
+            var = "MarathonZone_%d_%d" % (zi + 1, seed)
+            out = os.path.join(scripts, var + ".lua")
+            open(out, "w", encoding="ascii", newline="\n").write(
+                "-- Written by native/export_to_octave.py from %s.json, zone %d, in the zone's own space.\n"
+                "-- Do not edit by hand. See MarathonPool.lua.\n%s = %s\n" % (name, zi + 1, var, lua(table)))
+            print("zone %d of seed %d -> %s (%d pieces, %d frames, %.0f KB)" % (
+                zi + 1, seed, var, len(piece_list), frames, os.path.getsize(out) / 1024.0))
+
+    # the pool: every zone written so far, whatever run wrote it
+    import re as _re
+    zones = {}
+    for f in sorted(os.listdir(scripts)):
+        m = _re.match(r"MarathonZone_(\d+)_(\d+)\.lua$", f)
+        if m:
+            zones.setdefault(int(m.group(1)), []).append(int(m.group(2)))
+    stage7 = json.load(open(os.path.join(STAGES, "Stage7_seed%d.json" % GAUNTLET_SEED[7]), encoding="utf-8"))
+    arch = stage7["sections"][0]["ring_check"]["rainbow_arch"]
+    pool = dict(
+        step=rm.STEP, pipe_radius=rm.PIPE_RADIUS, hover=rm.HOVER,
+        angle_00_side=-1 if rm.ANGLE_00_SIDE == "right" else 1,
+        arch=dict(rings=arch["rings"], reach=rm.PIPE_RADIUS + 1.6, from_deg=12.0, ring_scale=arch["ring_scale"],
+                  toward_player=0.72, steps_per_second=arch["steps_per_second"]),
+        palette_skies=[stage_palettes.palette(n)["sky"] for n in sorted(stage_palettes.S2_LINE)],
+        zones=[zones[z] for z in sorted(zones)])
+    out = os.path.join(scripts, "MarathonPool.lua")
+    open(out, "w", encoding="ascii", newline="\n").write(
+        "-- Written by native/export_to_octave.py -- zones <seed ...>. Do not edit by hand.\n"
+        "-- zones[z] = the seeds whose zone z there is a MarathonZone_<z>_<seed>.lua of. A run takes one of\n"
+        "-- each, at random, in order: zone 1 is always the first and easiest.\n"
+        "MarathonPool = %s\n" % lua(pool))
+    print("pool -> %s: %s" % (out, ", ".join("zone %d x%d" % (z, len(zones[z])) for z in sorted(zones))))
+
+
 def main():
     os.makedirs(ASSETS, exist_ok=True)
+    if ZONE_SEEDS is not None:
+        write_zones(ZONE_SEEDS)
+        return
     if MARATHON_SEED is not None:
         name = "Marathon_seed%d" % MARATHON_SEED
     else:
