@@ -4,6 +4,9 @@
 
 **Sonic 2's special stages, rebuilt in 3D.**
 
+> **In active development.** Sonic Pipe Dream is a work in progress: stages, controls and the way
+> it plays may change from one build to the next, and some features are not there yet.
+
 Race Sonic down a twisting half-pipe that hangs in a sky full of shifting diamonds. Grab the
 rings, dodge the bombs, and reach each ring check with enough rings to pass it. Get through
 all three checks in a stage and the chaos emerald is yours.
@@ -43,7 +46,7 @@ them, from single lines to spirals and bomb walls.
 
 ## Platforms
 
-- **Windows**, from this repo.
+- **Windows**: download the latest build from [Releases](https://github.com/myuu-151/SonicPipeDream/releases), unzip it and run `Sonic2Special3D.exe`.
 - **GameCube**, as a disc image: [Sonic Pipe Dream (GameCube)](https://github.com/myuu-151/SonicPipeDream-GC).
 
 ## More
