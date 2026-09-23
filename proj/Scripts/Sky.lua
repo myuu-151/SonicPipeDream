@@ -16,6 +16,8 @@
 
 Sky = {}
 
+Script.Require("PadInput")      -- a controller, folded into the keys the scripts ask about
+
 -- Material texture slots, 1-based: the stars (with the sky gradient under them),
 -- then the diamonds.
 local STAR_SLOT = 1
