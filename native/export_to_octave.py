@@ -51,26 +51,28 @@ from mathutils import Matrix, Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-# THE CHECKS, where the generator's cannot be met. gen_stage.py asks each check for a share of the
-# rings its section holds, as if every ring could be taken. native/solve_stages.py found stage 7's
-# cannot: the rings at some moments lie further apart round the pipe than he can reach, and the
-# best line there is is about 104, 177 and 278 rings (of 147, 191 and 294) where its checks asked
-# for 140, 180 and 280. These are what each check newly asks instead -- still close to the best a
-# line can do (about 90% of it, with the ordinary steering), so the stage stays very hard. The
-# layout is the generator's, unchanged; only the checks' numbers are set here. Rerun the solver
-# after changing them.
-CHECK_ASKS = {7: (90, 160, 230)}
-
-
+# THE CHECKS, held to what a line can take (ring_solver.py's rule): no check asks for more than
+# TAKEABLE_SHARE of the rings the best clean line through its section takes. gen_stage.py makes
+# new stages that way; this holds the stages already made to it too. Stage 7 was made when rings
+# on the pipe were the measure, and its checks asked for more than any line takes (140, 180 and
+# 280 where the best lines take 101, 177 and 278) -- so here each ask is the stage's own or the
+# cap, whichever is lower. The layout is the generator's, untouched.
 def check_numbers(stage, secs):
     """(quota, asks) for each check: the running total asked for, and what the check itself asks."""
-    asks = CHECK_ASKS.get(stage)
-    if asks is None:
-        return [(sec["quota"], sec["asks"]) for sec in secs]
-    out, total = [], 0
-    for a in asks:
-        total += a
-        out.append((total, a))
+    import ring_solver as rsol
+    out, total, prev_check = [], 0, None
+    for sec in secs:
+        best = sec.get("best_line")
+        if best is None:
+            f0 = sec["first_frame"] if prev_check is None else min(
+                sec["first_frame"], prev_check + rsol.THUMBS_TIME * rsol.SPEED)
+            best = rsol.best_line([(o[0], o[1], o[2]) for o in sec["objects"]], f0, sec["check_frame"]) or 0
+        asks = min(sec["asks"], rsol.ask_cap(best))
+        if asks < sec["asks"]:
+            print("  check %d: asks %d, not %d -- the best line takes %d" % (len(out) + 1, asks, sec["asks"], best))
+        total += asks
+        out.append((total, asks))
+        prev_check = sec["check_frame"]
     return out
 
 

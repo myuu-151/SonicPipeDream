@@ -26,11 +26,17 @@ random, never the same twice running. The SKY is only named here -- which of the
 skies goes with the palette -- since the skies are Octave's textures, not Blender's.
 
 THE GUARANTEE. A section always holds enough rings to pass its own check, from nothing,
-and by a margin: rings on offer >= rings it newly asks for x its forgiveness. The generator
-does not hope for this; it pads the section with more track until it is true, and refuses
-to write a stage where it is not. It holds the other way too: spare rings over the promise
-are taken back out, so a tight section stays tight. Low difficulties are generous and
-roomy; high ones ask for far more and leave next to nothing spare, so they run LONGER.
+and by a margin -- counted in rings a line can TAKE, not rings on the pipe (ring_solver.py):
+    each module's takeable rings, added up  >=  what the check newly asks x its forgiveness
+    the best clean line through the section x TAKEABLE_SHARE  >=  what the check newly asks
+The first steers the dealing (a module's count is solved once and kept); the second is the
+whole section solved, bombs, neighbours and all, after it is dealt. The generator does not
+hope for either; it pads the section with more track until both are true, and refuses to
+write a stage where they are not. (Rings on the pipe were the measure once, and stage 7 came
+out impossible: its rings lie further apart round the pipe than he can reach, and no line
+took more than about 70% of them.) It holds the other way too: spare takeable rings over the
+promise are taken back out, so a tight section stays tight. Low difficulties are generous
+and roomy; high ones ask for far more and leave next to nothing spare, so they run LONGER.
 
 Two rulebooks, kept apart on purpose:
     measured   native/ring_rulebook.json, from the original stages: which modules a stage
@@ -50,6 +56,7 @@ import math
 import os
 import random
 import sys
+import time
 
 import bmesh
 import bpy
@@ -59,6 +66,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import gen_random_level as grl
 import ring_modules as rm
+import ring_solver as rsol
 import stage_palettes
 from gen_rings_on_pieces import BOMB_BLEND, RING_BLEND, ChainPath, PiecePath, lay
 
@@ -78,8 +86,10 @@ OUT_DIR = os.path.abspath(os.path.join(HERE, "..", "external", "stages"))
 #                emerald. STEEP: stage 7 asks for more than four times what stage 1 does.
 #                (The original's barely climb, 130 to 190, and are kept in the rulebook as
 #                "quota_alone" / "quota_team"; set QUOTAS = "original" to play those.)
-#   FORGIVENESS  rings on offer in a section, as a multiple of what its check newly asks.
-#                2.2: miss more than half and still pass. 1.05: miss one in twenty and fail.
+#   FORGIVENESS  rings a line can take in a section (each module's, added up), as a multiple
+#                of what its check newly asks. 2.2: miss more than half and still pass.
+#                1.05: miss one in twenty and fail. And whatever it says, the best line through
+#                the whole section must take ask / TAKEABLE_SHARE (ring_solver.py).
 #   RING_RATE    rings per frame of track. The original's wanders (stage 3 is 0.27, stage 5
 #                0.58); this rises steadily, so later stages come at you faster.
 #
@@ -489,7 +499,7 @@ def top_up(laid, window, pool, target, rng):
     ring_only = [p for on in sorted(pool) for p in pool[on] if p["module"] != "Ring" and p["objects"] >= 4]
     ring_only = [p for p in ring_only if all(k == rm.RING for _, _, k in module_of(p, random.Random(0))[0])]
     for _ in range(200):
-        if rings_in(laid) >= target or not ring_only:
+        if takeable_in(laid) >= target or not ring_only:
             break
         taken = sorted((f, f + rm.length(m)) for m, f, _ in laid)
         gaps, cursor = [], f0
@@ -515,8 +525,8 @@ def trim(laid, target, rng):
     x1.4 is not stage 7 any more. Bombs and mixed shapes are left where they are."""
     laid = list(laid)
     while True:
-        spare = rings_in(laid) - target
-        loose = [x for x in laid if all(k == rm.RING for _, _, k in x[0]) and len(x[0]) <= spare]
+        spare = takeable_in(laid) - target
+        loose = [x for x in laid if all(k == rm.RING for _, _, k in x[0]) and takeable(x[0], x[2]) <= spare]
         if not loose:
             return laid
         laid.remove(rng.choice(loose))
@@ -527,6 +537,32 @@ USED = {}                   # module -> times laid, for the report; reset each t
 
 def rings_in(laid):
     return sum(k == rm.RING for m, _, _ in laid for _, _, k in m)
+
+
+TAKE = {}                   # (module, angle put at) -> rings a line takes from it alone
+
+
+def takeable(m, at):
+    """The rings a line can take from one module on its own, from wherever he comes in: solved
+    once for each shape and angle (ring_solver.py) and kept. A marathon deals the same shapes
+    over and over, so this is a table, not a search, after the first few zones."""
+    key = (tuple(m), at)
+    if key not in TAKE:
+        objs = [(f, signed(a + at), 1 if k == rm.BOMB else 0) for f, a, k in m]
+        TAKE[key] = rsol.best_line(objs, -1.0, rm.length(m) + 1.0, start="any") or 0
+    return TAKE[key]
+
+
+def takeable_in(laid):
+    return sum(takeable(m, at) for m, _, at in laid)
+
+
+def best_through(laid, f0, f1):
+    """The best clean line through a whole section, from the floor's centre line at f0 (where
+    control comes back) to the check at f1: the modules' counts added up cannot see a bomb in
+    the next module, or two shapes too far apart to take both."""
+    objs = [(first + f, signed(a + at), 1 if k == rm.BOMB else 0) for m, first, at in laid for f, a, k in m]
+    return rsol.best_line(objs, f0, f1, start="floor") or 0
 
 
 def bombs_in(laid):
@@ -641,6 +677,7 @@ def main():
     count = len(plan)
     for d in plan:
         d["target"] = int(math.ceil(d["asks"] * d["forgiveness"]))
+        d["best_needed"] = int(math.ceil(d["asks"] / rsol.TAKEABLE_SHARE))
         book = book_of(d["flavour"])
         bomb_share = 1.0 - sum(s["rings"] for s in book["sections"]) / float(
             sum(s["rings"] + s["bombs"] for s in book["sections"]))
@@ -655,13 +692,18 @@ def main():
         in from outside: not the random stream, not the decks, not where the last part ended.
         That is what lets the engine build a marathon zone on the fly -- see THE HOLD."""
         extra = [0] * len(part)
+        # takeable rings asked of a section's modules over its promise: raised when the whole
+        # section, solved, falls short (neighbours and bombs cost more than the modules alone
+        # show), or padding the track would only have been trimmed straight back to the promise
+        boost = [0] * len(part)
         lead = LEAD_IN if first else ZONE_LEAD_IN
+        began = time.time()
         for attempt in range(60):
             rng = random.Random("%s/%d" % (key, attempt))
             names, cuts, zones = ["Straight"] * (INTRO_STRAIGHTS if first else 0), [], []
             for k, d in enumerate(part):
                 room = rng.uniform(*MARATHON_ROOM) if MARATHON else 1.05
-                need = d["target"] / d["per_frame"] * room + (lead if k == 0 else 0)
+                need = (d["target"] + boost[k]) / d["per_frame"] * room + (lead if k == 0 else 0)
                 names += plan_section(d["rules"], rng, need, paths, extra[k])
                 emerald = d["leads_to"] == "EMERALD"
                 run_up, plays = (EMERALD_RUN_UP, EMERALD_PLAYS) if emerald else (CHECK_RUN_UP, CHECK_PLAYS)
@@ -673,7 +715,7 @@ def main():
             names = steer(names, rng)
             laid_names, origins, laid_pts, swaps = grl.generate(pieces, part[0]["rules"], rng, plan_names=names)
             if len(laid_names) < len(names):
-                print("  %s try %d: boxed itself in, dealing again" % (key, attempt + 1))
+                print("  %s try %d: boxed itself in, dealing again" % (key, attempt + 1), flush=True)
                 continue
 
             # where each piece sits, in frames from the start of this part
@@ -693,20 +735,38 @@ def main():
                 book = book_of(d["flavour"])
                 pool = pools.setdefault(d["flavour"], build_cards(rulebook, d["flavour"]))
                 laid = fill(window, pieces_at, book, d["ring_rate"], rng, decks, pool)
-                laid = trim(top_up(laid, window, pool, d["target"], rng), d["target"], rng)
+                goal = d["target"] + boost[k]
+                laid = trim(top_up(laid, window, pool, goal, rng), goal, rng)
                 sections.append(laid)
-                if rings_in(laid) < d["target"] and short is None:
+                if takeable_in(laid) < goal and short is None:
                     short = k
+            bests = []
+            if short is None:
+                # the whole of each section, solved: control comes back on the floor's centre
+                # line where the section starts (or the thumbs-up after the last check ends)
+                for k, d in enumerate(part):
+                    f0 = (starts[0] if k == 0 else
+                          min(starts[k], check_at[k - 1] + rsol.THUMBS_TIME * rsol.SPEED))
+                    bests.append(best_through(sections[k], f0, check_at[k]))
+                    if bests[-1] < d["best_needed"]:        # every short section at once: a try apiece was slow
+                        short = k if short is None else short
+                        boost[k] += int(math.ceil((d["best_needed"] - bests[-1]) * 1.25)) + 2
+                        extra[k] += 2 if k != short else 0     # (the first is padded below)
+                        print("  %s try %d: section %d's best line takes %d rings of the %d needed; padding it"
+                              % (key, attempt + 1, k + 1, bests[-1], d["best_needed"]), flush=True)
             if short is None:
                 break
-            print("  %s try %d: section %d offers %d rings of the %d promised; padding it"
-                  % (key, attempt + 1, short + 1, rings_in(sections[short]), part[short]["target"]))
+            if len(bests) <= short:
+                print("  %s try %d: section %d offers %d takeable rings of the %d promised; padding it"
+                      % (key, attempt + 1, short + 1, takeable_in(sections[short]), part[short]["target"] + boost[short]),
+                      flush=True)
             extra[short] += 2                         # pad that section, and deal again
         else:
             raise SystemExit("could not build %s to its guarantee in 60 tries" % key)
+        print("  %s: built in %d tries, %.0f s; best lines %s" % (key, attempt + 1, time.time() - began, bests), flush=True)
         return dict(names=laid_names, origins=origins, pts=laid_pts, swaps=swaps, cuts=cuts, zones=zones,
                     starts=starts, ends=ends, zone_first=zone_first, check_at=check_at,
-                    sections=sections, used=dict(USED), extra=extra, tries=attempt + 1, key=key)
+                    sections=sections, bests=bests, used=dict(USED), extra=extra, tries=attempt + 1, key=key)
 
     # A gauntlet stage is one part. A marathon is a part per zone, each built on its own and
     # then set down where the last one ended -- in the game the last one is gone by then.
@@ -717,7 +777,7 @@ def main():
         parts = [build_part(plan, NAME, first=True)]
 
     laid_names, origins, laid_pts, swaps, cuts, zones = [], [], [], [], [], []
-    starts, ends, zone_first, check_at, sections, extra = [], [], [], [], [], []
+    starts, ends, zone_first, check_at, sections, extra, bests = [], [], [], [], [], [], []
     used_all, tries, zone_info = {}, 0, []
     here, frame0 = Matrix.Identity(4), 0.0
     for z, part in enumerate(parts):
@@ -735,6 +795,7 @@ def main():
         zone_first += [frame0 + v for v in part["zone_first"]]
         check_at += [frame0 + v for v in part["check_at"]]
         sections += [[(m, first + int(round(frame0)), at) for m, first, at in laid] for laid in part["sections"]]
+        bests += part["bests"]
         extra += part["extra"]
         tries += part["tries"]
         for k, v in part["used"].items():
@@ -749,7 +810,8 @@ def main():
 
     # ---- the guarantee, checked rather than assumed --------------------------------
     for k, d in enumerate(plan):
-        assert rings_in(sections[k]) >= d["target"] >= d["asks"], "section %d breaks the guarantee" % (k + 1)
+        assert takeable_in(sections[k]) >= d["target"] >= d["asks"], "section %d breaks the guarantee" % (k + 1)
+        assert bests[k] * rsol.TAKEABLE_SHARE >= d["asks"], "section %d: no line takes enough" % (k + 1)
 
     # ---- the scene -----------------------------------------------------------------
     grl.build_scene(pieces, laid_names, origins, laid_pts)
@@ -870,6 +932,7 @@ def main():
             pieces=cuts[k] - (cuts[k - 1] if k else 0),
             difficulty=d["difficulty"], flavour=d["flavour"], forgiveness=d["forgiveness"],
             ring_rate=d["ring_rate"], quota=asked_so_far, asks=d["asks"], rings=rings, bombs=bombs,
+            takeable=takeable_in(sections[k]), best_line=bests[k],
             margin=round(rings / float(d["asks"]), 2), leads_to=d["leads_to"],
             palette=zone_palette[k // SECTIONS_PER_ZONE],
             palette_seed=palette_seed,
@@ -890,9 +953,11 @@ def main():
         print("  section %2d  difficulty %4.1f  %2d pieces %4.0f frames  %s"
               % (k + 1, s["difficulty"], b - a, s["last_frame"] - s["first_frame"],
                  " ".join(LETTER[n] for n in laid_names[a:b])))
-        print("              check: %4d rings%s | newly asks %3d | on offer %3d rings (x%.2f, promised x%.2f), %3d bombs"
+        print("              check: %4d rings%s | newly asks %3d | %3d rings, %3d takeable (x%.2f, promised x%.2f), "
+              "best line %3d (asks %.0f%% of it), %3d bombs"
               % (s["quota"], "" if s["leads_to"] in ("on",) or s["leads_to"].startswith("section") else " -> " + s["leads_to"],
-                 s["asks"], s["rings"], s["margin"], s["forgiveness"], s["bombs"]))
+                 s["asks"], s["rings"], s["takeable"], s["takeable"] / float(s["asks"]), s["forgiveness"],
+                 s["best_line"], 100.0 * s["asks"] / max(1, s["best_line"]), s["bombs"]))
     print("  colours: " + ", ".join("%s%s (sky %s)" % (
         "zone %d " % (z + 1) if MARATHON else "", stage_palettes.NAMES[pal], stage_palettes.SKY[pal][1])
         for z, pal in enumerate(zone_palette)))

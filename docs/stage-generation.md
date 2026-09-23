@@ -212,16 +212,26 @@ holds the other way too: rings over the promise are taken back out, so x1.05 doe
 out as x1.4 and quietly stop being stage 7. Every run prints, per section, what was asked,
 what is on offer, and the margin promised and met.
 
-**On offer is not the same as takeable.** The promise counts every ring in a section, but no
-line takes them all: at some moments rings lie further apart round the pipe than Sonic can
-reach. `native/solve_stages.py` finds the most rings a clean line (no bomb touched) can take
-in each section, with the game's own steering and reach, and checks the running total against
-each quota. It found stage 7 impossible at x1.05: its checks asked for 140, 180 and 280 where
-the best line takes about 104, 177 and 278. So stage 7's checks are set by hand in
-`export_to_octave.py` (`CHECK_ASKS`): 90, 160 and 230, about 90% of the best line with ordinary
-steering -- the layout is the generator's, untouched. Stages 1-5 pass with room; stage 6 needs
-the wound-up steering or jumps from the walls in its last section. Rerun the solver after
-changing a stage or its checks.
+**On offer is not the same as takeable.** The promise once counted every ring in a section,
+but no line takes them all: at some moments rings lie further apart round the pipe than Sonic
+can reach. Stage 7 came out impossible that way -- its checks asked for 140, 180 and 280 where
+the best line takes 101, 177 and 278. So the measure is now rings a line can TAKE, from
+`native/ring_solver.py`: dynamic programming over time, angle round the pipe and steering speed,
+with the game's own steering (the wind-up included), reach, jumps and bombs.
+
+* **The rule** (`ring_solver.TAKEABLE_SHARE`, 0.9): a check never asks for more than 90% of
+  what the best clean line through its section takes -- a tenth of the best to spare, or a bomb
+  and a few rings. Very hard at the top; never impossible.
+* **Making a stage** (`gen_stage.py`, and every marathon zone): each module's takeable rings
+  are solved once and kept, and the forgiveness margin is counted in those; then the whole
+  section is solved, neighbours and bombs and all, and padded and dealt again until its best
+  line reaches ask / 0.9. The JSON records both (`takeable`, `best_line`).
+* **Writing one for the game** (`export_to_octave.py`, `check_numbers`, and the GameCube's
+  export through it): each check asks for the stage's own number or the cap, whichever is
+  lower. The seven stages keep their layouts; only stage 6's last check (220 to 200) and stage
+  7's three (140, 180, 280 to 90, 155, 250) came down.
+* **Checking** (`native/solve_stages.py`, `SOLVER_MODEL=strict|real|generous`): every stage,
+  every check, against the running total.
 
 ## Two rulebooks, kept apart
 
