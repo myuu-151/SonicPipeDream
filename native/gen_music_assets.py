@@ -29,6 +29,7 @@ TRACKS = [
     # wav, asset name, uuid
     ("ss_intro.wav", "SW_SpecialStage_Intro", 0x51C0FFEE00300001),
     ("ss_loop.wav", "SW_SpecialStage_Loop", 0x51C0FFEE00300002),
+    ("stage1.wav", "SW_SpecialStage_Stage1", 0x51C0FFEE00300003),      # stage 1's own (SpecialStageMusic.lua)
 ]
 
 
