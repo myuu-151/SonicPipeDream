@@ -79,10 +79,24 @@ local FALL_TURN = 0.25          -- seconds to swing from feet-on-the-wall to upr
 local DIVE = 45.0               -- jump again in the air: straight back down onto the pipe, units a second,
 local DIVE_KEEP = 0.7           -- and this much of the speed he was already flying at on top: a drop dash
                                 -- out of a running jump is a dash, not a brake
--- A drop dash does not land: it BOUNCES back up off the pipe, this much of a jump, his run round
--- the pipe kept -- so he bounces along it. Jump again in the bounce and it is another drop dash,
--- and another bounce; leave it and he comes down from it and lands. (0: no bounce.)
-local BOUNCE = 0.8
+-- A drop dash does not land: it BOUNCES, like a tennis ball -- straight back up the screen, at once
+-- and at full speed (no build-up, as a jump has: that rounded the bottom of the bounce off), under
+-- stronger gravity, so it is quick and snappy rather than floaty. His run round the pipe is kept,
+-- so he bounces along it. Jump again in the bounce: another drop dash, another bounce. Leave it
+-- and he comes down from it and lands.
+local BOUNCE = true
+-- THE BOUNCE IS REACH: each one in a row goes higher than the last. Up the screen, units a second:
+local BOUNCE_FIRST = 37.5       -- the first (about 4 units up)...
+local BOUNCE_STEP = 9.5         -- ...each after it this much faster (6, then 9: a jump's height)...
+local BOUNCE_TOP = 66.0         -- ...up to this (about 12 units: past a jump, still inside the pipe)
+local BOUNCE_GRAVITY = 1.6      -- times GRAVITY while bouncing
+-- and the ball squashes and stretches as a tennis ball does (visual only): tall as it drops, flat
+-- as it hits, then springing tall and wobbling back to round
+local DROP_STRETCH = 0.18       -- taller by this as a drop dash falls
+local SQUASH = 0.42             -- flatter by this the instant it hits...
+local SQUASH_DAMP = 7.0         -- ...the wobble dying away this fast...
+local SQUASH_HZ = 4.5           -- ...at this many wobbles a second
+local SQUASH_TIME = 0.5         -- and done by then
 local BALL_SPIN = 12.0          -- radians a second: two turns a second in the air
 local REACH_FRAMES = 0.55       -- a hit: within this far along the track...
 local REACH_ANGLE = 11.0        -- ...this far round it (256ths)...
@@ -263,6 +277,7 @@ function SpecialStage:LeaveSurface(push, held)
     self.height = radius - r
     self.falling = (push <= 0.0)
     self.diving, self.cling, self.fallTime = false, 0.0, 0.0
+    self.bounceClock = nil                                    -- (a bounce sets its own, after this)
 end
 
 function SpecialStage:WrapAngle(angle)
@@ -536,6 +551,7 @@ function SpecialStage:Restart()
     self.angle = 0.0                -- 0 is the floor's centre line; it wraps at +-128
     self.steer = 0.0
     self.height = 0.0               -- off the pipe's surface
+    self.bounces = 0                -- drop dash bounces in a row
     self.cx, self.cy = 0.0, 0.0     -- in the air: where he is in the pipe's section, and
     self.vx, self.vy = 0.0, 0.0     -- how he is moving through it
     self.nx, self.ny = 0.0, 1.0     -- which way the jump pushed him, and how much of the push
@@ -977,8 +993,12 @@ function SpecialStage:Tick(deltaTime)
     -- jumping, and falling
     -- For testing the jump without playing: S2_AUTOJUMP=<frame> jumps there and logs the flight.
     local autoJump = false
+    -- A BOUNCE CANNOT BE CUT SHORT: in one, the drop dash waits until he has reached the top of it
+    -- (spammed, it goes at the peak, so every bounce gets its full height). Out of a jump it is
+    -- there at once, as ever.
+    local canDive = self.height > 0.0 and not self.diving and not (self.bounceClock ~= nil and self.vy > 0.0)
     if (self.testJump ~= nil and self.frame >= self.testJump) then autoJump, self.testJump = true, nil end
-    if (self.testDive ~= nil and self.height > 0.0 and not self.diving and self.fallTime >= self.testDive) then
+    if (self.testDive ~= nil and canDive and self.fallTime >= self.testDive) then
         autoJump, self.testDive = true, nil
         if (self.testBounces > 0) then self.testBounces, self.testDive = self.testBounces - 1, self.testDiveAt end
     end
@@ -986,7 +1006,7 @@ function SpecialStage:Tick(deltaTime)
         if (self.height <= 0.0) then
             self:LeaveSurface(JUMP, want ~= 0.0)
             self:Sound("Jump")
-        elseif (not self.diving) then
+        elseif (canDive) then
             -- THE DROP DASH (jump again in the air): straight DOWN, as the screen has it, from
             -- wherever he is, onto the pipe below him -- and his run round the pipe is kept for
             -- when he lands. It used to go away from the pipe's middle, which is down only from
@@ -997,6 +1017,7 @@ function SpecialStage:Tick(deltaTime)
             self.vx, self.vy = 0.0, -(DIVE + DIVE_KEEP * speed)
             self.push, self.diving = 0.0, true
             self.diveSteer = self.steer
+            self.diveClock, self.bounceClock = 0.0, nil
         end
     end
     if (self.height > 0.0) then
@@ -1025,6 +1046,8 @@ function SpecialStage:Tick(deltaTime)
         self.angle = self:WrapAngle(self.data.angle_00_side * t * 256.0 / TWO_PI)
         self.spin = self.spin + BALL_SPIN * dt
         self.fallTime = self.fallTime + dt
+        if (self.diving) then self.diveClock = (self.diveClock or 0.0) + dt end
+        if (self.bounceClock ~= nil) then self.bounceClock = self.bounceClock + dt end
         if (self.testLog) then
             print(string.format("AIR frame %.2f height %.3f angle %.1f cx %.2f cy %.2f vx %.2f vy %.2f%s", self.frame,
                                 radius - r, self.angle, self.cx, self.cy, self.vx, self.vy, self.diving and " DIVE" or ""))
@@ -1044,14 +1067,22 @@ function SpecialStage:Tick(deltaTime)
             end
             self.steer = math.max(-STEER_MAX, math.min(STEER_MAX, self.steer))
             if (self.testLog) then print(string.format("LAND angle %.1f steer %.1f", self.angle, self.steer)) end
-            local bounce = self.diving and BOUNCE > 0.0 and not locked
+            local bounce = self.diving and BOUNCE and not locked
             self.height, self.diving, self.falling = 0.0, false, false
+            self.bounceClock = nil
+            self.bounces = bounce and (self.bounces or 0) + 1 or 0      -- in a row; a plain landing ends it
             if (bounce) then
-                -- THE BOUNCE: straight back off the pipe where he hit it, his run round it going on
-                -- as sideways speed (LeaveSurface), so he bounces along the pipe, not on one spot.
-                self:LeaveSurface(JUMP * BOUNCE, true)
+                -- THE BOUNCE: off the pipe where he hit it, his run round it going on as sideways
+                -- speed (LeaveSurface), so he bounces along the pipe, not on one spot -- and straight
+                -- UP the screen at once, as the drop dash came straight down: a sharp V at the pipe.
+                self:LeaveSurface(0.0, true)
+                self.falling, self.push = false, 0.0
+                self.nx, self.ny = 0.0, 1.0
+                self.vy = math.min(BOUNCE_TOP, BOUNCE_FIRST + BOUNCE_STEP * (self.bounces - 1))
+                self.gravity = GRAVITY * BOUNCE_GRAVITY
+                self.bounceClock = 0.0
                 self:Sound("Jump")
-                if (self.testLog) then print(string.format("BOUNCE angle %.1f steer %.1f", self.angle, self.steer)) end
+                if (self.testLog) then print(string.format("BOUNCE %d angle %.1f steer %.1f up %.1f", self.bounces, self.angle, self.steer, self.vy)) end
             end
         else
             self.height = radius - r
@@ -1110,8 +1141,37 @@ function SpecialStage:Tick(deltaTime)
         end
         place = Add(pos, Add(Scale(left, x), Scale(upHere, self.data.pipe_radius + y)))
     end
-    self.player:SetWorldPosition(ToVec(place))
+    -- THE TENNIS BALL: how tall the ball is, up the screen (1 round). Its width goes the other way,
+    -- so it keeps its volume, and its bottom stays where it was, so a squash sits on the pipe.
+    local tall = 1.0
     if (airborne and not self.falling) then
+        if (self.diving) then
+            tall = 1.0 + DROP_STRETCH * math.min(1.0, (self.diveClock or 0.0) / 0.08)
+        elseif (self.bounceClock ~= nil and self.bounceClock < SQUASH_TIME) then
+            local t = self.bounceClock
+            tall = 1.0 - SQUASH * math.exp(-SQUASH_DAMP * t) * math.cos(TWO_PI * SQUASH_HZ * t)
+        end
+    end
+    if (tall ~= 1.0) then
+        local _, _, upHere = self:TrackAt(self.frame)
+        place = Add(place, Scale(upHere, BALL_RADIUS * (tall - 1.0)))
+    end
+    self.player:SetWorldPosition(ToVec(place))
+    if (tall ~= 1.0) then
+        -- Squashed along the screen's up: the ball's own up turned to it, and no roll meanwhile (a
+        -- roll would carry the squash round with it; the ball is a plain sphere, so it is not missed).
+        local _, fwdHere, upHere = self:TrackAt(self.frame)
+        self.player:SetWorldRotationQuat(FacingQuat(fwdHere, upHere))
+        local wide = 1.0 / math.sqrt(tall)
+        self.player:SetScale(Vec(wide, tall, wide))
+        self.squashed = true
+    elseif (self.squashed) then
+        self.player:SetScale(Vec(1.0, 1.0, 1.0))
+        self.squashed = false
+    end
+    if (tall ~= 1.0) then
+        -- (turned above)
+    elseif (airborne and not self.falling) then
         -- The ball rolls THE WAY IT IS GOING: about the line square to its flight (on along the
         -- track, and across and up or down the pipe's section) and to the track's up. It used to
         -- roll forward only, whichever way he flew, so a throw across the pipe looked like a spin
