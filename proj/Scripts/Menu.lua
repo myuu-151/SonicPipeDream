@@ -35,8 +35,8 @@ Script.Require("MenuLayout")            -- where every piece goes; written by ge
 local WHITE = Vec(1.0, 1.0, 1.0, 1.0)
 
 -- Which items can be chosen. Marathon is switched on by the game when the gauntlet is done.
--- MARATHON is open while it is being tried out; it is meant to wait for the seventh emerald
--- (StageSelect.lua and Sky.lua still unlock it then).
+-- MARATHON is always open, by the owner's decision for now (it was to wait for the seventh
+-- emerald; StageSelect.lua and Sky.lua still unlock it then, which changes nothing while it is open).
 local UNLOCKED = { main_game = true, marathon = true, extras = false, chao_garden = false }
 
 local REPEAT_FIRST, REPEAT_AFTER = 0.40, 0.12       -- held up/down: the first wait, then the rest
