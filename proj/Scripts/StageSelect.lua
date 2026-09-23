@@ -414,6 +414,7 @@ function StageSelect:Tick(deltaTime)
         if (MenuSound ~= nil) then MenuSound("ExitStage", 0.6) end      -- off to the stage (Exit_SS)
         if (self.onChoose ~= nil) then self.onChoose(self.index) end
     elseif (Input.IsKeyJustDown(Key.Escape) or Input.IsKeyJustDown(Key.Backspace)) then
+        if (MenuSound ~= nil) then MenuSound("MenuBack") end            -- back to the title menu (back.wav)
         if (self.onBack ~= nil) then self.onBack() end
     end
 end

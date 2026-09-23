@@ -221,7 +221,7 @@ function Menu:Open() self:Show(true) end
 function Menu:Close() self:Show(false) end
 
 -- The menus' own sounds: the highlight moving (MenuMove), a menu going on to the next
--- (MenuSelect); a stage chosen plays Exit_SS (ExitStage), and leaving or restarting one SpecialWarp (MenuWarp). (For a while the menu borrowed the stage's
+-- (MenuSelect); B back out of a menu (MenuBack, back.wav); a stage chosen plays Exit_SS (ExitStage), and leaving or restarting one SpecialWarp (MenuWarp). (For a while the menu borrowed the stage's
 -- ring and checkpoint, and they were the wrong sounds for it.)
 function MenuSound(name, volume)
     MenuSounds = MenuSounds or {}

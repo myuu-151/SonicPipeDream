@@ -49,7 +49,8 @@ EFFECTS = [
     ("Exit_SS.wav", "SW_ExitStage", 0x51C0FFEE0030001B),
     ("MenuButton.ogg", "SW_MenuMove", 0x51C0FFEE0030001C),      # the menus: the highlight moving,
     ("Select.ogg", "SW_MenuSelect", 0x51C0FFEE0030001E),        # a menu going on to the next (and pausing),
-    ("SpecialWarp.ogg", "SW_MenuWarp", 0x51C0FFEE0030001D),     # and a stage chosen (and left)
+    ("SpecialWarp.ogg", "SW_MenuWarp", 0x51C0FFEE0030001D),     # and a stage chosen (and left),
+    ("back.wav", "SW_MenuBack", 0x51C0FFEE0030001F),            # and B, back out of a menu
 ]
 
 
