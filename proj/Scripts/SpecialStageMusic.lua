@@ -14,6 +14,7 @@ function SpecialStageMusic:Create()
 
     self.started = false
     self.looping = false
+    self.stopped = false    -- set by Stop: the stage was left, so Tick must not start the loop
     self.elapsed = 0.0
     TheSpecialStageMusic = self     -- so the stage can stop it when it hands back to the menu
 end
@@ -52,7 +53,7 @@ function SpecialStageMusic:Tick(deltaTime)
         return
     end
 
-    if (self.looping) then
+    if (self.looping or self.stopped) then
         return
     end
 
@@ -70,11 +71,13 @@ function SpecialStageMusic:Stop()
     if (self.intro ~= nil) then Audio.StopSounds(self.intro) end
     if (self.loop ~= nil) then Audio.StopSounds(self.loop) end
     self.looping = false
+    self.stopped = true
 end
 
 -- Played again from the top: the stage was left and another one has been chosen.
 function SpecialStageMusic:Restart()
     self:Stop()
+    self.stopped = false
     self.elapsed = 0.0
     if (self.playIntro and self.intro ~= nil) then
         Audio.PlaySound2D(self.intro, self.volume)
