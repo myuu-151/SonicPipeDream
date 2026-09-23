@@ -50,11 +50,32 @@ ITEMS = [
     ("marathon", "item_marathon"),
     ("extras", "item_extras"),
     ("chao_garden", "item_chao_garden"),
+    ("save", "item_save"),                  # SavePrompt.lua: save to the Saves folder
+    ("load", "item_load"),                  # ...and load from it (the GameCube has no Load)
 ]
+MOCKUP_ITEMS = 4            # the mockup drew four rows; the rest are spaced in with them (below)
 
 # The mockup row an item without one of its own sits on.
 ROW_OF = {"item_marathon": "item_time_attack", "item_extras": "item_records",
-          "item_chao_garden": "item_options"}
+          "item_chao_garden": "item_options", "item_save": "item_options", "item_load": "item_options"}
+
+# More rows than the mockup's four: all of them spaced evenly, ROW_GAP apart centre to centre,
+# from where the first row's centre is -- so the last clears the watermark running under them.
+FIRST_CENTRE = 115.0
+ROW_GAP = 40.0
+
+
+def uuid_index(index):
+    """Textures are numbered in the order they are cooked, items included; an item past the
+    mockup's four would push every texture after it onto another's number. Those items take
+    numbers of their own, well clear, and everything else keeps its old one."""
+    first_added = len(PIECES) + 2 * MOCKUP_ITEMS
+    added = 2 * max(0, len(ITEMS) - MOCKUP_ITEMS)
+    if index < first_added:
+        return index
+    if index < first_added + added:
+        return 0x100 + (index - first_added)
+    return index - added
 
 # Rows placed by hand, part -> (x, y) on the mockup's screen, over ROW_OF. The GameCube's
 # export sets this for the items it adds and respaces.
@@ -180,7 +201,7 @@ def save(name, img, index):
     """
     canvas = Image.new("RGBA", (pot(img.width), pot(img.height)), (0, 0, 0, 0))
     canvas.alpha_composite(img, (0, 0))
-    write_texture(os.path.join(TEX, name + ".oct"), name, UUID_MENU + index,
+    write_texture(os.path.join(TEX, name + ".oct"), name, UUID_MENU + uuid_index(index),
                   canvas.width, canvas.height, canvas.tobytes(), wrap=0, force_hq=True, quiet=True)
     return canvas.size, img.size
 
@@ -242,6 +263,12 @@ def main():
         index += 1
 
     # the items, and a greyed copy of each
+    if len(ITEMS) > MOCKUP_ITEMS:
+        for i, (key, part) in enumerate(ITEMS):
+            if part not in ROW_AT:
+                row = where.get(part) or where[ROW_OF[part]]
+                h = Image.open(os.path.join(PARTS, part + ".png")).height
+                ROW_AT[part] = (row["x"], int(round(FIRST_CENTRE + i * ROW_GAP - h * 0.5)))
     for i, (key, part) in enumerate(ITEMS):
         img = load(part)
         drawn = img

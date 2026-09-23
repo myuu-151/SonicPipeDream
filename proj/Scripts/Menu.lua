@@ -37,7 +37,8 @@ local WHITE = Vec(1.0, 1.0, 1.0, 1.0)
 -- Which items can be chosen. Marathon is switched on by the game when the gauntlet is done.
 -- MARATHON is always open, by the owner's decision for now (it was to wait for the seventh
 -- emerald; StageSelect.lua and Sky.lua still unlock it then, which changes nothing while it is open).
-local UNLOCKED = { main_game = true, marathon = true, extras = false, chao_garden = false }
+local UNLOCKED = { main_game = true, marathon = true, extras = false, chao_garden = false,
+                   save = true, load = true }       -- SavePrompt.lua
 
 local REPEAT_FIRST, REPEAT_AFTER = 0.40, 0.12       -- held up/down: the first wait, then the rest
 
@@ -280,6 +281,11 @@ function Menu:Tick(deltaTime)
     if (not self.open) then return end
     self:ScrollWatermark(deltaTime)
     self:BlinkCursor(deltaTime)
+    -- While the save prompt is up the menu shows, but takes no input: the prompt has it.
+    if (self.busy) then
+        self.armed = false                  -- and the key that closes the prompt is not a choice
+        return
+    end
 
     local up = Input.IsKeyDown(Key.Up) or Input.IsKeyDown(Key.W)
     local down = Input.IsKeyDown(Key.Down) or Input.IsKeyDown(Key.S)

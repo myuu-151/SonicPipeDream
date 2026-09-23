@@ -43,7 +43,8 @@ WORDS = [
     ("item_options", "Options", 21.0, 3.0, None),
     ("item_extras", "Extras", 21.0, 3.0, None),
     ("item_chao_garden", "Chao Garden", 21.0, 3.0, None),
-    ("item_save", "Save", 21.0, 3.0, None),                 # the GameCube's menu only
+    ("item_save", "Save", 21.0, 3.0, None),
+    ("item_load", "Load", 21.0, 3.0, None),                 # the PC's menu only
     ("item_time_attack", "Time Attack", 21.0, 3.0, None),
     ("title_text", "SONIC PIPE DREAM", 16.0, 2.3, None),
     ("label_select", "Select", 10.0, 0.0, BLUE),
@@ -58,6 +59,7 @@ NEW_WORDS = {
     "item_extras": "item_records",
     "item_chao_garden": "item_options",
     "item_save": "item_options",
+    "item_load": "item_options",
 }
 
 _CAP_PER_SIZE = None

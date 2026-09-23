@@ -230,6 +230,9 @@ function Sky:ShowMenu()
     local select = world:SpawnNode("Canvas")
     select:SetName("StageSelect")
     select:SetScript("StageSelect")
+    local prompt = world:SpawnNode("Canvas")
+    prompt:SetName("SavePrompt")
+    prompt:SetScript("SavePrompt")
 
     -- TheMenu and TheStageSelect are set by each script's Create, which has run by the time
     -- SetScript returns.
@@ -263,6 +266,11 @@ function Sky:ShowMenu()
             if (key == "main_game" and TheStageSelect ~= nil) then
                 TheMenu:Close()
                 TheStageSelect:Open()
+            elseif ((key == "save" or key == "load") and TheSavePrompt ~= nil) then
+                -- the Saves folder, over the menu; the menu keeps still until it closes
+                TheMenu.busy = true
+                TheSavePrompt.onClose = function() TheMenu.busy = false end
+                TheSavePrompt:Open(key)
             elseif (key == "marathon") then
                 -- one run, zone after zone (StageDataMarathon); it hands back to the menu when it
                 -- is over, whichever way it ends
