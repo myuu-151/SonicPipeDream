@@ -587,7 +587,10 @@ def main():
     if os.path.exists(BOMB_TEXTURED) and os.path.exists(BOMB_LIT):
         # textured: native/texture_bomb.py's unwrapped bomb, its metal detail and lighting baked in,
         # on a basic lit material
-        write_lit_textured("SM_Bomb", 220, load(BOMB_TEXTURED, "Bomb"), BOMB_LIT, "T_Bomb", "M_Bomb",
+        # external/bomb/1024fix.png is the owner's finished 1024 x 1024 cut of Bomb_lit.png: used when there
+        own = os.path.join(os.path.dirname(BOMB_LIT), "1024fix.png")
+        write_lit_textured("SM_Bomb", 220, load(BOMB_TEXTURED, "Bomb"), own if os.path.exists(own) else BOMB_LIT,
+                           "T_Bomb", "M_Bomb",
                            force_hq=True, basic=BOMB_BASIC_LIT)            # at its full 1024
     else:
         bomb_colours = [tuple(linear_to_srgb(x) for x in m.diffuse_color[:3]) for m in bomb.materials]
