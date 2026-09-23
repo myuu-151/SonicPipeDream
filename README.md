@@ -1,6 +1,6 @@
 ![Sonic Pipe Dream](docs/header.png)
 
-# Sonic2Special3D
+# Sonic Pipe Dream
 
 A 3D take on the Sonic 2 special stage, built on the Octave engine.
 
