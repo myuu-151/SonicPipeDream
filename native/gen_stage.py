@@ -77,7 +77,7 @@ nums = [int(a) for i, a in enumerate(args) if a.isdigit() and (i == 0 or args[i 
 STAGE = None if MARATHON else (nums[0] if nums else 1)
 ZONES = (nums[0] if nums else 3) if MARATHON else 1
 RENDER = "render" in args
-OUT_DIR = os.path.abspath(os.path.join(HERE, "..", "external", "stages"))
+OUT_DIR = os.path.abspath(os.environ.get("S2_STAGE_OUT") or os.path.join(HERE, "..", "external", "stages"))
 
 # --- designed ---------------------------------------------------------------------------
 # Three curves, the project owner's, and they are meant to be read together:

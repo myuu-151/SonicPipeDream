@@ -66,6 +66,17 @@ before the next section starts. So every section ends in a **ring check zone**:
 `CHECK_RUN_UP` (2) straights, the check, then `CHECK_PLAYS` (6) straights -- 64 frames, about
 320 units. Lengthen `CHECK_PLAYS` if the real sequence needs longer; it is one number.
 
+**Room after a check, in the seven stages** (`native/add_check_room.py`, 2026-09-24). The
+thumbs-up keeps the controls for 2.8 s (42 frames past the arch) of the zone's 44, and on six of
+the stages a check's next section opened with bombs: control came back 0.2 s before them. The
+stages were not made again to fix it -- `gen_stage.py` has changed since they were made and the
+same seed now deals a different stage -- so the script splices whole straights into each stage's
+`.json` where its check zone ends, until the first bomb is at least 24 frames (1.6 s, the
+marathon's `CHECK_LEAD`) after control comes back, and moves everything beyond on by their
+length. Every ring and bomb keeps its place against the others, the shifted track is tested for
+running into itself, and the checks ask what they did. The stages' `.blend` files do not show
+the added straights; the `.json` is what the exporters read. Run it again and it adds nothing.
+
 **The rainbow arch is the check.** As in the original, Sonic runs straight for a bit with
 nothing on the track -- the run-up, `CHECK_RUN_UP` straights -- and then passes under one arch
 that is different from every other: each sphere on it wears a ring, and the rings cycle
