@@ -459,6 +459,7 @@ function SpecialStage:LoadStage(n)
 
     -- every ring and bomb in one list, in the order they are met
     self.objects = {}
+    self.objStart = 1
     for s, section in ipairs(self.data.sections) do
         for _, o in ipairs(section.objects) do
             self.objects[#self.objects + 1] = { frame = o[1], angle = o[2], bomb = (o[3] == 1), section = s }
@@ -471,24 +472,7 @@ function SpecialStage:LoadStage(n)
 
     -- the rainbow arch over each check
     self.arches = {}
-    local arch = self.data.arch
-    for s, section in ipairs(self.data.sections) do
-        local pos, fwd, up = self:TrackAt(section.check_frame)
-        local left = Cross(up, fwd)
-        local rings = {}
-        for i = 0, arch.rings - 1 do
-            local t = math.rad(arch.from_deg + (180.0 - 2.0 * arch.from_deg) * i / (arch.rings - 1))
-            local place = Add(pos, Add(Scale(left, arch.reach * math.cos(t)),
-                                       Add(Scale(up, self.data.pipe_radius + arch.reach * math.sin(t)),
-                                           Scale(fwd, -arch.toward_player))))
-            local node = SpawnMesh(world, self.meshRainbow[i])
-            node:SetWorldPosition(ToVec(place))
-            node:SetWorldRotationQuat(FacingQuat(fwd, up))
-            node:SetWorldScale(Vec(arch.ring_scale, arch.ring_scale, arch.ring_scale))
-            rings[i] = node
-        end
-        self.arches[s] = rings
-    end
+    for s = 1, #self.data.sections do self:SpawnArch(s) end
     self.rainbowStep = -1
 
     -- the emerald, past the last check
@@ -502,16 +486,8 @@ function SpecialStage:LoadStage(n)
     self.items = {}
     if (self.data.marathon) then
         -- an item past each zone's third check: the emeralds in turn, for now
-        local z = 0
         for s, section in ipairs(self.data.sections) do
-            if (section.leads_to == "PALETTE SHIFT") then
-                z = z + 1
-                local at, fwd, up = self:Place(section.check_frame + 10.0, 0.0, 4.0)
-                local node = SpawnMesh(world, LoadAsset("SM_Emerald_" .. ((z - 1) % LAST_STAGE + 1)) or LoadAsset("SM_Emerald"))
-                node:SetWorldPosition(ToVec(at))
-                node:SetWorldRotationQuat(FacingQuat(fwd, up))
-                self.items[s] = node
-            end
+            if (section.leads_to == "PALETTE SHIFT") then self:SpawnItem(s) end
         end
     else
         local where, emeraldFwd, emeraldUp = self:Place(emeraldFrame, 0.0, 4.0)
@@ -526,74 +502,235 @@ function SpecialStage:LoadStage(n)
     self:Restart()
 end
 
--- ------------------------------------------------------------------ a marathon, made for this run
--- MarathonPool.lua lists, for each zone, the versions of it there are (MarathonZone_<zone>_<seed>,
--- written by export_to_octave.py -- zones, each in its own space). Every run takes ONE of each, at
--- random, in order -- zone 1 is always the first and easiest, and each after it harder, whichever
--- version it is -- and lays them END TO END: each zone's start set down exactly on the last one's
--- end, turned to carry on from it (the generator builds every zone from nothing, at the origin, so
--- any version follows any other). Each zone gets a colour theme at random, never the last one's.
--- The result is a stage table like any other, so everything else plays it as it plays a stage.
-function SpecialStage:BuildMarathon()
-    Script.Require("MarathonPool")
-    local pool = MarathonPool
-    if (pool == nil or pool.zones == nil or #pool.zones == 0) then return nil end
-    if (os ~= nil and os.time ~= nil) then math.randomseed(os.time(), math.floor((os.clock() or 0) * 1000)) end
-    local data = { name = "Marathon", stage = "Marathon", marathon = true, step = pool.step,
-                   pipe_radius = pool.pipe_radius, hover = pool.hover, angle_00_side = pool.angle_00_side,
-                   arch = pool.arch, palette_skies = pool.palette_skies, pieces = {}, sections = {}, path = {} }
-    local offset, quota, lastPalette = 0, 0, nil
-    local endPos, endF, endU, endL = nil, nil, nil, nil
-    local picked = {}
-    for z, seeds in ipairs(pool.zones) do
-        local seed = seeds[math.random(#seeds)]
-        local name = "MarathonZone_" .. z .. "_" .. seed
-        Script.Require(name)
-        local zone = _G[name]
-        picked[#picked + 1] = seed
-        -- the zone's own start, and where it goes: the last zone's end (the first stays put)
-        local s0 = zone.path[1]
-        local o0, f0, u0 = { s0[1], s0[2], s0[3] }, { s0[4], s0[5], s0[6] }, { s0[7], s0[8], s0[9] }
-        local l0 = Cross(f0, u0)
-        local pE, fE, uE, lE = endPos or o0, endF or f0, endU or u0, endL or l0
-        local function Turn(v) return Add(Add(Scale(fE, Dot(v, f0)), Scale(uE, Dot(v, u0))), Scale(lE, Dot(v, l0))) end
-        local function Put(p) return Add(pE, Turn({ p[1] - o0[1], p[2] - o0[2], p[3] - o0[3] })) end
-        local turnQ = QuatMul(QuatT(QuatFromAxes(fE, uE, lE)), QuatConj(QuatT(QuatFromAxes(f0, u0, l0))))
-        local palette
-        repeat palette = math.random(7) until palette ~= lastPalette
-        lastPalette = palette
+-- ------------------------------------------------------------------ the marathon, made as it is played
+-- MarathonGen.lua builds a zone from nothing but (this run's seed, the zone's number) -- in the
+-- game, so every run is new and no zone is ever seen twice. The first is built as the run starts;
+-- each after it is built WHILE THE ONE BEFORE IS PLAYED, a slice a frame (a coroutine), and added
+-- on the end of the track when it is done: its start set down exactly on the last one's end,
+-- turned to carry on from it. Each zone gets a colour theme at random, never the last one's.
+-- What has been passed goes, so a run can go on for as long as the player does.
+local GEN_SLICE = 0.004             -- seconds of building a frame, where the clock can be read
+local BEHIND_FRAMES = 160           -- track kept behind him; pieces, arches and items further back go
 
-        for _, piece in ipairs(zone.pieces) do
-            data.pieces[#data.pieces + 1] = { mesh = piece.mesh, gloss = piece.gloss, pos = Put(piece.pos),
-                                              quat = QuatMul(turnQ, piece.quat), first_frame = piece.first_frame + offset }
-        end
-        for i, e in ipairs(zone.path) do
-            if (z == 1 or i > 1) then           -- the join is one frame, the last zone's end
-                local p = Put({ e[1], e[2], e[3] })
-                local f = Turn({ e[4], e[5], e[6] })
-                local u = Turn({ e[7], e[8], e[9] })
-                data.path[#data.path + 1] = { p[1], p[2], p[3], f[1], f[2], f[3], u[1], u[2], u[3] }
+function SpecialStage:BuildMarathon()
+    Script.Require("MarathonGen")
+    local kit = MarathonKit
+    local seed = 12345
+    if (os ~= nil and os.time ~= nil) then
+        seed = os.time() * 1000 + math.floor(((os.clock and os.clock()) or 0) * 1000)
+    elseif (Engine ~= nil and Engine.GetRealElapsedTime ~= nil) then
+        seed = math.floor(Engine.GetRealElapsedTime() * 1000003)
+    end
+    -- a whole number: the engine's Lua is 32-bit, and a float here made every number after it
+    -- one (a palette of 2.0 named a mesh "..._P2.0", and the pipe was not there)
+    seed = math.floor(seed % 2147483647)
+    self.runSeed = seed
+    -- For native/check_marathon_gen.py: S2_GEN_DUMP=<dir> builds zones 1..S2_GEN_ZONES (default 10)
+    -- of a few runs here and now, and writes each out to be solved.
+    local dump = (os ~= nil and os.getenv ~= nil) and os.getenv("S2_GEN_DUMP") or nil
+    if (dump ~= nil) then
+        local zones = tonumber(os.getenv("S2_GEN_ZONES") or "") or 10
+        local runs = tonumber(os.getenv("S2_GEN_RUNS") or "") or 1
+        for r = 1, runs do
+            for z = 1, zones do
+                local t0 = os.clock()
+                local zone = MarathonGen.BuildZone(seed + r, z)
+                if (zone ~= nil) then MarathonGen.Dump(zone, string.format("%s/gen_%d_%d.json", dump, r, z)) end
+                print(string.format("GENDUMP run %d zone %d %s %.3f s, %d tries", r, z, zone and "ok" or "FAILED", os.clock() - t0, zone and zone.tries or 0))
             end
         end
-        for _, sec in ipairs(zone.sections) do
-            quota = quota + sec.asks
-            local objects = {}
-            for k, o in ipairs(sec.objects) do objects[k] = { o[1] + offset, o[2], o[3] } end
-            data.sections[#data.sections + 1] = {
-                first_frame = sec.first_frame + offset, check_frame = sec.check_frame + offset,
-                last_frame = sec.last_frame + offset, quota = quota, asks = sec.asks, rings = sec.rings,
-                leads_to = sec.leads_to, objects = objects, palette = palette }
-        end
-        offset = offset + zone.frames
-        local last = data.path[#data.path]
-        endPos, endF, endU = { last[1], last[2], last[3] }, { last[4], last[5], last[6] }, { last[7], last[8], last[9] }
-        endL = Cross(endF, endU)
+        print("GENDUMP done")
     end
-    data.frames = offset
+    local data = { name = "Marathon", stage = "Marathon", marathon = true, step = kit.step,
+                   pipe_radius = kit.pipe_radius, hover = kit.hover, angle_00_side = kit.angle_00_side,
+                   arch = kit.arch, palette_skies = kit.palette_skies, pieces = {}, sections = {}, path = {},
+                   frames = 0 }
+    data.join = { offset = 0, quota = 0, rng = seed }
+    local t0 = (os ~= nil and os.clock ~= nil) and os.clock() or 0
+    local zone = MarathonGen.BuildZone(seed, 1)
+    if (zone == nil) then return nil end
+    if (os ~= nil and os.clock ~= nil) then print(string.format("MARATHON zone 1 built in %.3f s", os.clock() - t0)) end
+    self:JoinZone(data, zone)
     data.palette = data.sections[1].palette
     data.sky = data.palette_skies[data.palette]
-    print("MARATHON zones from seeds " .. table.concat(picked, " "))
+    self.zonesBuilt = 1
+    self.gen = nil
+    print("MARATHON run " .. seed)
     return data
+end
+
+-- A zone added to the run's table: set on the end of the last, its frames counted on from there.
+function SpecialStage:JoinZone(data, zone)
+    local j = data.join
+    local s0 = zone.path[1]
+    local o0, f0, u0 = { s0[1], s0[2], s0[3] }, { s0[4], s0[5], s0[6] }, { s0[7], s0[8], s0[9] }
+    local l0 = Cross(f0, u0)
+    local pE, fE, uE, lE = j.endPos or o0, j.endF or f0, j.endU or u0, j.endL or l0
+    local function Turn(v) return Add(Add(Scale(fE, Dot(v, f0)), Scale(uE, Dot(v, u0))), Scale(lE, Dot(v, l0))) end
+    local function Put(p) return Add(pE, Turn({ p[1] - o0[1], p[2] - o0[2], p[3] - o0[3] })) end
+    local turnQ = QuatMul(QuatT(QuatFromAxes(fE, uE, lE)), QuatConj(QuatT(QuatFromAxes(f0, u0, l0))))
+    -- a colour theme at random, never the last one's (a small generator of its own: math.random
+    -- is shared with everything else)
+    j.rng = math.floor((j.rng * 1103515245 + 12345) % 2147483648)
+    local palette = math.floor((j.rng // 65536) % 7) + 1
+    if (palette == j.lastPalette) then palette = palette % 7 + 1 end
+    j.lastPalette = palette
+    local offset = j.offset
+    for _, piece in ipairs(zone.pieces) do
+        data.pieces[#data.pieces + 1] = { mesh = piece.mesh, gloss = piece.gloss, pos = Put(piece.pos),
+                                          quat = QuatMul(turnQ, piece.quat), first_frame = piece.first_frame + offset }
+    end
+    for i, e in ipairs(zone.path) do
+        if (#data.path == 0 or i > 1) then           -- the join is one frame, the last zone's end
+            local p = Put({ e[1], e[2], e[3] })
+            local f = Turn({ e[4], e[5], e[6] })
+            local u = Turn({ e[7], e[8], e[9] })
+            data.path[#data.path + 1] = { p[1], p[2], p[3], f[1], f[2], f[3], u[1], u[2], u[3] }
+        end
+    end
+    for _, sec in ipairs(zone.sections) do
+        j.quota = j.quota + sec.asks
+        local objects = {}
+        for k, o in ipairs(sec.objects) do objects[k] = { o[1] + offset, o[2], o[3] } end
+        data.sections[#data.sections + 1] = {
+            first_frame = sec.first_frame + offset, check_frame = sec.check_frame + offset,
+            last_frame = sec.last_frame + offset, quota = j.quota, asks = sec.asks, rings = sec.rings,
+            leads_to = sec.leads_to, objects = objects, palette = palette }
+    end
+    j.offset = offset + zone.frames
+    data.frames = j.offset
+    local last = data.path[#data.path]
+    j.endPos, j.endF, j.endU = { last[1], last[2], last[3] }, { last[4], last[5], last[6] }, { last[7], last[8], last[9] }
+    j.endL = Cross(j.endF, j.endU)
+end
+
+-- A zone built while the run went on: joined on, and everything it needs on the screen spawned --
+-- its pieces (in the colours up now: the whole track takes the next zone's at the hold), its
+-- rings and bombs, the arches over its checks, the item after its third.
+function SpecialStage:AppendZone(zone)
+    local world = self:GetWorld()
+    local data = self.data
+    local p0, s0 = #data.pieces, #data.sections
+    self:JoinZone(data, zone)
+    for i = p0 + 1, #data.pieces do
+        local piece = data.pieces[i]
+        for _, name in ipairs({ piece.mesh, piece.gloss }) do
+            local node = SpawnMesh(world, self:PieceMesh(name, self.palette))
+            node:SetWorldPosition(Vec(piece.pos[1], piece.pos[2], piece.pos[3]))
+            node:SetWorldRotationQuat(Vec(piece.quat[1], piece.quat[2], piece.quat[3], piece.quat[4]))
+            self.pieceNodes[#self.pieceNodes + 1] = { node = node, name = name, frame = piece.first_frame }
+        end
+    end
+    for s = s0 + 1, #data.sections do
+        local section = data.sections[s]
+        for _, o in ipairs(section.objects) do
+            self.objects[#self.objects + 1] = { frame = o[1], angle = o[2], bomb = (o[3] == 1), section = s }
+        end
+        self:SpawnArch(s)
+        if (section.leads_to == "PALETTE SHIFT") then self:SpawnItem(s) end
+    end
+    self.zonesBuilt = self.zonesBuilt + 1
+    print(string.format("MARATHON zone %d joined: %d pieces, %d sections, track %d frames",
+                        self.zonesBuilt, #data.pieces - p0, #data.sections - s0, data.frames))
+    -- a hold that ran out of track waiting for this zone takes its colours now
+    if (self.waitingZone) then
+        self.waitingZone = false
+        self.holding = { clock = 0.0, to = data.sections[s0 + 1].palette }
+    end
+end
+
+-- Run a slice of the next zone's building, and start the one after when the player is into the
+-- last one built: one zone ahead, never more.
+function SpecialStage:TickMarathonGen()
+    if (not self.data.marathon) then return end
+    local spz = MarathonKit.design.sections_per_zone
+    local playing = (self.section - 1) // spz + 1              -- the zone he is in
+    if (self.gen == nil and self.zonesBuilt <= playing) then
+        local seed, z = self.runSeed, self.zonesBuilt + 1
+        self.gen = coroutine.create(function() return MarathonGen.BuildZone(seed, z) end)
+        self:TrimBehind()
+    end
+    if (self.gen == nil) then return end
+    local clock = (os ~= nil and os.clock ~= nil) and os.clock or nil
+    local t0 = clock and clock() or 0
+    repeat
+        local ok, zone = coroutine.resume(self.gen)
+        if (not ok) then
+            Log.Error("MarathonGen: " .. tostring(zone))
+            self.gen = nil
+            return
+        end
+        if (coroutine.status(self.gen) == "dead") then
+            self.gen = nil
+            if (zone ~= nil) then self:AppendZone(zone) end
+            return
+        end
+    until (clock == nil or clock() - t0 >= GEN_SLICE)
+end
+
+-- What is well behind him goes: the track's pieces, the arches, the items, the rings and bombs
+-- already met. (The sections themselves stay: they are small, and counted by number.)
+function SpecialStage:TrimBehind()
+    local limit = self.frame - BEHIND_FRAMES
+    local keep = {}
+    for _, p in ipairs(self.pieceNodes) do
+        if (p.frame ~= nil and p.frame < limit - 100) then p.node:Destruct() else keep[#keep + 1] = p end
+    end
+    self.pieceNodes = keep
+    for s, rings in pairs(self.arches) do
+        if (self.data.sections[s].check_frame < limit) then
+            for _, node in pairs(rings) do node:Destruct() end
+            self.arches[s] = nil
+        end
+    end
+    for s, node in pairs(self.items) do
+        if (self.data.sections[s].check_frame < limit) then
+            node:Destruct()
+            self.items[s] = nil
+        end
+    end
+    local kept = {}
+    for _, o in ipairs(self.objects) do
+        if (o.frame < limit) then
+            if (o.node ~= nil) then self:Release(o) end
+        else
+            kept[#kept + 1] = o
+        end
+    end
+    self.objects = kept
+    self.objStart = 1
+end
+
+-- The rainbow arch over check s.
+function SpecialStage:SpawnArch(s)
+    local world = self:GetWorld()
+    local arch = self.data.arch
+    local section = self.data.sections[s]
+    local pos, fwd, up = self:TrackAt(section.check_frame)
+    local left = Cross(up, fwd)
+    local rings = {}
+    for i = 0, arch.rings - 1 do
+        local t = math.rad(arch.from_deg + (180.0 - 2.0 * arch.from_deg) * i / (arch.rings - 1))
+        local place = Add(pos, Add(Scale(left, arch.reach * math.cos(t)),
+                                   Add(Scale(up, self.data.pipe_radius + arch.reach * math.sin(t)),
+                                       Scale(fwd, -arch.toward_player))))
+        local node = SpawnMesh(world, self.meshRainbow[i])
+        node:SetWorldPosition(ToVec(place))
+        node:SetWorldRotationQuat(FacingQuat(fwd, up))
+        node:SetWorldScale(Vec(arch.ring_scale, arch.ring_scale, arch.ring_scale))
+        rings[i] = node
+    end
+    self.arches[s] = rings
+end
+
+-- The item past a marathon zone's third check (section s): the emeralds in turn, for now.
+function SpecialStage:SpawnItem(s)
+    local z = s // MarathonKit.design.sections_per_zone
+    local at, fwd, up = self:Place(self.data.sections[s].check_frame + 10.0, 0.0, 4.0)
+    local node = SpawnMesh(self:GetWorld(), LoadAsset("SM_Emerald_" .. ((z - 1) % LAST_STAGE + 1)) or LoadAsset("SM_Emerald"))
+    node:SetWorldPosition(ToVec(at))
+    node:SetWorldRotationQuat(FacingQuat(fwd, up))
+    self.items[s] = node
 end
 
 -- What LoadStage spawned, taken down again. The pooled ring and bomb nodes are NOT destroyed:
@@ -664,6 +801,7 @@ function SpecialStage:Restart()
         o.taken = false
         if (o.node ~= nil) then self:Release(o) end
     end
+    self.objStart = 1
     self.frame = -SPEED * START_HOLD    -- back up the lead-in: at the start proper as START scatters
     self.angle = 0.0                -- 0 is the floor's centre line; it wraps at +-128
     self.steer = 0.0
@@ -853,7 +991,17 @@ end
 -- Keep alive only what is near the player.
 function SpecialStage:UpdateObjects()
     local lo, hi = self.frame - SEE_BEHIND, self.frame + SEE_AHEAD
-    for _, o in ipairs(self.objects) do
+    -- The list is in frame order: start at the first not yet left behind (everything before it
+    -- has been let go), and stop past what he can see. A marathon's list is thousands long.
+    local objects = self.objects
+    local start = self.objStart or 1
+    while (start <= #objects and objects[start].frame < lo - 1.0 and objects[start].node == nil) do
+        start = start + 1
+    end
+    self.objStart = start
+    for i = start, #objects do
+        local o = objects[i]
+        if (o.frame > hi) then break end
         local near = (o.frame >= lo and o.frame <= hi and not o.taken)
         if (near and o.node == nil) then
             self:Acquire(o)
@@ -871,7 +1019,8 @@ end
 
 function SpecialStage:Collide(fromFrame)
     if (self.height > REACH_HEIGHT) then return end
-    for _, o in ipairs(self.objects) do
+    for i = self.objStart or 1, #self.objects do
+        local o = self.objects[i]
         if (o.frame > self.frame + REACH_FRAMES) then break end
         if (not o.taken and o.frame >= fromFrame - REACH_FRAMES and AngleBetween(o.angle, self.angle) <= REACH_ANGLE) then
             o.taken = true
@@ -935,6 +1084,12 @@ function SpecialStage:PassZone(section)
     -- the thumbs-up lasts as long as the straights past the check do, less a moment to take hold
     self.thumbs = math.max(THUMBS_TIME, (section.last_frame - section.check_frame) / SPEED - HOLD_MARGIN)
     self.thumbsTotal = self.thumbs
+    if (nextSection == nil and self.gen ~= nil) then
+        -- the next zone is still being built: the hold waits for it (AppendZone takes it from here)
+        if (self.uiReady) then TheSpecialStageUI:ShowBanner("EMERALD GET !", 3.0) end
+        self.waitingZone = true
+        return
+    end
     if (nextSection == nil) then
         if (self.uiReady) then TheSpecialStageUI:ShowBanner("MARATHON CLEAR !", 4.5) end
         self.over = 5.0
@@ -1081,7 +1236,11 @@ function SpecialStage:Tick(deltaTime)
 
     if (Input.IsKeyJustDown(Key.R)) then
         self:Sound("MenuWarp")                          -- SpecialWarp, as for EXIT and a failed check
-        self:Restart()
+        if (self.data.marathon) then
+            self:LoadStage("Marathon")                  -- a marathon starts again as a new run
+        else
+            self:Restart()
+        end
     end
     for n, key in ipairs(PALETTE_KEYS) do
         if (Input.IsKeyJustDown(key)) then self:SetPalette(n) end
@@ -1093,6 +1252,7 @@ function SpecialStage:Tick(deltaTime)
         self.palette = 0                -- so pressing the current stage again restores its sky
     end
     self:TickFade(dt)
+    if (self.data.marathon) then self:TickMarathonGen() end
     if (self.over >= 0.0) then
         self.over = self.over - dt
         if (self.over < 0.0) then

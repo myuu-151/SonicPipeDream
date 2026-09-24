@@ -233,6 +233,9 @@ function Sky:ShowMenu()
     local prompt = world:SpawnNode("Canvas")
     prompt:SetName("SavePrompt")
     prompt:SetScript("SavePrompt")
+    local loading = world:SpawnNode("Canvas")
+    loading:SetName("Loading")
+    loading:SetScript("Loading")
 
     -- TheMenu and TheStageSelect are set by each script's Create, which has run by the time
     -- SetScript returns.
@@ -272,21 +275,45 @@ function Sky:ShowMenu()
                 TheSavePrompt.onClose = function() TheMenu.busy = false end
                 TheSavePrompt:Open(key)
             elseif (key == "marathon") then
-                -- one run, zone after zone (StageDataMarathon); it hands back to the menu when it
-                -- is over, whichever way it ends
+                -- one run, zone after zone, made as it is played (MarathonGen.lua), behind the
+                -- loading screen while its first zone is built; see TickMarathonStart
                 TheMenu:Close()
-                self:StartSpecialStage("Marathon")
-                if (TheSpecialStage ~= nil) then
-                    TheSpecialStage.onExit = function() TheMenu:Open() end
-                    TheSpecialStage.onFinished = function() TheMenu:Open() end
-                end
+                if (TheLoading ~= nil) then TheLoading:Show("marathon") end
+                self.marathonStart = { step = 0, clock = 0.0 }
             end
         end
     end
 end
 
+-- Into a marathon, behind the loading screen: shown for a frame first, so it is up before the
+-- first zone is built; then the stage; then the screen comes down once the stage has drawn and it
+-- has been up long enough to read -- and the run starts from the top, so the START run-up is
+-- seen whole.
+local LOADING_AT_LEAST = 1.0
+
+function Sky:TickMarathonStart(deltaTime)
+    local m = self.marathonStart
+    m.clock = m.clock + deltaTime
+    if (m.step == 0) then
+        m.step = 1                                  -- the loading screen is drawn this frame
+    elseif (m.step == 1) then
+        self:StartSpecialStage("Marathon")
+        if (TheSpecialStage ~= nil) then
+            TheSpecialStage.onExit = function() TheMenu:Open() end
+            TheSpecialStage.onFinished = function() TheMenu:Open() end
+        end
+        m.step = 2
+    elseif (TheSpecialStage ~= nil and TheSpecialStage.built and TheSpecialStage.data ~= nil
+            and TheSpecialStage.data.marathon and m.clock >= LOADING_AT_LEAST) then
+        TheSpecialStage:Restart()
+        if (TheLoading ~= nil) then TheLoading:Hide() end
+        self.marathonStart = nil
+    end
+end
+
 function Sky:Tick(deltaTime)
     -- Tick is the GAME's; the editor calls EditorTick. So nothing starts in the editor.
+    if (self.marathonStart ~= nil) then self:TickMarathonStart(deltaTime) end
     if (not self.started) then
         self.started = true
         local skipMenu = (os ~= nil and os.getenv ~= nil and os.getenv("S2_NOMENU") ~= nil)

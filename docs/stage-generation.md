@@ -233,17 +233,21 @@ with the game's own steering (the wind-up included), reach, jumps and bombs.
 * **Checking** (`native/solve_stages.py`, `SOLVER_MODEL=strict|real|generous`): every stage,
   every check, against the running total.
 
-**Playing a marathon (PC): a new one every run.** Until zones are built in the engine, they
-come from a POOL made ahead of time: `gen_stage.py -- marathon 8 seed <n>` for several seeds (each
-zone of a marathon is built from nothing but its own key, so every seed gives a new version of
-every zone), then `export_to_octave.py -- zones <seed ...>` writes each zone on its own
-(`MarathonZone_<zone>_<seed>.lua`, in the zone's own space) and `MarathonPool.lua` listing them.
-Each run, `SpecialStage:BuildMarathon` takes one version of every zone at random, in order -- zone
-1 always first and easiest, each after it harder -- lays them end to end (each zone's start set on
-the last one's end), and gives each zone a colour theme at random, never the last one's. Every
-section of every version keeps the check rule, so every run can be cleared. Now: seeds 1 and
-101-104, five versions of zones 1-6 and four of zones 7-8 -- about 250,000 runs before the colour
-themes. More seeds, more versions: generate, then export them all again with `-- zones`.
+**Playing a marathon (PC): made in the game, a new one every run.** `proj/Scripts/MarathonGen.lua`
+is this script's marathon, ported to Lua: it builds a zone from nothing but (the run's seed, the
+zone's number) -- plan, steer, lay the pieces (with the collision check), deal, top up, trim --
+from `MarathonKit.lua`, which `native/export_marathon_kit.py` writes once from Blender and the
+rulebook: the five pieces' centre lines, every card a section can be dealt with how many rings a
+line can take from it (ring_solver.py, plain and mirrored), and the design curves. The run's seed
+comes from the clock, so no run is played twice. The first zone is built behind the loading screen
+(about a tenth of a second on a PC); each next one while the zone before it is played, a slice of
+a few milliseconds a frame, then joined on. Passed track is let go, so a run goes on as long as the
+player does, harder zone by zone. The game cannot run the whole-section solver, so a section is
+sized to its modules' takeable rings added up x `MarathonGen.SAFETY` (1.08);
+`native/check_marathon_gen.py` solves zones the game built (S2_GEN_DUMP) against the rule: 90
+sections of three runs to difficulty 16.5, none broken, the highest ask 85% of its best line.
+The engine's Lua is 32-bit (integers and floats): the generator's randomness is 32-bit, and
+numbers that name things (a palette) are kept whole.
 A zone's third check leads to an item -- the chaos emerald, for now -- and THE HOLD: the
 thumbs-up, the camera on him, on down a long straight (`HOLD_PLAYS`), and the next zone's colours
 switch in half way through it. A failed check ends the run. MARATHON is always open on the PC;
