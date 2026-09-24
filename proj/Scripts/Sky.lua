@@ -334,6 +334,10 @@ function Sky:TickMarathonStart(deltaTime)
     elseif (m.step == 1) then
         self.lastStage = "Marathon"
         self:StartSpecialStage("Marathon")
+        -- the run is built now: its first zone's colours, and so its emerald, on the loading screen
+        if (TheLoading ~= nil and TheSpecialStage ~= nil and TheSpecialStage.data ~= nil) then
+            TheLoading:SetEmerald(TheSpecialStage.data.palette)
+        end
         if (TheSpecialStage ~= nil) then
             TheSpecialStage.onExit = function() TheMenu:Open() end
             TheSpecialStage.onFinished = function() TheMenu:Open() end

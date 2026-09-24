@@ -310,6 +310,10 @@ end
 -- Lay the pieces end to end; a piece that would run into the track laid before its recent
 -- neighbours is swapped for the nearest thing that fits (gen_random_level.generate).
 local TRACK = K.track
+-- Empty track at the start of every section after a zone's first, before its first ring or bomb:
+-- the thumbs-up after a check holds control through nearly all of the straights past the arch
+-- (2.8 s of 2.9), so without this he got control back a moment before the next rings.
+local CHECK_LEAD = 24           -- frames: 1.6 s
 -- The points laid so far, in a grid of CLEAR_FLAT-wide cells: a new piece need only look in the
 -- cells round each of its points, not at every point of every piece laid before it.
 local function Cell(p) return math.floor(p[1] / TRACK.clear_flat), math.floor(p[2] / TRACK.clear_flat) end
@@ -564,7 +568,7 @@ function MarathonGen.BuildZone(seed, zone)
         for k, d in ipairs(part) do
             local room = rng:uniform(D.room[1], D.room[2])
             local goal = math.max(d.target, math.ceil(d.best_needed * MarathonGen.SAFETY)) + boost[k]
-            local need = goal / d.per_frame * room + ((k == 1) and lead or 0)
+            local need = goal / d.per_frame * room + ((k == 1) and lead or CHECK_LEAD)
             for _, p in ipairs(PlanSection(d.rules, rng, need, extra[k])) do names[#names + 1] = p end
             local runUp, plays
             if (d.leads_to == "PALETTE SHIFT") then
@@ -594,7 +598,7 @@ function MarathonGen.BuildZone(seed, zone)
             end
             local sections, short, decks = {}, nil, {}
             for k, d in ipairs(part) do
-                local window = { math.ceil(starts[k]) + ((k == 1) and lead or 0), math.floor(zoneFirst[k]) }
+                local window = { math.ceil(starts[k]) + ((k == 1) and lead or CHECK_LEAD), math.floor(zoneFirst[k]) }
                 local goal = math.max(d.target, math.ceil(d.best_needed * MarathonGen.SAFETY)) + boost[k]
                 local laid = Fill(window, piecesAt, d.flavour, d.ring_rate, rng, decks)
                 laid = Trim(TopUp(laid, window, d.flavour, goal, rng), goal, rng)

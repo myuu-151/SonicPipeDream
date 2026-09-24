@@ -117,13 +117,14 @@ function SpecialStageUI:SetLives(n)
     end
 end
 
--- A time attack's clock ("1:23.45"), TIME over it, where the TOTAL box is: nil puts the box back.
+-- A time attack's clock ("1:23"), in the TIME box (T_UI_Time: the TOTAL box's frame with TIME in
+-- it, gen_ui_total.py), where the TOTAL box is: nil puts the TOTAL box back.
 function SpecialStageUI:SetClock(text)
     if (text == self.clock) then return end
     self.clock = text
     if (self.built) then
         local on = (text ~= nil)
-        self.clockLabel:SetVisible(on)
+        self.timeBox:SetVisible(on)
         self.clockText:SetVisible(on)
         self.totalBox:SetVisible(not on)
         self.totalNumber:SetVisible(not on)
@@ -134,13 +135,11 @@ function SpecialStageUI:SetClock(text)
     end
 end
 
--- Centred on CLOCK_X however many characters it has (about 9.5 a character at its size, on the 320
--- screen, measured): a little right of the middle, so three figures of rings do not run into it.
-local CLOCK_X = 176.0
+-- In the middle of the TIME box however many characters it has (about 9.5 a character at its size,
+-- on the 320 screen, measured).
 function SpecialStageUI:PlaceClock()
-    if (self.k == nil or self.clock == nil) then return end
-    self:Place(self.clockLabel, CLOCK_X - 4 * 4.8, 5.0)
-    self:Place(self.clockText, CLOCK_X - #self.clock * 4.75, 17.0)
+    if (self.totalAt == nil or self.clock == nil) then return end
+    self:Place(self.clockText, self.totalAt.x - #self.clock * 4.75, self.totalAt.y)
 end
 
 function SpecialStageUI:SetTotal(n)
@@ -229,10 +228,10 @@ function SpecialStageUI:Build()
     self.totalBox    = MakeQuad(self, LoadAsset("T_UI_Total"), WHITE)           -- the frame, word and all
     self.totalNumber = MakeText(self, tostring(self.total), WHITE)
     self.livesIcon   = MakeQuad(self, LoadAsset("T_UI_Lives"), WHITE)
-    self.clockLabel  = MakeText(self, "TIME", YELLOW)
+    self.timeBox     = MakeQuad(self, LoadAsset("T_UI_Time") or LoadAsset("T_UI_Total"), WHITE)
     self.clockText   = MakeText(self, self.clock or "", WHITE)
     local timed = (self.clock ~= nil)
-    self.clockLabel:SetVisible(timed)
+    self.timeBox:SetVisible(timed)
     self.clockText:SetVisible(timed)
     self.totalBox:SetVisible(not timed)
     self.totalNumber:SetVisible(not timed)
@@ -326,8 +325,8 @@ function SpecialStageUI:Layout()
     self.totalNumber:SetTextSize(19.0 * self.k)
     self.totalAt = { x = bx + bw * 0.5, y = by + 15.0 }
     self:PlaceTotal()
-    -- a time attack's clock, there instead
-    self.clockLabel:SetTextSize(14.0 * self.k)
+    -- a time attack's TIME box and clock, there instead
+    self:Place(self.timeBox, bx, by, bw, bw)
     self.clockText:SetTextSize(19.0 * self.k)
     self:PlaceClock()
     self.coolText:SetTextSize(26.0 * self.k)

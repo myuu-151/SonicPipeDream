@@ -34,7 +34,7 @@ MenuLayout = {
         T_Menu_Item2 = { x = 39, y = 92, w = 167, h = 30, aw = 668, ah = 120, cw = 1024, ch = 128 },
         T_Menu_Item3 = { x = 39, y = 128, w = 207, h = 29, aw = 828, ah = 116, cw = 1024, ch = 128 },
         T_Menu_Item4 = { x = 39, y = 164, w = 113, h = 29, aw = 452, ah = 116, cw = 512, ch = 128 },
-        T_Menu_Item5 = { x = 39, y = 199, w = 219, h = 34, aw = 876, ah = 136, cw = 1024, ch = 256 },
+        T_Menu_Item5 = { x = 39, y = 199, w = 463, h = 34, aw = 1852, ah = 136, cw = 2048, ch = 256 },
         T_Menu_Item6 = { x = 39, y = 234, w = 135, h = 34, aw = 540, ah = 136, cw = 1024, ch = 256 },
         T_Menu_Item7 = { x = 39, y = 270, w = 86, h = 34, aw = 344, ah = 136, cw = 512, ch = 256 },
         T_Menu_Item8 = { x = 39, y = 306, w = 84, h = 34, aw = 336, ah = 136, cw = 512, ch = 256 },

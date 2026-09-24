@@ -827,11 +827,12 @@ function SpecialStage:SpawnArch(s)
     self.arches[s] = rings
 end
 
--- The item past a marathon zone's third check (section s): the emeralds in turn, for now.
+-- The item past a marathon zone's third check (section s): the emerald of the zone's colours (the
+-- palette of stage n is stage n's colours, and so its emerald) -- which the loading screen shows too.
 function SpecialStage:SpawnItem(s)
-    local z = s // MarathonKit.design.sections_per_zone
+    local palette = self.data.sections[s].palette or 1
     local at, fwd, up = self:Place(self.data.sections[s].check_frame + 10.0, 0.0, 4.0)
-    local node = SpawnMesh(self:GetWorld(), LoadAsset("SM_Emerald_" .. ((z - 1) % LAST_STAGE + 1)) or LoadAsset("SM_Emerald"))
+    local node = SpawnMesh(self:GetWorld(), LoadAsset("SM_Emerald_" .. ((palette - 1) % LAST_STAGE + 1)) or LoadAsset("SM_Emerald"))
     node:SetWorldPosition(ToVec(at))
     node:SetWorldRotationQuat(FacingQuat(fwd, up))
     self.items[s] = node
@@ -860,6 +861,38 @@ end
 -- ------------------------------------------------------------------ coming and going
 -- The emerald ends the stage: it is won, and the stage select comes back with that emerald
 -- in colour. One stage does not run into the next -- you choose the next one yourself.
+-- THE RUN-OUT: when the run ends he runs on for some seconds, and the track he had ended there --
+-- he ran into its end and stopped dead, as if against a wall. So it goes on: the centre line
+-- carried straight on from its last frame, and the last piece (a straight: every zone and stage
+-- ends on them) laid again and again ahead, as the lead-in is laid behind the start.
+function SpecialStage:LayRunOut(seconds)
+    local data = self.data
+    local path, pieces = data.path, data.pieces
+    local want = math.ceil(self.frame + seconds * SPEED) + 16 - (#path - 1)
+    local last = pieces[#pieces]
+    if (want <= 0 or last == nil or #path < 9) then return end
+    -- the centre line: one frame's step, on and on, facing as the last frame does
+    local n = #path
+    local e, d = path[n], path[n - 1]
+    local sx, sy, sz = e[1] - d[1], e[2] - d[2], e[3] - d[3]
+    for i = 1, want do
+        path[n + i] = { e[1] + sx * i, e[2] + sy * i, e[3] + sz * i, e[4], e[5], e[6], e[7], e[8], e[9] }
+    end
+    -- the pieces: the last one again, a straight's length (eight frames) further each time
+    local world = self:GetWorld()
+    local lengths = math.ceil(want / 8)
+    for k = 1, lengths do
+        for _, name in ipairs({ last.mesh, last.gloss }) do
+            local node = SpawnMesh(world, self:PieceMesh(name, self.palette))
+            node:SetWorldPosition(Vec(last.pos[1] + sx * 8 * k, last.pos[2] + sy * 8 * k, last.pos[3] + sz * 8 * k))
+            node:SetWorldRotationQuat(Vec(last.quat[1], last.quat[2], last.quat[3], last.quat[4]))
+            -- (first and last: the frames it spans, which the GameCube's UpdatePieces shows it by)
+            self.pieceNodes[#self.pieceNodes + 1] = { node = node, name = name, frame = last.first_frame + 8 * k,
+                                                      first = last.first_frame + 8 * k, last = last.last_frame + 8 * k }
+        end
+    end
+end
+
 -- A time attack's hit with no rings to lose: a life gone, or, the last, the run over.
 function SpecialStage:LoseLife()
     if (self.lives == 0) then return end                -- never out
@@ -1434,6 +1467,7 @@ function SpecialStage:PassChecks(fromFrame)
         if (section.leads_to == "EMERALD") then
             self.emerald:SetVisible(false)
             self.over = 5.0
+            self:LayRunOut(self.over)
             if (self.uiReady) then TheSpecialStageUI:ShowBanner("EMERALD GET !", 4.5) end
             -- Won, and remembered: the stage select shows it in colour from now on, this
             -- session and the next.
@@ -1475,6 +1509,7 @@ function SpecialStage:PassZone(section, missed)
         return
     end
     if (nextSection == nil) then
+        self:LayRunOut(7.0)                     -- the run is over: pipe for him to run on down meanwhile
         if (self.data.timeAttack) then
             self.clockStopped = true
             if (self.uiReady) then TheSpecialStageUI:ShowBanner("CLEAR  " .. FormatClock(self.timeLeft) .. " LEFT", 6.0) end

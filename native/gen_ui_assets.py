@@ -7,6 +7,7 @@
     external/ui/startnew2.png       -> T_UI_Start_1..5    START, one texture a letter
     external/ui/sonicringsnew.png   -> T_UI_SonicRings    the SONIC / RINGS label
     external/ui/total_remade.png    -> T_UI_Total         the TOTAL frame (gen_ui_total.py draws it)
+    external/ui/time_remade.png     -> T_UI_Time          the same frame, TIME: a time attack's clock
     external/ui/emblem_bluenew2.png -> T_UI_Emblem        the winged disc of a passed check
     external/ui/thumbsupnew2.png    -> T_UI_Thumb         the glove that sits on it
                                        T_UI_ThumbDown     the same, thumb down: TOO BAD
@@ -208,6 +209,7 @@ def main():
     save(art("sonicringsnew"), 3, "T_UI_SonicRings", scale=2)      # 256 across already
     save(lives_icon(os.path.join(ART, "lives_sonic_eris1521987.png"), height=64), 13, "T_UI_Lives", scale=1)
     save(art("total_remade"), 4, "T_UI_Total", scale=2)       # drawn by gen_ui_total.py
+    save(art("time_remade"), 14, "T_UI_Time", scale=2)        # ...and its TIME, for a time attack
     start = art("startnew2")
     cuts = []
     for i, (letter_img, x, y) in enumerate(split_letters(start, 5)):

@@ -132,12 +132,18 @@ function Loading:Refresh()
     self.name:SetVisible(named)
     self.gem:SetVisible(named)
     if (named and (n == "marathon" or n == "time_attack")) then
-        -- the emerald the first zone leads to (SpecialStage.lua's SpawnItem: the first of them)
+        -- the emerald of the colours the first zone is in (SpecialStage.lua's SpawnItem: a zone's
+        -- item is its palette's emerald); not shown until they are known (Loading:SetEmerald)
+        local e = self.emerald
         self.title:SetText((n == "time_attack") and "TIME ATTACK" or "MARATHON")
-        self.name:SetText(EMERALD_NAME[1])
-        self.name:SetColor(EMERALD_COLOUR[1])
-        self.gem:SetTexture(LoadAsset("T_Menu_Emerald1"))
-        self.gem:SetColor(WHITE)
+        self.name:SetVisible(e ~= nil)
+        self.gem:SetVisible(e ~= nil)
+        if (e ~= nil) then
+            self.name:SetText(EMERALD_NAME[e])
+            self.name:SetColor(EMERALD_COLOUR[e])
+            self.gem:SetTexture(LoadAsset("T_Menu_Emerald" .. e))
+            self.gem:SetColor(WHITE)
+        end
     elseif (named) then
         self.title:SetText("STAGE " .. n)
         self.name:SetText(EMERALD_NAME[n] or "")
@@ -148,9 +154,18 @@ function Loading:Refresh()
     self:Place()
 end
 
-function Loading:Show(stage, won)
+-- emerald: for a marathon or time attack, the first zone's palette (1-7), if it is known yet
+function Loading:Show(stage, won, emerald)
     self.stage, self.won, self.shown = stage, won and true or false, true
+    self.emerald = emerald
     self.clock = 0.0
+    self:Refresh()
+end
+
+-- A marathon's emerald, once its first zone's colours are known (the PC builds the run behind the
+-- loading screen, so they are not known when it goes up).
+function Loading:SetEmerald(emerald)
+    self.emerald = emerald
     self:Refresh()
 end
 

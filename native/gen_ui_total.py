@@ -3,6 +3,7 @@ top edge, a gradient down the face, a darker lip at the bottom and a soft near-b
 The word is RINGS' gold and the frame SONIC's blue, so the box belongs with the label.
 
     python native/gen_ui_total.py   ->  external/ui/total_remade.png   (256 x 256)
+                                        external/ui/time_remade.png    the same frame, TIME (a time attack)
 
 The art is the top BOX_H rows of a square texture. It is drawn at SS times the size and
 scaled down, which is where the smooth edges and the frame's round corners come from.
@@ -15,6 +16,7 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.abspath(os.path.join(HERE, "..", "external", "ui", "total_remade.png"))
+OUT_TIME = os.path.abspath(os.path.join(HERE, "..", "external", "ui", "time_remade.png"))
 
 W = H = 256
 BOX_H = 160                         # rows of the texture the art fills; SpecialStageUI.lua knows this too
@@ -52,7 +54,9 @@ def shaded(mask, colours, y0, y1):
     return out
 
 
-def main():
+def draw(text, out_path):
+    """The frame with `text` in its top edge. The letters are sized by TOTAL (WORD_W wide), so
+    every word drawn here has the same height; a shorter one leaves a shorter gap in the frame."""
     w, h = W * SS, H * SS
     size = 80 * SS
     while ImageFont.truetype(FONT, size).getlength("TOTAL") > WORD_W * SS:
@@ -60,10 +64,12 @@ def main():
     font = ImageFont.truetype(FONT, size)
     word = Image.new("L", (w, h), 0)
     d = ImageDraw.Draw(word)
-    box = d.textbbox((0, 0), "TOTAL", font=font)
-    tw, th = box[2] - box[0], box[3] - box[1]
-    tx, ty = (w - tw) // 2 - box[0], 8 * SS - box[1]
-    d.text((tx, ty), "TOTAL", font=font, fill=255)
+    box = d.textbbox((0, 0), text, font=font)
+    th = d.textbbox((0, 0), "TOTAL", font=font)
+    th = th[3] - th[1]
+    tw = box[2] - box[0]
+    tx, ty = (w - tw) // 2 - box[0], 8 * SS - d.textbbox((0, 0), "TOTAL", font=font)[1]
+    d.text((tx, ty), text, font=font, fill=255)
     word_top, word_bottom = 8 * SS, 8 * SS + th
 
     frame = Image.new("L", (w, h), 0)
@@ -86,8 +92,13 @@ def main():
     out.paste(Image.new("RGBA", (w, h), OUTLINE + (255,)), (0, 0), grown)
     out.alpha_composite(shaded(frame, BLUE, fy0, fy1))
     out.alpha_composite(shaded(word, GOLD, word_top, word_bottom))
-    out.resize((W, H), Image.LANCZOS).save(OUT)
-    print("wrote", OUT)
+    out.resize((W, H), Image.LANCZOS).save(out_path)
+    print("wrote", out_path)
+
+
+def main():
+    draw("TOTAL", OUT)
+    draw("TIME", OUT_TIME)
 
 
 if __name__ == "__main__":
