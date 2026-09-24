@@ -64,6 +64,7 @@ ROW_OF = {"item_marathon": "item_time_attack", "item_extras": "item_records",
 # from where the first row's centre is -- so the last clears the watermark running under them.
 FIRST_CENTRE = 108.0
 ROW_GAP = 36.0              # seven rows: the last still clears the watermark (it starts at 344)
+ITEM_X = 39                 # every row's left edge: the mockup's were 38 to 41, and Main Game stuck out
 
 
 def uuid_index(index):
@@ -269,7 +270,7 @@ def main():
             if part not in ROW_AT:
                 row = where.get(part) or where[ROW_OF[part]]
                 h = Image.open(os.path.join(PARTS, part + ".png")).height
-                ROW_AT[part] = (row["x"], int(round(FIRST_CENTRE + i * ROW_GAP - h * 0.5)))
+                ROW_AT[part] = (ITEM_X, int(round(FIRST_CENTRE + i * ROW_GAP - h * 0.5)))
     for i, (key, part) in enumerate(ITEMS):
         img = load(part)
         drawn = img
