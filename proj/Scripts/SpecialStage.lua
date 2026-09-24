@@ -272,10 +272,12 @@ local function QuatFromAxes(x, y, z)
     return Vec(qx, qy, qz, qw)
 end
 
--- A time attack's time as the screen shows it: M:SS.CC (minutes, seconds, hundredths).
+-- A time attack's time left as the screen shows it: M:SS, rounded UP (it reads 0:00 only when it
+-- has run out). Whole seconds, so the text changes once a second, not every frame.
+TIME_BONUS = 10.0               -- seconds a check passed puts back on a time attack's clock
 function FormatClock(t)
-    local cs = math.floor((t or 0.0) * 100.0 + 0.5)
-    return string.format("%d:%02d.%02d", cs // 6000, (cs // 100) % 60, cs % 100)
+    local s = math.max(0, math.ceil((t or 0.0) - 1e-6))
+    return string.format("%d:%02d", s // 60, s % 60)
 end
 
 -- Quaternions as plain {x, y, z, w} tables, for laying a marathon's zones end to end.
@@ -618,7 +620,8 @@ function SpecialStage:BuildMarathon()
     data.join = { offset = 0, quota = 0, rng = seed }
     -- THE TIME ATTACK is this same run against the clock (GameOptions.run, set by the menu): the
     -- rings ask nothing at the checks, they only save him from a hit, and a hit with none costs a
-    -- life (Collide); the clock stops at the end of the last round.
+    -- life (Collide). The clock counts DOWN from the setup's time; each check passed puts
+    -- TIME_BONUS back, and at 0 the run is over.
     data.timeAttack = (GameOptions ~= nil and GameOptions.run == "timeAttack") or nil
     local t0 = (os ~= nil and os.clock ~= nil) and os.clock() or 0
     local zone = MarathonGen.BuildZone(seed, 1)
@@ -655,18 +658,22 @@ function SpecialStage:JoinZone(data, zone)
                                           quat = QuatMul(turnQ, piece.quat), first_frame = piece.first_frame + offset,
                                           last_frame = piece.last_frame + offset }
     end
+    -- The zone's own tables are TAKEN, moved into place, not copied: at difficulty 7 a zone is some
+    -- 3000 frames and 1500 rings and bombs, and a copy of each, made while the zone's were still
+    -- alive, was what ran a console's heap out as the second zone joined.
     for i, e in ipairs(zone.path) do
         if (#data.path == 0 or i > 1) then           -- the join is one frame, the last zone's end
             local p = Put({ e[1], e[2], e[3] })
             local f = Turn({ e[4], e[5], e[6] })
             local u = Turn({ e[7], e[8], e[9] })
-            data.path[#data.path + 1] = { p[1], p[2], p[3], f[1], f[2], f[3], u[1], u[2], u[3] }
+            e[1], e[2], e[3], e[4], e[5], e[6], e[7], e[8], e[9] = p[1], p[2], p[3], f[1], f[2], f[3], u[1], u[2], u[3]
+            data.path[#data.path + 1] = e
         end
     end
     for _, sec in ipairs(zone.sections) do
         j.quota = j.quota + sec.asks
-        local objects = {}
-        for k, o in ipairs(sec.objects) do objects[k] = { o[1] + offset, o[2], o[3] } end
+        local objects = sec.objects
+        for _, o in ipairs(objects) do o[1] = o[1] + offset end
         data.sections[#data.sections + 1] = {
             first_frame = sec.first_frame + offset, check_frame = sec.check_frame + offset,
             last_frame = sec.last_frame + offset, quota = j.quota, asks = sec.asks, rings = sec.rings,
@@ -945,7 +952,9 @@ function SpecialStage:Restart()
     self.testSpinClock = 0.0
     -- A time attack's lives (GameOptions: LIVES; 0 is never out): a hit with no rings costs one.
     self.lives = (self.data.timeAttack and GameOptions ~= nil) and GameOptions.timeAttack.lives or 1
-    self.clock, self.clockStopped = 0.0, false      -- a time attack's time: from START to the end of the last round
+    -- a time attack's time left: from the setup's, down
+    self.timeLeft = (self.data.timeAttack and GameOptions ~= nil) and GameOptions.timeAttack.time or 0.0
+    self.clockStopped = false
     -- For testing the checks without playing to them: set S2_TEST_RINGS in the environment.
     self.autoplay = (os ~= nil and os.getenv ~= nil and os.getenv("S2_AUTOPLAY") ~= nil)
     if (os ~= nil and os.getenv ~= nil and os.getenv("S2_AUTOJUMP") ~= nil) then
@@ -1411,6 +1420,7 @@ function SpecialStage:PassChecks(fromFrame)
     if (section == nil or self.frame < section.check_frame or fromFrame >= section.check_frame) then return end
     -- the instant he passes under the rainbow arch
     local quota = self.data.timeAttack and 0 or section.quota      -- a time attack's checks ask nothing
+    if (self.data.timeAttack and not self.clockStopped) then self.timeLeft = self.timeLeft + TIME_BONUS end
     if (self.rings >= quota) then
         if (self.data.marathon and section.leads_to == "PALETTE SHIFT") then
             self:PassZone(section)
@@ -1467,7 +1477,7 @@ function SpecialStage:PassZone(section, missed)
     if (nextSection == nil) then
         if (self.data.timeAttack) then
             self.clockStopped = true
-            if (self.uiReady) then TheSpecialStageUI:ShowBanner("CLEAR  " .. FormatClock(self.clock), 6.0) end
+            if (self.uiReady) then TheSpecialStageUI:ShowBanner("CLEAR  " .. FormatClock(self.timeLeft) .. " LEFT", 6.0) end
             self.over = 6.5
         else
             if (self.uiReady) then TheSpecialStageUI:ShowBanner("MARATHON CLEAR !", 4.5) end
@@ -1508,7 +1518,7 @@ function SpecialStage:UpdateUI()
     local section = self.data.sections[math.min(self.section, #self.data.sections)]
     TheSpecialStageUI:SetRings(self.rings)
     if (self.data.timeAttack) then
-        TheSpecialStageUI:SetClock(FormatClock(self.clock))            -- the time, where TOTAL was
+        TheSpecialStageUI:SetClock(FormatClock(self.timeLeft))            -- the time, where TOTAL was
     else
         TheSpecialStageUI:SetClock(nil)
         TheSpecialStageUI:SetTotal(section.quota)                      -- what this round ASKS for: it does not count down
@@ -1676,9 +1686,16 @@ function SpecialStage:Tick(deltaTime)
     -- screen), the thumbs-up after a check is passed, and from the emerald taken (or a check
     -- failed) to the end of the stage. Hands off, he slides back down to the floor.
     local locked = (self.hold > 0.0 or self.intro > 0.0 or self.thumbs > 0.0 or self.over >= 0.0)
-    -- a time attack's clock: from the end of START to the end of the last round (or the last life)
+    -- a time attack's clock: down, from the end of START; at 0 the run is over
     if (self.data.timeAttack and not self.clockStopped and self.hold <= 0.0 and self.intro <= 0.0 and self.over < 0.0) then
-        self.clock = self.clock + dt
+        self.timeLeft = self.timeLeft - dt
+        if (self.timeLeft <= 0.0) then
+            self.timeLeft, self.clockStopped = 0.0, true
+            self.over = 3.5
+            self.failed = true
+            self:Sound("Fail")
+            if (self.uiReady) then TheSpecialStageUI:ShowBanner("TIME OVER", 3.2) end
+        end
     end
     -- steering: round the pipe, and only round it, while his feet are on it
     local want = 0.0

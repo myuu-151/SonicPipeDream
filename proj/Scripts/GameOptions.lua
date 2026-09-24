@@ -14,13 +14,15 @@
 --                                      above, and
 --     GameOptions.timeAttack.lives     hits he can take with no rings before the run ends: 1, 3, 5;
 --                                      0 is never (SpecialStage.lua's Collide)
+--     GameOptions.timeAttack.time      the clock's start, in seconds; it counts down, each check
+--                                      passed puts time back, and at 0 the run is over
 --
 --     GameOptions.run                  which of the two the next run is: "marathon" or "timeAttack"
 --                                      (set by the menu as it starts one); GameOptions.Run() is its
 --                                      settings
 
 local DEFAULT_MARATHON = { rounds = 7, start = 2, climb = 3, leniency = 2 }
-local DEFAULT_TIME_ATTACK = { rounds = 7, start = 2, climb = 3, leniency = 2, lives = 3 }
+local DEFAULT_TIME_ATTACK = { rounds = 7, start = 2, climb = 3, leniency = 2, lives = 3, time = 60 }
 
 GameOptions = GameOptions or { muteStageMusic = false, touched = false, marathon = {}, timeAttack = {} }
 GameOptions.timeAttack = GameOptions.timeAttack or {}
@@ -45,17 +47,29 @@ GameOptions.CHOICES = {
     climb = { values = { 1, 2, 3, 4 }, show = function(v) return ({ "NONE", "SLOW", "NORMAL", "FAST" })[v] end },
     leniency = { values = { 1, 2, 3 }, show = function(v) return ({ "TIGHT", "NORMAL", "GENEROUS" })[v] end },
     lives = { values = { 1, 3, 5, 0 }, show = function(v) return (v == 0) and "INFINITE" or tostring(v) end },
+    time = { values = { 30, 60, 90, 120, 180 },
+             show = function(v) return string.format("%d:%02d", v // 60, v % 60) end },
 }
+
+-- A time's place in CHOICES.time (1 if it is not one of them).
+function TimeIndex(v)
+    for i, t in ipairs(GameOptions.CHOICES.time.values) do
+        if (t == v) then return i end
+    end
+    return 1
+end
 
 -- The letters after the emeralds: mute (M or -), then the marathon's rounds (a letter: A is
 -- endless, B one round, ...), start, climb and leniency (a digit each), a spare digit (the
--- marathon's lives once; it has none now), then the time attack's rounds (a letter), start, climb
--- and lives.
+-- marathon's lives once; it has none now), then the time attack's rounds (a letter), start, climb,
+-- lives and time (a digit: its place in CHOICES.time).
+
 function GameOptions.Encode()
     local m, t = GameOptions.marathon, GameOptions.timeAttack
     return (GameOptions.muteStageMusic and "M" or "-") .. string.char(65 + m.rounds)
            .. tostring(m.start) .. tostring(m.climb) .. tostring(m.leniency) .. "0"
            .. string.char(65 + t.rounds) .. tostring(t.start) .. tostring(t.climb) .. tostring(t.lives)
+           .. tostring(TimeIndex(t.time))
 end
 
 -- From a save's text. Settings changed this session and not saved yet stay as the player set them
@@ -86,4 +100,7 @@ function GameOptions.Decode(text)
     Digit(15, 1, 7, t, "start")
     Digit(16, 1, 4, t, "climb")
     Digit(17, 0, 5, t, "lives")
+    local times = GameOptions.CHOICES.time.values
+    local ti = tonumber(text:sub(18, 18))
+    if (ti ~= nil and times[ti] ~= nil) then t.time = times[ti] end
 end

@@ -59,6 +59,7 @@ local PAGES = {
                              { label = "STARTING DIFFICULTY", setting = "start" },
                              { label = "DIFFICULTY CLIMB", setting = "climb" },
                              { label = "LIVES", setting = "lives" },
+                             { label = "TIME", setting = "time" },
                              { label = "START", start = true } } },
 }
 
