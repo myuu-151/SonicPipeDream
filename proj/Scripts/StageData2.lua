@@ -19,7 +19,7 @@ StageData2 = {
   },
   sky = 4,
   palette = 2,
-  palette_skies = {0,4,6,2,5,3,1},
+  palette_skies = {0,4,6,3,5,2,1},
   pieces = {
     {
       mesh = "SM_Piece_Straight_P",

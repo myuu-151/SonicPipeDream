@@ -15,7 +15,7 @@ MarathonKit = {
     toward_player = 0.72,
     steps_per_second = 8,
   },
-  palette_skies = {0,4,6,2,5,3,1},
+  palette_skies = {0,4,6,3,5,2,1},
   design = {
     quota = {
       [1] = {30,70,130},

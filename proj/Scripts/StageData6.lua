@@ -17,9 +17,9 @@ StageData6 = {
     toward_player = 0.72,
     steps_per_second = 8,
   },
-  sky = 3,
+  sky = 2,
   palette = 6,
-  palette_skies = {0,4,6,2,5,3,1},
+  palette_skies = {0,4,6,3,5,2,1},
   pieces = {
     {
       mesh = "SM_Piece_Straight_P",

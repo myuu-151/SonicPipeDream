@@ -82,8 +82,8 @@ ACCENTS = {
 }
 
 # Which of the project's skies (docs/skies.md) goes behind each stage. OURS: see above.
-SKY = {1: (0, "Classic"), 2: (4, "Sunset"), 3: (6, "Inferno"), 4: (2, "Dawn"),
-       5: (5, "Aurora"), 6: (3, "Pastel"), 7: (1, "Midnight")}
+SKY = {1: (0, "Classic"), 2: (4, "Sunset"), 3: (6, "Inferno"), 4: (3, "Pastel"),
+       5: (5, "Aurora"), 6: (2, "Dawn"), 7: (1, "Midnight")}      # 4 and 6 swapped (the owner's, 2026-09-24)
 
 
 def rgb(hex6):
