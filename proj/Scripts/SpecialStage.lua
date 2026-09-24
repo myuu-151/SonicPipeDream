@@ -112,9 +112,8 @@ local SPIN_SKID = 0.35          -- seconds to skid from full speed to a stop
 local SPIN_REV = 1.0            -- charge a press of A adds...
 local SPIN_REV_MAX = 8.0        -- ...up to this
 local SPIN_REV_BLEED = 1.2      -- charge lost a second, as a share of what there is (Sonic 2's 1/32 a frame)
-local DASH_BASE = 1.15          -- times his speed at the launch, uncharged: a tap of R is only a nudge...
-local DASH_MAX = 2.8            -- ...and fully charged (SPIN_REV_MAX, where the rev's pitch tops out) this
-local DASH_PER_REV = (DASH_MAX - DASH_BASE) / SPIN_REV_MAX      -- each unit of charge between
+local DASH_BASE = 1.6           -- times his speed at the launch, uncharged...
+local DASH_PER_REV = 0.15       -- ...and this much more for each unit of charge (2.8 at full)
 local DASH_EASE = 0.55          -- how fast the extra speed goes: a share a second
 local DASH_BALL = 1.3           -- he stays curled up while he is going faster than this
 local SPIN_TALL = 0.74          -- the ball's height while he revs, squashed down on the pipe...
@@ -180,6 +179,13 @@ local SHADOW_RIM = 58.0         -- 256ths round from the floor's centre line: th
                                 -- (81 degrees; measured off the mesh). The track is a HALF pipe, and a
                                 -- thing beyond its rim has nothing under it to cast a shadow on
 local BOMB_COST = 10            -- rings a bomb takes, as in the original
+-- A TIME ATTACK's hit takes EVERY ring (elsewhere BOMB_COST), and they are seen to go, as Sonic 3's do: flung out round
+-- him, arcing up and falling back, spinning, blinking out. One is shown for every LOST_RINGS_PER
+-- lost -- a few rings, one; a big pile, up to LOST_RINGS_MAX. They cannot be taken back.
+local LOST_RINGS_PER = 5
+local LOST_RINGS_MAX = 12
+local LOST_RING_LIFE = 1.3      -- seconds in the air
+local LOST_RING_BLINK = 0.6     -- the last share of that it blinks
 local STUN = 0.6                -- seconds of stumbling after a bomb
 local SEE_AHEAD, SEE_BEHIND = 110, 6    -- frames of rings and bombs kept alive round the player
 local START_HOLD = 4.5          -- seconds running up the lead-in at the start while START plays (2.5 s)
@@ -433,7 +439,7 @@ function SpecialStage:Build()
     self.meshBall = LoadAsset("SM_PlayerBall")
     self.meshSparkle, self.meshBoom = LoadAsset("SM_FxQuad"), LoadAsset("SM_FxQuadBoom")
     self.meshFx = { sparkle = self.meshSparkle, boom = self.meshBoom, razor = LoadAsset("SM_FxQuadRazor"),
-                    puff = LoadAsset("SM_FxQuadPuff") }
+                    puff = LoadAsset("SM_FxQuadPuff"), lostring = self.meshRing }
     self.meshTrace = LoadAsset("SM_FxTrace")
     self.boomMaterial, self.boomTextures, self.boomFrame = LoadAsset("M_Explosion"), {}, -1
     for i = 0, BOOM_FRAMES - 1 do self.boomTextures[i] = LoadAsset("T_Explosion_" .. i) end
@@ -908,7 +914,7 @@ function SpecialStage:LoseLife()
     self.clockStopped = true
     self.over = 3.5
     self.failed = true
-    self:Sound("Fail")
+    self:Sound("Hurt")                  -- only with GAME OVER
     if (self.uiReady) then TheSpecialStageUI:ShowBanner("GAME OVER", 3.2) end
 end
 
@@ -1023,7 +1029,7 @@ function SpecialStage:Restart()
     self.uiReady = false
     self.failed = false
     self.fxPool = self.fxPool or {}
-    for _, kind in ipairs({ "sparkle", "boom", "razor", "puff" }) do
+    for _, kind in ipairs({ "sparkle", "boom", "razor", "puff", "lostring" }) do
         self.fxPool[kind] = self.fxPool[kind] or {}
     end
     self.fxClock = { razor = 0.0, puff = 0.0 }
@@ -1061,6 +1067,23 @@ function SpecialStage:SpawnSparkles(o)
                                   ahead = o.frame - self.frame, angle = o.angle, height = self.data.hover,
                                   dAngle = math.cos(a) * push * 14.0, dHeight = math.sin(a) * push * 2.4,
                                   size = SPARKLE_SIZE * (0.7 + math.random() * 0.6) }
+    end
+end
+
+-- A hit: the rings he lost, flung out round him (see LOST_RINGS_PER)
+function SpecialStage:SpawnLostRings(lost)
+    local count = math.max(1, math.min(LOST_RINGS_MAX, math.ceil(lost / LOST_RINGS_PER)))
+    for i = 1, count do
+        local node = self:FxNode("lostring")
+        if (node == nil) then return end
+        local a = (i / count) * TWO_PI + (math.random() - 0.5) * 0.6
+        local push = 0.7 + math.random() * 0.5
+        self.fx[#self.fx + 1] = { kind = "lostring", node = node, age = 0.0, life = LOST_RING_LIFE,
+                                  ahead = 0.0, angle = self.angle, height = self.data.hover,
+                                  dAngle = math.cos(a) * push * 28.0,             -- round the pipe
+                                  dAhead = math.sin(a) * push * 7.0,              -- and along it
+                                  dHeight = 0.0, arc = 3.0 + math.random() * 2.0, -- up, and back down
+                                  floor = 0.3, size = 1.0 }
     end
 end
 
@@ -1294,7 +1317,8 @@ function SpecialStage:UpdateFx(dt, facing)
             local t = math.max(0.0, fx.age) / fx.life
             local function At(u)
                 local frame = fx.at or (self.frame + fx.ahead + (fx.dAhead or 0.0) * u)
-                return self:Place(frame, fx.angle + fx.dAngle * u, math.max(fx.floor or -99.0, fx.height + fx.dHeight * u))
+                local h = fx.height + fx.dHeight * u + (fx.arc or 0.0) * 4.0 * u * (1.0 - u)
+                return self:Place(frame, fx.angle + fx.dAngle * u, math.max(fx.floor or -99.0, h))
             end
             local place = At(t)
             local size, sx, rotation = nil, nil, facing
@@ -1316,6 +1340,15 @@ function SpecialStage:UpdateFx(dt, facing)
                     local x = Normalize(v)
                     rotation = QuatFromAxes(x, Cross(toward, x), toward)
                 end
+            elseif (fx.kind == "lostring") then
+                -- a ring as the track's: spinning with them, square to the pipe, blinking out at the end
+                size = fx.size
+                if (self.meshRingSpin[self.ringStep or 0] ~= nil) then fx.node:SetStaticMesh(self.meshRingSpin[self.ringStep or 0]) end
+                local frame = self.frame + fx.ahead + (fx.dAhead or 0.0) * t
+                local _, fwd = self:Place(frame, fx.angle + fx.dAngle * t, 0.0)
+                local _, _, up = self:TrackAt(frame)
+                rotation = FacingQuat(fwd, up)
+                if (t > 1.0 - LOST_RING_BLINK and math.floor(fx.age * 16.0) % 2 == 1) then size = 0.0 end
             elseif (fx.kind == "puff") then
                 -- a puff swells as it rises, and shrinks away at the end
                 size = fx.size * (0.5 + 0.7 * t) * math.min(1.0, (1.0 - t) * 4.0)
@@ -1432,13 +1465,20 @@ function SpecialStage:Collide(fromFrame)
             o.taken = true
             if (o.node ~= nil) then self:Release(o) end
             if (o.bomb) then
+                -- A TIME ATTACK'S RECOVERY: still stunned from the last hit, he takes no more -- bombs
+                -- come in clusters, and the next one along found him with no rings (the first took them
+                -- all) and cost a life a moment later. It still goes off.
+                local recovering = self.data.timeAttack and self.stun > 0.0
                 local had = self.rings
-                self.rings = math.max(0, self.rings - BOMB_COST)
-                self.stun = STUN
+                if (not recovering) then
+                    self.rings = self.data.timeAttack and 0 or math.max(0, self.rings - BOMB_COST)
+                    if (had > 0) then self:SpawnLostRings(had - self.rings) end     -- seen to go (all modes)
+                    self.stun = STUN
+                end
                 self:Sound("Explosion")
-                if (had > 0) then self:Sound("LoseRings") end      -- only if there were any to lose
+                if (had > 0 and not recovering) then self:Sound("LoseRings") end    -- only if there were any to lose
                 self:SpawnBoom(o)
-                if (had == 0 and self.data.timeAttack and self.over < 0.0) then self:LoseLife() end
+                if (had == 0 and not recovering and self.data.timeAttack and self.over < 0.0) then self:LoseLife() end
             else
                 self.rings = self.rings + 1
                 self:Sound("Ring")
@@ -1572,7 +1612,7 @@ end
 -- each on top of the last. So every effect has its own level here, set against the music at 1.0:
 -- the ring well under it, the one-off fanfares about level with it.
 local MIX = { Ring = 0.22, LoseRings = 0.55, Jump = 0.40, Checkpoint = 0.65, GetEmerald = 1.0,
-              Explosion = 0.60, Fail = 0.70, ExitStage = 0.60, SpinRev = 0.45, SpinRelease = 0.70 }
+              Explosion = 0.60, Fail = 0.70, ExitStage = 0.60, SpinRev = 0.45, SpinRelease = 0.70, Hurt = 0.80 }
 -- A sound played from another's asset (none now).
 local SOUND_ASSET = {}
 
@@ -1583,7 +1623,7 @@ local SOUND_ASSET = {}
 -- higher; the music is the highest of all, SpecialStageMusic.lua); and the ones that come in bursts
 -- play ONE AT A TIME, each cutting the last off, so a burst holds one voice however long it goes on.
 local PRIORITY = { Ring = 10, SpinRev = 15, Jump = 20, LoseRings = 30, Explosion = 30, SpinRelease = 40,
-                   Checkpoint = 60, GetEmerald = 60, Fail = 60, ExitStage = 60, MenuWarp = 60 }
+                   Checkpoint = 60, GetEmerald = 60, Fail = 60, Hurt = 60, ExitStage = 60, MenuWarp = 60 }
 local ONE_AT_A_TIME = { Ring = true, SpinRev = true, Jump = true }
 
 function SpecialStage:Sound(name, pitch)
@@ -1814,7 +1854,8 @@ function SpecialStage:Tick(deltaTime)
         if (not locked and grounded and self.stun <= 0.0 and SpinDown()) then
             self.spinDash = { rev = 0.0, pulse = 1.0 }
             self.skid = self.boost            -- from whatever speed he had
-            self.boost = 1.0              -- (silent: the revs are A's, and letting go is the release)
+            self.boost = 1.0
+            self:Sound("Jump")
         end
     elseif (locked or not grounded or not SpinDown()) then
         -- let go: off he goes (unless the stage took the controls, or he left the pipe)
