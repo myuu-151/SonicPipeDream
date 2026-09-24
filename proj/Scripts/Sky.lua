@@ -17,6 +17,7 @@
 Sky = {}
 
 Script.Require("PadInput")      -- a controller, folded into the keys the scripts ask about
+Script.Require("MenuMusic")     -- the menus' music, while they are up
 
 -- Material texture slots, 1-based: the stars (with the sky gradient under them),
 -- then the diamonds.
@@ -350,6 +351,7 @@ function Sky:Tick(deltaTime)
     -- Tick is the GAME's; the editor calls EditorTick. So nothing starts in the editor.
     if (self.marathonStart ~= nil) then self:TickMarathonStart(deltaTime) end
     if (self.stageStart ~= nil) then self:TickStageStart(deltaTime) end
+    MenuMusic.Tick(deltaTime)
     if (not self.started) then
         self.started = true
         local skipMenu = (os ~= nil and os.getenv ~= nil and os.getenv("S2_NOMENU") ~= nil)
