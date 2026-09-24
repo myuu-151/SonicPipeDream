@@ -509,22 +509,31 @@ end
 -- on the end of the track when it is done: its start set down exactly on the last one's end,
 -- turned to carry on from it. Each zone gets a colour theme at random, never the last one's.
 -- What has been passed goes, so a run can go on for as long as the player does.
-local GEN_SLICE = 0.004             -- seconds of building a frame, where the clock can be read
+local GEN_SLICE_MS = 4              -- milliseconds of building a frame, where the clock can be read
 local BEHIND_FRAMES = 160           -- track kept behind him; pieces, arches and items further back go
+
+-- Milliseconds, read NOW (not the frame's time): the engine's clock where it has one -- the
+-- GameCube's os.clock is not to be trusted -- else os.clock. nil if there is neither.
+local function ClockMs()
+    if (System.GetClockMs ~= nil) then return System.GetClockMs() end
+    if (os ~= nil and os.clock ~= nil) then return math.floor(os.clock() * 1000) end
+    return nil
+end
 
 function SpecialStage:BuildMarathon()
     Script.Require("MarathonGen")
     local kit = MarathonKit
+    -- the time of day, and the milliseconds since the game started (which the player's own timing
+    -- decides): no two runs alike
     local seed = 12345
-    if (os ~= nil and os.time ~= nil) then
-        seed = os.time() * 1000 + math.floor(((os.clock and os.clock()) or 0) * 1000)
-    elseif (Engine ~= nil and Engine.GetRealElapsedTime ~= nil) then
-        seed = math.floor(Engine.GetRealElapsedTime() * 1000003)
-    end
+    if (os ~= nil and os.time ~= nil) then seed = math.floor(os.time()) * 1000 end
+    seed = seed + (ClockMs() or math.floor(((Engine ~= nil and Engine.GetRealElapsedTime ~= nil)
+                                            and Engine.GetRealElapsedTime() or 0) * 1000003))
     -- a whole number: the engine's Lua is 32-bit, and a float here made every number after it
     -- one (a palette of 2.0 named a mesh "..._P2.0", and the pipe was not there)
     seed = math.floor(seed % 2147483647)
     self.runSeed = seed
+    self.trimmedTo = 0
     -- For native/check_marathon_gen.py: S2_GEN_DUMP=<dir> builds zones 1..S2_GEN_ZONES (default 10)
     -- of a few runs here and now, and writes each out to be solved.
     local dump = (os ~= nil and os.getenv ~= nil) and os.getenv("S2_GEN_DUMP") or nil
@@ -578,7 +587,8 @@ function SpecialStage:JoinZone(data, zone)
     local offset = j.offset
     for _, piece in ipairs(zone.pieces) do
         data.pieces[#data.pieces + 1] = { mesh = piece.mesh, gloss = piece.gloss, pos = Put(piece.pos),
-                                          quat = QuatMul(turnQ, piece.quat), first_frame = piece.first_frame + offset }
+                                          quat = QuatMul(turnQ, piece.quat), first_frame = piece.first_frame + offset,
+                                          last_frame = piece.last_frame + offset }
     end
     for i, e in ipairs(zone.path) do
         if (#data.path == 0 or i > 1) then           -- the join is one frame, the last zone's end
@@ -651,21 +661,25 @@ function SpecialStage:TickMarathonGen()
         self:TrimBehind()
     end
     if (self.gen == nil) then return end
-    local clock = (os ~= nil and os.clock ~= nil) and os.clock or nil
-    local t0 = clock and clock() or 0
+    local t0 = ClockMs()
     repeat
         local ok, zone = coroutine.resume(self.gen)
         if (not ok) then
             Log.Error("MarathonGen: " .. tostring(zone))
+            self.genError = tostring(zone)          -- (kept for a console's on-screen readout)
             self.gen = nil
             return
         end
         if (coroutine.status(self.gen) == "dead") then
             self.gen = nil
-            if (zone ~= nil) then self:AppendZone(zone) end
+            if (zone ~= nil) then
+                self:AppendZone(zone)
+            else
+                self.genError = "zone " .. (self.zonesBuilt + 1) .. " could not be built"
+            end
             return
         end
-    until (clock == nil or clock() - t0 >= GEN_SLICE)
+    until (t0 == nil or ClockMs() - t0 >= GEN_SLICE_MS)
 end
 
 -- What is well behind him goes: the track's pieces, the arches, the items, the rings and bombs
@@ -699,6 +713,20 @@ function SpecialStage:TrimBehind()
     end
     self.objects = kept
     self.objStart = 1
+    -- and the run's own table: the centre line and the rings of what is long gone (a zone's path
+    -- is a table a frame, and a run can go on for as long as the player does). The frames gone all
+    -- share the oldest one kept -- not nil, which would leave #path, and so the next zone's join,
+    -- to chance.
+    local data = self.data
+    local upTo = math.min(math.floor(limit) - 100, #data.path - 1)
+    if (upTo > (self.trimmedTo or 0)) then
+        local oldest = data.path[upTo + 1]
+        for f = (self.trimmedTo or 0) + 1, upTo do data.path[f] = oldest end
+        self.trimmedTo = upTo
+    end
+    for _, section in ipairs(data.sections) do
+        if (section.last_frame < limit) then section.objects = {} end
+    end
 end
 
 -- The rainbow arch over check s.

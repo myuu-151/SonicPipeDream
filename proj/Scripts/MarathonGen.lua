@@ -73,9 +73,10 @@ end
 
 -- ------------------------------------------------------------------ yielding
 local ops = 0
+MarathonGen.BREATH = 400            -- work between yields (a slower machine sets it lower)
 local function Breathe(weight)
     ops = ops + (weight or 1)
-    if (ops >= 400) then
+    if (ops >= MarathonGen.BREATH) then
         ops = 0
         if (coroutine.isyieldable()) then coroutine.yield() end
     end
@@ -609,7 +610,8 @@ function MarathonGen.Write(zone, seed, part, names, origins, piecesAt, sections,
     for i, n in ipairs(names) do
         local o = origins[i]
         out.pieces[i] = { mesh = "SM_Piece_" .. n .. "_P", gloss = "SM_Piece_" .. n .. "_Gloss_P",
-                          pos = ToOctave(o.p), quat = QuatOfFrame(o), first_frame = piecesAt[i][1] }
+                          pos = ToOctave(o.p), quat = QuatOfFrame(o), first_frame = piecesAt[i][1],
+                          last_frame = piecesAt[i][2] }
         length = length + PIECES[n].length
     end
     local frames = math.floor(length / K.step) + 1
