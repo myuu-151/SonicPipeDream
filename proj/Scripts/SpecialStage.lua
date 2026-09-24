@@ -388,6 +388,38 @@ function SpecialStage:Place(frame, angle, height)
     return place, fwd, inward
 end
 
+-- Place's place, as three numbers and making no tables: the same sums, in the same order. For what
+-- is placed many times a frame (the effects): Place makes about fourteen tables a call.
+function SpecialStage:PlaceXYZ(frame, angle, height)
+    local path = self.data.path
+    local px, py, pz, fx, fy, fz, ux, uy, uz
+    if (frame < 0.0) then
+        local a, b = path[1], path[2]
+        px, py, pz = a[1] + (b[1] - a[1]) * frame, a[2] + (b[2] - a[2]) * frame, a[3] + (b[3] - a[3]) * frame
+        fx, fy, fz = a[4], a[5], a[6]
+        ux, uy, uz = a[7], a[8], a[9]
+    else
+        local f = math.max(0.0, math.min(frame, #path - 1.001))
+        local i = math.floor(f)
+        local s = f - i
+        local a, b = path[i + 1], path[i + 2]
+        px, py, pz = a[1] + (b[1] - a[1]) * s, a[2] + (b[2] - a[2]) * s, a[3] + (b[3] - a[3]) * s
+        fx, fy, fz = a[4] + (b[4] - a[4]) * s, a[5] + (b[5] - a[5]) * s, a[6] + (b[6] - a[6]) * s
+        ux, uy, uz = a[7] + (b[7] - a[7]) * s, a[8] + (b[8] - a[8]) * s, a[9] + (b[9] - a[9]) * s
+    end
+    local l = math.sqrt(fx * fx + fy * fy + fz * fz)                          -- Normalize(fwd)
+    if (l < 1e-6) then fx, fy, fz = 0, 1, 0 else fx, fy, fz = fx / l, fy / l, fz / l end
+    l = math.sqrt(ux * ux + uy * uy + uz * uz)                                -- Normalize(up)
+    if (l < 1e-6) then ux, uy, uz = 0, 1, 0 else ux, uy, uz = ux / l, uy / l, uz / l end
+    local lx, ly, lz = uy * fz - uz * fy, uz * fx - ux * fz, ux * fy - uy * fx   -- Cross(up, fwd)
+    local t = self.data.angle_00_side * angle * TWO_PI / 256.0
+    local radius = self.data.pipe_radius
+    local r = radius - height
+    local ks, kc = r * math.sin(t), radius - r * math.cos(t)
+    px, py, pz = px + lx * ks, py + ly * ks, pz + lz * ks
+    return px + ux * kc, py + uy * kc, pz + uz * kc
+end
+
 -- ------------------------------------------------------------------ building the stage
 local function SpawnMesh(world, mesh)
     local node = world:SpawnNode("StaticMesh3D")
@@ -1163,21 +1195,32 @@ function SpecialStage:TraceMesh(trace)
         node:SetVisible(false)
         return
     end
+    -- NO TABLES MADE HERE, frame after frame: every vector is three local numbers, and the tables
+    -- that are needed (the lengths, xyz, rgba) are kept and filled in place. Built from the vector
+    -- helpers (Add, Scale, Normalize, ... each a new table), it made ~14 KB of garbage a frame -- ten
+    -- tables a ring -- and took 3.5 ms of a GameCube frame; the collector's work came back as uneven
+    -- frames. The sums are the helpers' own, in the same order: the same tube.
     -- the path's length, point to point from the ball back
-    local lengths, total = { 0.0 }, 0.0
+    self.traceLengths = self.traceLengths or {}
+    local lengths, total = self.traceLengths, 0.0
+    lengths[1] = 0.0
     for i = 2, #trace do
-        local v = Sub(trace[i - 1].pos, trace[i].pos)
-        total = total + math.sqrt(Dot(v, v))
+        local p, q = trace[i - 1].pos, trace[i].pos
+        local vx, vy, vz = p[1] - q[1], p[2] - q[2], p[3] - q[3]
+        total = total + math.sqrt(vx * vx + vy * vy + vz * vz)
         lengths[i] = total
     end
     if (total < 1e-3) then
         node:SetVisible(false)
         return
     end
-    local head = trace[1].pos
-    local ahead = Sub(trace[1].pos, trace[2].pos)
-    ahead = Scale(ahead, 1.0 / math.max(1e-4, math.sqrt(Dot(ahead, ahead))))
+    local head, second = trace[1].pos, trace[2].pos
+    local hx, hy, hz = head[1], head[2], head[3]
+    local ax, ay, az = hx - second[1], hy - second[2], hz - second[3]               -- ahead
+    local ak = 1.0 / math.max(1e-4, math.sqrt(ax * ax + ay * ay + az * az))
+    ax, ay, az = ax * ak, ay * ak, az * ak
     local _, _, upHere = self:Place(self.frame, self.angle, 0.0)
+    local ux, uy, uz = upHere[1], upHere[2], upHere[3]
     local radius = BALL_RADIUS * TRAIL_RADIUS
     -- the same two tables every frame, filled in place (a GameCube notices the garbage otherwise)
     self.traceXyz, self.traceRgba = self.traceXyz or {}, self.traceRgba or {}
@@ -1187,12 +1230,14 @@ function SpecialStage:TraceMesh(trace)
     local lx, ly, lz = look[1], look[2], look[3]
     local seg = 2
     for r = 1, TRACE_RINGS do
-        local centre, along, ringR, u
+        local cx, cy, cz, gx, gy, gz, ringR, u          -- the ring's centre, and the way it runs (along)
         if (r <= TRACE_CAP) then
             -- the dome: from its tip ahead of the ball back to its rim round the ball
             local lat = (math.pi * 0.5) * (TRACE_CAP - r) / TRACE_CAP
-            centre = Add(head, Scale(ahead, radius * math.sin(lat)))
-            ringR, along, u = radius * math.cos(lat), ahead, 0.0
+            local s = radius * math.sin(lat)
+            cx, cy, cz = hx + ax * s, hy + ay * s, hz + az * s
+            ringR, u = radius * math.cos(lat), 0.0
+            gx, gy, gz = ax, ay, az
         else
             -- back along the path, evenly by distance
             u = (r - TRACE_CAP) / (TRACE_RINGS - TRACE_CAP)
@@ -1201,28 +1246,36 @@ function SpecialStage:TraceMesh(trace)
             local a, b = trace[seg - 1].pos, trace[seg].pos
             local span = math.max(1e-4, lengths[seg] - lengths[seg - 1])
             local t = math.min(1.0, math.max(0.0, (want - lengths[seg - 1]) / span))
-            centre = Add(a, Scale(Sub(b, a), t))
-            along = Sub(a, b)
-            along = Scale(along, 1.0 / math.max(1e-4, math.sqrt(Dot(along, along))))
+            cx, cy, cz = a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t
+            gx, gy, gz = a[1] - b[1], a[2] - b[2], a[3] - b[3]
+            local gk = 1.0 / math.max(1e-4, math.sqrt(gx * gx + gy * gy + gz * gz))
+            gx, gy, gz = gx * gk, gy * gk, gz * gk
             ringR = radius * (1.0 - u) ^ 0.7
         end
-        local y = Sub(upHere, Scale(along, Dot(upHere, along)))
-        if (Dot(y, y) < 1e-6) then y = { 0.0, 1.0, 0.0 } end
-        y = Normalize(y)
-        local z = Cross(along, y)
+        -- y: up, square to the way it runs; z: across
+        local d = ux * gx + uy * gy + uz * gz
+        local yx, yy, yz = ux - gx * d, uy - gy * d, uz - gz * d
+        if (yx * yx + yy * yy + yz * yz < 1e-6) then yx, yy, yz = 0.0, 1.0, 0.0 end
+        local yl = math.sqrt(yx * yx + yy * yy + yz * yz)
+        if (yl < 1e-6) then
+            yx, yy, yz = 0, 1, 0
+        else
+            yx, yy, yz = yx / yl, yy / yl, yz / yl
+        end
+        local zx, zy, zz = gy * yz - gz * yy, gz * yx - gx * yz, gx * yy - gy * yx
         -- where it is wider than the ball, lifted by the difference: its bottom stays on the pipe
-        centre = Add(centre, Scale(upHere, math.max(0.0, ringR - BALL_RADIUS * 0.97)))
+        local lift = math.max(0.0, ringR - BALL_RADIUS * 0.97)
+        cx, cy, cz = cx + ux * lift, cy + uy * lift, cz + uz * lift
         local alpha = TRACE_ALPHA * (1.0 - u) ^ TRAIL_FADE
-        local ox, oy, oz = centre[1], centre[2], centre[3]
         for k = 0, TRACE_SIDES do
             local cs = TRACE_ROUND[k]
             -- the way this vertex faces, and how edge-on the camera sees it (1 at the edge)
-            local nx = y[1] * cs[1] + z[1] * cs[2]
-            local ny = y[2] * cs[1] + z[2] * cs[2]
-            local nz = y[3] * cs[1] + z[3] * cs[2]
+            local nx = yx * cs[1] + zx * cs[2]
+            local ny = yy * cs[1] + zy * cs[2]
+            local nz = yz * cs[1] + zz * cs[2]
             local rim = 1.0 - math.abs(nx * lx + ny * ly + nz * lz)
             rim = rim * rim
-            xyz[vi + 1], xyz[vi + 2], xyz[vi + 3] = ox + nx * ringR, oy + ny * ringR, oz + nz * ringR
+            xyz[vi + 1], xyz[vi + 2], xyz[vi + 3] = cx + nx * ringR, cy + ny * ringR, cz + nz * ringR
             rgba[ci + 1] = TRACE_CORE[1] + (TRACE_RIM[1] - TRACE_CORE[1]) * rim
             rgba[ci + 2] = TRACE_CORE[2] + (TRACE_RIM[2] - TRACE_CORE[2]) * rim
             rgba[ci + 3] = TRACE_CORE[3] + (TRACE_RIM[3] - TRACE_CORE[3]) * rim
@@ -1307,29 +1360,46 @@ end
 -- Move, size and face every live effect; retire the finished ones. `facing` is the camera's
 -- own rotation: a square given it faces the camera exactly.
 function SpecialStage:UpdateFx(dt, facing)
-    local keep = {}
-    for _, fx in ipairs(self.fx) do
+    -- (No garbage a frame for the common effects -- sparkles, puffs, the explosion: placed by
+    -- PlaceXYZ and moved with the engine's XYZ setters, no closure made for each, and the list kept
+    -- and refilled. Collecting a line of rings keeps dozens of sparkles alive, and made so many
+    -- tables that the frame came out uneven on a GameCube. Shards and lost rings are as they were.)
+    local list = self.fx
+    local keep = self.fxSpare or {}
+    local n = 0
+    for idx = 1, #list do
+        local fx = list[idx]
         fx.age = fx.age + dt
         if (fx.age >= fx.life) then
             fx.node:SetVisible(false)
             table.insert(self.fxPool[fx.kind], fx.node)
         else
             local t = math.max(0.0, fx.age) / fx.life
-            local function At(u)
-                local frame = fx.at or (self.frame + fx.ahead + (fx.dAhead or 0.0) * u)
-                local h = fx.height + fx.dHeight * u + (fx.arc or 0.0) * 4.0 * u * (1.0 - u)
-                return self:Place(frame, fx.angle + fx.dAngle * u, math.max(fx.floor or -99.0, h))
-            end
-            local place = At(t)
+            local kind = fx.kind
             local size, sx, rotation = nil, nil, facing
-            if (fx.kind == "boom") then
+            local place, At                     -- as a table: only the shards and lost rings
+            local px, py, pz
+            if (kind == "razor" or kind == "lostring") then
+                At = function(u)
+                    local frame = fx.at or (self.frame + fx.ahead + (fx.dAhead or 0.0) * u)
+                    local h = fx.height + fx.dHeight * u + (fx.arc or 0.0) * 4.0 * u * (1.0 - u)
+                    return self:Place(frame, fx.angle + fx.dAngle * u, math.max(fx.floor or -99.0, h))
+                end
+                place = At(t)
+                px, py, pz = place[1], place[2], place[3]
+            else
+                local frame = fx.at or (self.frame + fx.ahead + (fx.dAhead or 0.0) * t)
+                local h = fx.height + fx.dHeight * t + (fx.arc or 0.0) * 4.0 * t * (1.0 - t)
+                px, py, pz = self:PlaceXYZ(frame, fx.angle + fx.dAngle * t, math.max(fx.floor or -99.0, h))
+            end
+            if (kind == "boom") then
                 size = fx.size * (0.55 + 0.45 * t)
                 local frame = math.min(BOOM_FRAMES - 1, math.floor(t * BOOM_FRAMES))
                 if (frame ~= self.boomFrame and self.boomMaterial ~= nil and self.boomTextures[frame] ~= nil) then
                     self.boomFrame = frame
                     self.boomMaterial:SetTexture(1, self.boomTextures[frame])
                 end
-            elseif (fx.kind == "razor") then
+            elseif (kind == "razor") then
                 -- a shard flies off and thins away, pointed the way it flies (on the screen)
                 size = fx.size * (1.0 - t)
                 sx = size * fx.long
@@ -1340,7 +1410,7 @@ function SpecialStage:UpdateFx(dt, facing)
                     local x = Normalize(v)
                     rotation = QuatFromAxes(x, Cross(toward, x), toward)
                 end
-            elseif (fx.kind == "lostring") then
+            elseif (kind == "lostring") then
                 -- a ring as the track's: spinning with them, square to the pipe, blinking out at the end
                 size = fx.size
                 if (self.meshRingSpin[self.ringStep or 0] ~= nil) then fx.node:SetStaticMesh(self.meshRingSpin[self.ringStep or 0]) end
@@ -1349,20 +1419,31 @@ function SpecialStage:UpdateFx(dt, facing)
                 local _, _, up = self:TrackAt(frame)
                 rotation = FacingQuat(fwd, up)
                 if (t > 1.0 - LOST_RING_BLINK and math.floor(fx.age * 16.0) % 2 == 1) then size = 0.0 end
-            elseif (fx.kind == "puff") then
+            elseif (kind == "puff") then
                 -- a puff swells as it rises, and shrinks away at the end
                 size = fx.size * (0.5 + 0.7 * t) * math.min(1.0, (1.0 - t) * 4.0)
             else
                 -- a sparkle swells, twinkles and goes
                 size = fx.size * math.sin(math.pi * t) * (0.75 + 0.25 * math.sin(fx.age * 50.0))
             end
-            fx.node:SetVisible(fx.age >= 0.0)
-            fx.node:SetWorldPosition(ToVec(place))
-            fx.node:SetWorldRotationQuat(rotation)
-            fx.node:SetScale(Vec(sx or size, size, size))
-            keep[#keep + 1] = fx
+            local node = fx.node
+            node:SetVisible(fx.age >= 0.0)
+            if (node.SetWorldPositionXYZ ~= nil) then
+                node:SetWorldPositionXYZ(px, py, pz)
+                node:SetWorldRotationQuat(rotation)
+                node:SetScaleXYZ(sx or size, size, size)
+            else
+                node:SetWorldPosition(Vec(px, py, pz))
+                node:SetWorldRotationQuat(rotation)
+                node:SetScale(Vec(sx or size, size, size))
+            end
+            n = n + 1
+            keep[n] = fx
         end
     end
+    -- this frame's list is the next frame's to fill: emptied
+    for k = 1, #list do list[k] = nil end
+    self.fxSpare = list
     self.fx = keep
 end
 
