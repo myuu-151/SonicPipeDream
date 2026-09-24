@@ -7,8 +7,7 @@
                             SM_FxQuad.oct, SM_FxQuadBoom.oct        the square they are drawn on
                             T_Razor, M_Razor, SM_FxQuadRazor        the spin dash's rev: a sharp shard, ADDITIVE
                             T_Puff, M_Puff, SM_FxQuadPuff           ...its cloud puffs, left behind
-                            T_Trail, M_Trail, SM_FxTube             ...and the blue tube traced behind the ball,
-                            SM_FxTubeCap                            its round front, wrapped over the ball
+                            M_Trace, SM_FxTrace                     ...and the blue tube traced behind the ball
 
 After the original's RING SPARKS and BOMB EXPLOSION sprites. The sparkle is drawn here from shapes;
 the explosion is the supplied sprite sheet, cut into its frames. Both are flat squares that the game turns to face the camera every frame
@@ -94,10 +93,60 @@ def puff(size=96):
 
 
 def trail(size=8):
-    """The traced tube's colour: a light blue ADDED to what is behind it, so it glows, as the spin
-    dash's trail does in Sonic Adventure. The tube is drawn from both sides, so through its middle two
-    walls add up, brighter, and it reads as round."""
-    return Image.new("RGBA", (size, size), (40, 90, 170, 255))
+    """The traced tube's colour: a deep see-through blue, as the spin dash's trail in Sonic Adventure
+    (TRANSLUCENT). Only its near wall is drawn (the back culled), so it is one even layer with no
+    lines where lengths join or walls cross; the game fades each length toward the tail."""
+    return Image.new("RGBA", (size, size), (30, 75, 235, 175))
+
+
+# THE TRACE: one tube, its rings laid along the ball's path by the game every frame
+# (StaticMesh:SetVertexData), so it is one piece -- no joins, no lines -- and fades smoothly by its
+# vertices' alpha. Its first rings are a dome over the ball. Keep in step with SpecialStage.lua.
+TRACE_RINGS, TRACE_SIDES = 24, 10
+
+
+def trace_material(name, uuid):
+    """Unlit, see-through, coloured by its vertices, only its near side drawn."""
+    d = header(TYPE_MATERIALLITE, uuid, name)
+    d += u32(0) + u32(0) + u32(TRANSLUCENT) + u32(1)        # no params; UNLIT; translucent; vertex colour
+    d += u32(0)                                             # no textures
+    for _ in range(4):
+        d += null_ref() + u8(0) + u8(1)
+    for _ in range(2):
+        d += f32(0) + f32(0) + f32(1) + f32(1)
+    d += f32(1) + f32(1) + f32(1) + f32(1)
+    d += f32(1) + f32(1) + f32(1) + f32(1)
+    d += f32(1.0) + f32(0.0) + f32(0.0) + f32(0.0)
+    d += u32(2) + f32(1.0) + f32(0.5) + f32(8.0)
+    d += i32(0)
+    d += u8(0) + u8(0) + u8(0)
+    d += u8(1)                                              # cull the back: one even layer
+    open(os.path.join(OUT, name + ".oct"), "wb").write(d)
+
+
+def trace_mesh(name, uuid, material_uuid, material_name):
+    """TRACE_RINGS rings of TRACE_SIDES + 1 vertices (the seam twice), joined ring to ring; laid out
+    here as a straight tube along +X only so the file has a shape -- the game moves every vertex."""
+    import math as m
+    n = TRACE_SIDES + 1
+    d = header(TYPE_STATICMESH, uuid, name)
+    d += u32(TRACE_RINGS * n) + u32((TRACE_RINGS - 1) * TRACE_SIDES * 6) + u32(1)
+    d += asset_ref(material_uuid, material_name)
+    d += u8(0) + u8(1)                                      # no collision; vertex colour
+    for r in range(TRACE_RINGS):
+        for k in range(n):
+            a = 2.0 * m.pi * k / TRACE_SIDES
+            d += f32(float(r)) + f32(0.5 * m.cos(a)) + f32(0.5 * m.sin(a)) + f32(0) + f32(0) + f32(0) + f32(0)
+            d += f32(0) + f32(m.cos(a)) + f32(m.sin(a))
+            d += u32(0xFFFFFFFF)
+    for r in range(TRACE_RINGS - 1):
+        for k in range(TRACE_SIDES):
+            a, b, c, e = r * n + k, r * n + k + 1, (r + 1) * n + k + 1, (r + 1) * n + k
+            for i in (a, b, c, a, c, e):
+                d += u32(i)
+    d += u8(0) + u32(0)
+    d += f32(TRACE_RINGS * 0.5) + f32(0) + f32(0) + f32(TRACE_RINGS * 0.6)
+    open(os.path.join(OUT, name + ".oct"), "wb").write(d)
 
 
 def cap(name, uuid, material_uuid, material_name, sides=12, rings=5):
@@ -173,7 +222,7 @@ def explosion(frame):
     return cell.resize((CELL * FX_SCALE, CELL * FX_SCALE), Image.NEAREST)
 
 
-def material(name, uuid, texture_uuid, texture_name, blend):
+def material(name, uuid, texture_uuid, texture_name, blend, cull=0):
     d = header(TYPE_MATERIALLITE, uuid, name)
     d += u32(0) + u32(0) + u32(blend) + u32(0)              # no params; UNLIT; blend; no vertex colour
     d += u32(1)
@@ -188,7 +237,7 @@ def material(name, uuid, texture_uuid, texture_name, blend):
     d += u32(2) + f32(1.0) + f32(0.5) + f32(8.0)
     d += i32(0)
     d += u8(0) + u8(0) + u8(0)                              # depth test on; no fresnel; no fog
-    d += u8(0)                                              # no culling: it may be seen from behind
+    d += u8(cull)                                           # 0 no culling (seen from behind too); 1 the back
     open(os.path.join(OUT, name + ".oct"), "wb").write(d)
 
 
@@ -228,14 +277,15 @@ def main():
     quad("SM_FxQuadBoom", UUID + 5, UUID + 4, "M_Explosion")
 
     # the spin dash's: the rev's shards, the puffs it leaves, the streak behind the ball
-    for base, img, blend, n in (("Razor", razor(), ADDITIVE, 6), ("Puff", puff(), TRANSLUCENT, 9),
-                                ("Trail", trail(), ADDITIVE, 12)):
+    trace_material("M_Trace", UUID + 25)
+    trace_mesh("SM_FxTrace", UUID + 26, UUID + 25, "M_Trace")
+    for base, img, blend, n in (("Razor", razor(), ADDITIVE, 6), ("Puff", puff(), TRANSLUCENT, 9)):
         img.save(os.path.join(LOOK, "T_%s.png" % base))
         # (the see-through ones kept out of the GameCube's CMPR: its alpha is one bit, and the tube's
         # 36% blue came out entirely clear -- the tube was there and drew nothing)
         write_texture(os.path.join(OUT, "T_%s.oct" % base), "T_%s" % base, UUID + n, img.width, img.height,
                       img.tobytes(), wrap=0, quiet=True, force_hq=(base in ("Trail", "Puff")))
-        material("M_%s" % base, UUID + n + 1, UUID + n, "T_%s" % base, blend)
+        material("M_%s" % base, UUID + n + 1, UUID + n, "T_%s" % base, blend, cull=(1 if base == "Trail" else 0))
         if (base == "Trail"):
             tube("SM_FxTube", UUID + n + 2, UUID + n + 1, "M_%s" % base)
             cap("SM_FxTubeCap", UUID + 24, UUID + n + 1, "M_%s" % base)

@@ -146,8 +146,19 @@ local RAZOR_EVERY, RAZOR_LIFE, RAZOR_SIZE = 0.03, 0.22, 1.0      -- while revvin
 local RAZOR_BURST = 6
 local PUFF_EVERY, PUFF_LIFE, PUFF_SIZE = 0.11, 0.55, 2.6         -- while dashing
 local TRAIL_LIFE = 0.32         -- the tube traced behind the ball: how long a point of it lasts
+local TRAIL_FADE = 1.3          -- how it fades along its length: 1 evenly, more for a longer bright head
 local TRAIL_RADIUS = 1.15       -- its radius at the ball, as a share of the ball's (round it, not inside
                                 -- it); it narrows to nothing, and its front is a dome over the ball
+local TRACE_RINGS, TRACE_SIDES = 24, 10     -- native/gen_fx_assets.py's SM_FxTrace: keep in step
+local TRACE_CAP = 4             -- of its rings, these are the dome over the ball
+-- round a ring, once (cos, sin), for the trace's every frame
+local TRACE_ROUND = {}
+for k = 0, TRACE_SIDES do
+    local a = 2.0 * math.pi * k / TRACE_SIDES
+    TRACE_ROUND[k] = { math.cos(a), math.sin(a) }
+end
+local TRACE_COLOUR = { 0.16, 0.42, 1.0 }    -- a vivid deep blue, unlit
+local TRACE_ALPHA = 0.72        -- at the ball
 local DASH_FX = 1.15            -- the puffs and the streak while he is going faster than this
 
 -- Drop shadows: a dark blob on the pipe under Sonic and under every ring and bomb (SM_Shadow).
@@ -407,7 +418,7 @@ function SpecialStage:Build()
     self.meshSparkle, self.meshBoom = LoadAsset("SM_FxQuad"), LoadAsset("SM_FxQuadBoom")
     self.meshFx = { sparkle = self.meshSparkle, boom = self.meshBoom, razor = LoadAsset("SM_FxQuadRazor"),
                     puff = LoadAsset("SM_FxQuadPuff") }
-    self.meshTube, self.meshTubeCap = LoadAsset("SM_FxTube"), LoadAsset("SM_FxTubeCap")
+    self.meshTrace = LoadAsset("SM_FxTrace")
     self.boomMaterial, self.boomTextures, self.boomFrame = LoadAsset("M_Explosion"), {}, -1
     for i = 0, BOOM_FRAMES - 1 do self.boomTextures[i] = LoadAsset("T_Explosion_" .. i) end
     self.meshShadow = LoadAsset("SM_Shadow")
@@ -941,6 +952,7 @@ function SpecialStage:Restart()
     self.fxClock = { razor = 0.0, puff = 0.0 }
     self.trace = {}
     self.tubeNodes = self.tubeNodes or {}
+    self.tubeMats = self.tubeMats or {}
     for _, node in ipairs(self.tubeNodes) do node:SetVisible(false) end
     if (self.tubeCap ~= nil) then self.tubeCap:SetVisible(false) end
     for _, fx in ipairs(self.fx or {}) do                   -- whatever was mid-flight goes back to the pool
@@ -1037,6 +1049,81 @@ function SpecialStage:SpinFx(dt, burst)
     self:TraceTube(dt)
 end
 
+-- The trace as ONE mesh (SM_FxTrace): its rings laid along the path every frame -- the dome over the
+-- ball first, then back along the way it went, spaced evenly by distance -- each ring a little
+-- narrower and more see-through than the last, so it is one tube that fades out, with no joins.
+function SpecialStage:TraceMesh(trace)
+    local node = self.traceNode
+    if (node == nil) then
+        node = SpawnMesh(self:GetWorld(), self.meshTrace)
+        node:SetWorldPosition(Vec(0.0, 0.0, 0.0))    -- its vertices are where they are in the world
+        self.traceNode = node
+    end
+    if (#trace < 2) then
+        node:SetVisible(false)
+        return
+    end
+    -- the path's length, point to point from the ball back
+    local lengths, total = { 0.0 }, 0.0
+    for i = 2, #trace do
+        local v = Sub(trace[i - 1].pos, trace[i].pos)
+        total = total + math.sqrt(Dot(v, v))
+        lengths[i] = total
+    end
+    if (total < 1e-3) then
+        node:SetVisible(false)
+        return
+    end
+    local head = trace[1].pos
+    local ahead = Sub(trace[1].pos, trace[2].pos)
+    ahead = Scale(ahead, 1.0 / math.max(1e-4, math.sqrt(Dot(ahead, ahead))))
+    local _, _, upHere = self:Place(self.frame, self.angle, 0.0)
+    local radius = BALL_RADIUS * TRAIL_RADIUS
+    -- the same two tables every frame, filled in place (a GameCube notices the garbage otherwise)
+    self.traceXyz, self.traceRgba = self.traceXyz or {}, self.traceRgba or {}
+    local xyz, rgba = self.traceXyz, self.traceRgba
+    local vi, ci = 0, 0
+    local cr, cg, cb = TRACE_COLOUR[1], TRACE_COLOUR[2], TRACE_COLOUR[3]
+    local seg = 2
+    for r = 1, TRACE_RINGS do
+        local centre, along, ringR, u
+        if (r <= TRACE_CAP) then
+            -- the dome: from its tip ahead of the ball back to its rim round the ball
+            local lat = (math.pi * 0.5) * (TRACE_CAP - r) / TRACE_CAP
+            centre = Add(head, Scale(ahead, radius * math.sin(lat)))
+            ringR, along, u = radius * math.cos(lat), ahead, 0.0
+        else
+            -- back along the path, evenly by distance
+            u = (r - TRACE_CAP) / (TRACE_RINGS - TRACE_CAP)
+            local want = u * total
+            while (seg < #trace and lengths[seg] < want) do seg = seg + 1 end
+            local a, b = trace[seg - 1].pos, trace[seg].pos
+            local span = math.max(1e-4, lengths[seg] - lengths[seg - 1])
+            local t = math.min(1.0, math.max(0.0, (want - lengths[seg - 1]) / span))
+            centre = Add(a, Scale(Sub(b, a), t))
+            along = Sub(a, b)
+            along = Scale(along, 1.0 / math.max(1e-4, math.sqrt(Dot(along, along))))
+            ringR = radius * (1.0 - u) ^ 0.7
+        end
+        local y = Sub(upHere, Scale(along, Dot(upHere, along)))
+        if (Dot(y, y) < 1e-6) then y = { 0.0, 1.0, 0.0 } end
+        y = Normalize(y)
+        local z = Cross(along, y)
+        local alpha = TRACE_ALPHA * (1.0 - u) ^ TRAIL_FADE
+        local ox, oy, oz = centre[1], centre[2], centre[3]
+        local y1, y2, y3 = y[1] * ringR, y[2] * ringR, y[3] * ringR
+        local z1, z2, z3 = z[1] * ringR, z[2] * ringR, z[3] * ringR
+        for k = 0, TRACE_SIDES do
+            local cs = TRACE_ROUND[k]
+            local c, s = cs[1], cs[2]
+            xyz[vi + 1], xyz[vi + 2], xyz[vi + 3] = ox + y1 * c + z1 * s, oy + y2 * c + z2 * s, oz + y3 * c + z3 * s
+            rgba[ci + 1], rgba[ci + 2], rgba[ci + 3], rgba[ci + 4] = cr, cg, cb, alpha
+            vi, ci = vi + 3, ci + 4
+        end
+    end
+    node:SetVisible(self.meshTrace:SetVertexData(xyz, rgba))
+end
+
 -- THE TUBE TRACED BEHIND THE BALL, as Sonic Adventure's: the ball's middle, frame by frame, joined
 -- up by lengths of an open cylinder, each from one point to the next, so it is one unbroken tube
 -- along exactly the way the ball went. Each point is dropped as it ages, and the tube narrows to
@@ -1045,6 +1132,10 @@ function SpecialStage:TraceTube(dt)
     local trace = self.trace
     for _, p in ipairs(trace) do p.age = p.age + dt end
     while (#trace > 0 and trace[#trace].age >= TRAIL_LIFE) do table.remove(trace) end
+    if (self.meshTrace ~= nil and self.meshTrace.SetVertexData ~= nil) then
+        self:TraceMesh(trace)
+        return
+    end
     local nodes = self.tubeNodes
     local used = 0
     if (self.meshTube ~= nil) then
@@ -1058,6 +1149,14 @@ function SpecialStage:TraceTube(dt)
                 if (node == nil) then
                     node = SpawnMesh(self:GetWorld(), self.meshTube)
                     nodes[used] = node
+                    -- its own material, so each length can fade on its own
+                    self.tubeMats[used] = (node.InstantiateMaterial ~= nil) and node:InstantiateMaterial() or nil
+                end
+                local mat = self.tubeMats[used]
+                if (mat ~= nil and mat.SetOpacity ~= nil) then
+                    -- bright at the ball, fading out to nothing at the tail
+                    local along = (i - 1) / math.max(1, #trace - 1)
+                    mat:SetOpacity(math.max(0.0, 1.0 - along) ^ TRAIL_FADE)
                 end
                 local x = Scale(v, 1.0 / len)
                 local ref = (math.abs(x[2]) < 0.9) and { 0.0, 1.0, 0.0 } or { 1.0, 0.0, 0.0 }
