@@ -32,6 +32,13 @@ TRACKS = [
     ("stage1.wav", "SW_SpecialStage_Stage1", 0x51C0FFEE00300003),      # stage 1's own (SpecialStageMusic.lua)
     ("stage2_open.wav", "SW_SpecialStage_Stage2Intro", 0x51C0FFEE00300004),  # stage 2's: this once,
     ("stage2_loop.wav", "SW_SpecialStage_Stage2Loop", 0x51C0FFEE00300005),   # then this for ever
+    ("ssr_intro.wav", "SW_SpecialStage_SSRIntro", 0x51C0FFEE00300006),        # stage 3's: once,
+    ("ssr_loop.wav", "SW_SpecialStage_SSRLoop", 0x51C0FFEE00300007),          # then this
+    ("stage4_intro.wav", "SW_SpecialStage_Stage4Intro", 0x51C0FFEE00300008),  # the stage 4 track (stage 5 plays it)
+    ("stage4_loop.wav", "SW_SpecialStage_Stage4Loop", 0x51C0FFEE00300009),
+    ("stage5full.wav", "SW_SpecialStage_Stage5", 0x51C0FFEE0030000A),         # the stage 5 track, whole (stage 6)
+    ("stage7_intro.wav", "SW_SpecialStage_Stage7Intro", 0x51C0FFEE0030000B),
+    ("stage7_loop.wav", "SW_SpecialStage_Stage7Loop", 0x51C0FFEE0030000C),
 ]
 
 

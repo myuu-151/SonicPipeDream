@@ -14,9 +14,17 @@ SpecialStageMusic = {}
 -- An intro that runs into its loop ends where the loop ends: it is the lead-in and then one whole
 -- pass of the loop, so the loop picks up exactly where it finishes.
 local THEME = { intro = "SW_SpecialStage_Intro", loop = "SW_SpecialStage_Loop" }
+-- The tracks are named for the stage they were made for; the owner's order (2026-09-24) has stage 3
+-- play the SSR track, stage 4 share stage 1's, and stages 5 and 6 play the tracks of 4 and 5 (Cream
+-- moved from 4 to 5).
 local STAGE_MUSIC = {
     [1] = { loop = "SW_SpecialStage_Stage1" },
     [2] = { intro = "SW_SpecialStage_Stage2Intro", loop = "SW_SpecialStage_Stage2Loop" },
+    [3] = { intro = "SW_SpecialStage_SSRIntro", loop = "SW_SpecialStage_SSRLoop" },
+    [4] = { loop = "SW_SpecialStage_Stage1" },
+    [5] = { intro = "SW_SpecialStage_Stage4Intro", loop = "SW_SpecialStage_Stage4Loop" },
+    [6] = { loop = "SW_SpecialStage_Stage5" },        -- one whole track that loops on itself
+    [7] = { intro = "SW_SpecialStage_Stage7Intro", loop = "SW_SpecialStage_Stage7Loop" },
 }
 
 function SpecialStageMusic:Create()
