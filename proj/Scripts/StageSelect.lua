@@ -32,6 +32,7 @@
 StageSelect = {}
 
 Script.Require("MenuLayout")
+Script.Require("GameOptions")   -- the settings are kept in the same save, after the emeralds
 
 local STAGES = 7
 local SAVE = "emeralds"                 -- one character a stage: "1" won, "0" not
@@ -107,6 +108,7 @@ function StageSelect:LoadWon()
     for i = 1, math.min(STAGES, #text) do
         self.won[i] = (text:sub(i, i) == "1")
     end
+    GameOptions.Decode(text)
 end
 
 -- NOTHING IS WRITTEN UNASKED, the GameCube's way: the first save is made from the menu's SAVE
@@ -116,9 +118,12 @@ function StageSelect:SaveWon(asked)
     if (not asked and not System.DoesSaveExist(SAVE)) then return false end
     local text = ""
     for i = 1, STAGES do text = text .. (self.won[i] and "1" or "0") end
+    text = text .. GameOptions.Encode()
     local stream = Stream.Create()
     stream:WriteString(text)
-    return System.WriteSave(SAVE, stream) and true or false
+    local ok = System.WriteSave(SAVE, stream) and true or false
+    if (ok) then GameOptions.touched = false end
+    return ok
 end
 
 -- All seven: what unlocks MARATHON in the menu.

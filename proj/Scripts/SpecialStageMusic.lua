@@ -7,6 +7,8 @@
 -- Only while the game is running. There is deliberately no EditorTick here, or
 -- the music would start every time the scene was opened for editing.
 
+Script.Require("GameOptions")   -- OPTIONS > AUDIO can mute it
+
 SpecialStageMusic = {}
 
 -- The special stage theme, and stage -> its own music. native/gen_music_assets.py makes the
@@ -59,6 +61,12 @@ end
 function SpecialStageMusic:Begin()
     local stage = (TheSpecialStage ~= nil) and TheSpecialStage.stage or 1
     local music = STAGE_MUSIC[stage] or THEME
+    if (GameOptions.muteStageMusic) then
+        -- muted in OPTIONS > AUDIO: nothing loaded, nothing played (the menus' music is not this)
+        self.intro, self.loop = nil, nil
+        self.stopped, self.looping, self.elapsed = true, false, 0.0
+        return
+    end
     self.intro, self.loop = Load(music.intro), Load(music.loop)
     self.stopped, self.looping, self.elapsed = false, false, 0.0
     if (self.playIntro and self.intro ~= nil) then

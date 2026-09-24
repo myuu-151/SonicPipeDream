@@ -104,6 +104,18 @@ function SpecialStageUI:SetRings(n)
     if (self.built) then self.ringsNumber:SetText(tostring(n)) end
 end
 
+-- A marathon's lives, under SONIC RINGS: Sonic's head and how many. nil hides it (a stage, or
+-- lives set to never run out).
+function SpecialStageUI:SetLives(n)
+    if (n == self.lives) then return end
+    self.lives = n
+    if (self.built) then
+        self.livesIcon:SetVisible(n ~= nil)
+        self.livesNumber:SetVisible(n ~= nil)
+        self.livesNumber:SetText((n ~= nil) and ("X " .. n) or "")
+    end
+end
+
 function SpecialStageUI:SetTotal(n)
     self.total = n
     if (self.built) then
@@ -189,6 +201,11 @@ function SpecialStageUI:Build()
     self.ringsNumber = MakeText(self, tostring(self.rings), WHITE)
     self.totalBox    = MakeQuad(self, LoadAsset("T_UI_Total"), WHITE)           -- the frame, word and all
     self.totalNumber = MakeText(self, tostring(self.total), WHITE)
+    self.livesIcon   = MakeQuad(self, LoadAsset("T_UI_Lives"), WHITE)
+    self.livesNumber = MakeText(self, "", WHITE)
+    self.livesIcon:SetVisible(self.lives ~= nil)
+    self.livesNumber:SetVisible(self.lives ~= nil)
+    if (self.lives ~= nil) then self.livesNumber:SetText("X " .. self.lives) end
 
     self.flagLeft  = MakeQuad(self, LoadAsset("T_UI_FlagLeft"), WHITE)
     self.flagRight = MakeQuad(self, LoadAsset("T_UI_Flag"), WHITE)
@@ -263,6 +280,10 @@ function SpecialStageUI:Layout()
     self:Place(self.ringsLabel, 8.0, 6.0, 68.0, 34.0)
     self.ringsNumber:SetTextSize(17.0 * self.k)
     self:Place(self.ringsNumber, 80.0, 17.0)
+    -- the lives: the head (72 x 70 art) under the label, the count beside it
+    self:Place(self.livesIcon, 10.0, 43.0, 18.0, 17.5)
+    self.livesNumber:SetTextSize(14.0 * self.k)
+    self:Place(self.livesNumber, 31.0, 46.0)
 
     -- TOTAL: the frame, centred, and the number in the middle of it. The texture is square
     -- and the art is its top 160 rows of 256, so the box on screen is bw wide and bw * 160/256 tall.

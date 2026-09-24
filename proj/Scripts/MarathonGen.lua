@@ -185,14 +185,27 @@ for k = 1, 7 do
     RATE[k] = D.ring_rate[k]
 end
 
+-- The marathon's setup (GameOptions.lua): how hard the first zone is, how much harder each
+-- section after gets, and a scale on the forgiveness -- the rings laid out over what a check asks.
+-- The guarantee does not move: a section still lays at least what its check needs (BuildZone).
+local CLIMB = { 0.0, 0.25, 0.5, 0.75 }              -- difficulty a section: none, slow, normal, fast
+local LENIENCY = { 0.85, 1.0, 1.2 }                 -- tight, normal, generous
+
+local function Setup()
+    local m = GameOptions ~= nil and GameOptions.marathon or nil
+    if (m == nil) then return D.start, D.ramp, 1.0 end
+    return m.start or D.start, CLIMB[m.climb] or D.ramp, LENIENCY[m.leniency] or 1.0
+end
+
 local function SectionDesign(s)                 -- s counts from 0 across the run
-    local d = D.start + D.ramp * s
+    local start, ramp, lenient = Setup()
+    local d = start + ramp * s
     local zone = s // D.sections_per_zone
     local over = math.max(0.0, d - 7.0)
     local asks = Between(THIRDS, d) + D.ask_step * over
     local band = math.max(1, math.min(7, RoundHalfEven(d)))
     local flavour = (d <= 7.0) and band or D.flavours[(zone % #D.flavours) + 1]
-    local forgiveness = math.floor(math.max(D.forgiveness_floor, Between(FORGIVE, d) - 0.015 * over) * 1000 + 0.5) / 1000
+    local forgiveness = math.floor(math.max(D.forgiveness_floor, (Between(FORGIVE, d) - 0.015 * over) * lenient) * 1000 + 0.5) / 1000
     local out = {
         difficulty = d,
         asks = RoundHalfEven(asks / 5.0) * 5,

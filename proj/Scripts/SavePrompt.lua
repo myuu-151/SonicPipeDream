@@ -27,6 +27,8 @@
 --     TheSavePrompt:Open(mode)   "save" (the default) or "load"; over the menu, which keeps still
 --     TheSavePrompt.onClose      called when it closes
 
+Script.Require("GameOptions")
+
 SavePrompt = {}
 
 local SAVE = "emeralds"                 -- StageSelect.lua's save
@@ -271,6 +273,7 @@ function SavePrompt:Tick(deltaTime)
         if (self.mode == "load") then
             local ok = select ~= nil and EmeraldsIn() ~= nil
             if (ok) then
+                GameOptions.touched = false         -- a save loaded on purpose brings its settings
                 select:LoadWon()
                 if (select.built) then select:Refresh() end
                 local n = 0

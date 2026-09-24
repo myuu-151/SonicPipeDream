@@ -58,6 +58,7 @@ How it is made -- the stage and track generators, the ring and bomb patterns, th
 
 - **Music**: megabaz
 - **Sonic model**: murissargb
+- **Lives icon**: eris1521987
 
 Built on the [Octave engine](https://github.com/myuu-151/Octave-libogc).
 

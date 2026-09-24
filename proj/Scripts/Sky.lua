@@ -234,6 +234,9 @@ function Sky:ShowMenu()
     local prompt = world:SpawnNode("Canvas")
     prompt:SetName("SavePrompt")
     prompt:SetScript("SavePrompt")
+    local options = world:SpawnNode("Canvas")
+    options:SetName("OptionsPrompt")
+    options:SetScript("OptionsPrompt")
     local loading = world:SpawnNode("Canvas")
     loading:SetName("Loading")
     loading:SetScript("Loading")
@@ -265,17 +268,30 @@ function Sky:ShowMenu()
             if (key == "main_game" and TheStageSelect ~= nil) then
                 TheMenu:Close()
                 TheStageSelect:Open()
+            elseif (key == "options" and TheOptions ~= nil) then
+                -- the options, over the menu; the menu keeps still until they close
+                TheMenu.busy = true
+                TheOptions.onClose = function() TheMenu.busy = false end
+                TheOptions.onStart = nil
+                TheOptions:Open()
             elseif ((key == "save" or key == "load") and TheSavePrompt ~= nil) then
                 -- the Saves folder, over the menu; the menu keeps still until it closes
                 TheMenu.busy = true
                 TheSavePrompt.onClose = function() TheMenu.busy = false end
                 TheSavePrompt:Open(key)
-            elseif (key == "marathon") then
-                -- one run, zone after zone, made as it is played (MarathonGen.lua), behind the
-                -- loading screen while its first zone is built; see TickMarathonStart
-                TheMenu:Close()
-                if (TheLoading ~= nil) then TheLoading:Show("marathon") end
-                self.marathonStart = { step = 0, clock = 0.0 }
+            elseif (key == "marathon" and TheOptions ~= nil) then
+                -- its setup first (OptionsPrompt.lua); START there begins the run: zone after zone,
+                -- made as it is played (MarathonGen.lua), behind the loading screen while its first
+                -- zone is built (see TickMarathonStart)
+                TheMenu.busy = true
+                TheOptions.onClose = function() TheMenu.busy = false end
+                TheOptions.onStart = function()
+                    TheOptions.onStart = nil
+                    TheMenu:Close()
+                    if (TheLoading ~= nil) then TheLoading:Show("marathon") end
+                    self.marathonStart = { step = 0, clock = 0.0 }
+                end
+                TheOptions:Open("marathon")
             end
         end
     end

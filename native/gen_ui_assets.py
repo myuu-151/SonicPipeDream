@@ -23,7 +23,8 @@ properly, each with a whole outline of its own: see split_letters().
 
 import os
 
-from PIL import Image
+import numpy as np
+from PIL import Image, ImageFilter
 
 from gen_s2sky_assets import write_texture
 
@@ -162,6 +163,40 @@ def art(name):
     return Image.open(os.path.join(ART, name + ".png")).convert("RGBA")
 
 
+# The marathon's lives counter: Sonic's head by eris1521987 (external/ui/lives_sonic_eris1521987.png),
+# its flat navy made a blue gradient.
+LIVES_TOP, LIVES_BOTTOM = (120, 200, 255), (20, 48, 165)     # the gradient: sky blue at the top, deep blue below
+LIVES_INK = (8, 12, 40)                                # the outline, as the HUD's other pictures have
+
+
+def lives_icon(path, height=64, outline=2):
+    """The lives counter's Sonic: the drawing's own shape and eye whites, its flat navy made a blue
+    gradient top to bottom, cut to its size, with a dark outline round it."""
+    raw = Image.open(path).convert("RGBA")
+    raw = raw.crop(raw.getchannel("A").getbbox())
+    a = np.asarray(raw).astype(np.float32)
+    rgb, alpha = a[..., :3] / 255.0, a[..., 3]
+    navy = np.array([0x2F, 0x39, 0x75]) / 255.0
+    # how much of each pixel is the navy drawing (1) and how much the eyes' white (0)
+    t = np.clip((1.0 - rgb.mean(axis=2)) / (1.0 - navy.mean()), 0.0, 1.0)
+    h = t.shape[0]
+    ys = np.linspace(0.0, 1.0, h)[:, None, None]
+    grad = np.array(LIVES_TOP)[None, None, :] * (1 - ys) + np.array(LIVES_BOTTOM)[None, None, :] * ys
+    col = grad * t[..., None] + 255.0 * (1 - t[..., None])
+    img = Image.fromarray(np.dstack([col, alpha]).clip(0, 255).astype(np.uint8), "RGBA")
+    img = img.resize((max(1, round(img.width * height / img.height)), height), Image.LANCZOS)
+    # the outline: the silhouette grown by `outline` pixels, in ink, under the icon
+    sil = img.getchannel("A").point(lambda v: 255 if v > 40 else 0)
+    pad = outline + 1
+    grown = Image.new("L", (img.width + 2 * pad, img.height + 2 * pad), 0)
+    grown.paste(sil, (pad, pad))
+    grown = grown.filter(ImageFilter.MaxFilter(2 * outline + 1))
+    canvas = Image.new("RGBA", grown.size, (0, 0, 0, 0))
+    canvas.paste(Image.new("RGBA", grown.size, LIVES_INK + (255,)), (0, 0), grown)
+    canvas.alpha_composite(img, (pad, pad))
+    return canvas
+
+
 def main():
     save(art("flag"), 0, "T_UI_Flag")
     save(art("emblem_bluenew2"), 1, "T_UI_Emblem", scale=2)
@@ -171,6 +206,7 @@ def main():
     save(art("thumbsupnew2").transpose(Image.FLIP_TOP_BOTTOM), 11, "T_UI_ThumbDown", scale=2)
     save(hue_to(art("emblem_bluenew2"), 0.985), 12, "T_UI_EmblemRed", scale=2)
     save(art("sonicringsnew"), 3, "T_UI_SonicRings", scale=2)      # 256 across already
+    save(lives_icon(os.path.join(ART, "lives_sonic_eris1521987.png"), height=64), 13, "T_UI_Lives", scale=1)
     save(art("total_remade"), 4, "T_UI_Total", scale=2)       # drawn by gen_ui_total.py
     start = art("startnew2")
     cuts = []

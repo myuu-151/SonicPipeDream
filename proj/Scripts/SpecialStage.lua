@@ -34,6 +34,7 @@ local TWO_PI = math.pi * 2.0
 
 -- How it feels. Frames are the track's own unit: 8 to a straight piece.
 local LAST_STAGE = 7            -- the gauntlet: StageData1..7, each with its own palette and emerald
+Script.Require("GameOptions")   -- a marathon's rounds and lives (OptionsPrompt.lua)
 
 local SPEED = 15.0              -- frames a second, forward. The original never lets you change it.
 local STEER = 150.0             -- 256ths of a circle a second, at full tilt: round the pipe in 1.7 s
@@ -655,6 +656,10 @@ function SpecialStage:TickMarathonGen()
     if (not self.data.marathon) then return end
     local spz = MarathonKit.design.sections_per_zone
     local playing = (self.section - 1) // spz + 1              -- the zone he is in
+    -- the run's length (GameOptions: ROUNDS, 0 endless): no zone is built past the last, and the
+    -- last one's hold ends the run (PassZone)
+    local rounds = (GameOptions ~= nil and GameOptions.marathon.rounds) or 0
+    if (rounds > 0 and self.zonesBuilt >= rounds) then return end
     if (self.gen == nil and self.zonesBuilt <= playing) then
         local seed, z = self.runSeed, self.zonesBuilt + 1
         self.gen = coroutine.create(function() return MarathonGen.BuildZone(seed, z) end)
@@ -847,6 +852,10 @@ function SpecialStage:Restart()
     self.fallTime = 0.0             -- how long he has been in the air
     self.diving = false             -- jumped again in the air: dropping straight back down
     self.rings = 0
+    -- A marathon's lives (GameOptions: LIVES; 0 is never out) and the rings a lost life forgave:
+    -- every check after asks that many fewer (see PassChecks).
+    self.lives = (self.data.marathon and GameOptions ~= nil) and GameOptions.marathon.lives or 1
+    self.forgiven = 0
     -- For testing the checks without playing to them: set S2_TEST_RINGS in the environment.
     self.autoplay = (os ~= nil and os.getenv ~= nil and os.getenv("S2_AUTOPLAY") ~= nil)
     if (os ~= nil and os.getenv ~= nil and os.getenv("S2_AUTOJUMP") ~= nil) then
@@ -1074,7 +1083,22 @@ function SpecialStage:PassChecks(fromFrame)
     local section = self.data.sections[self.section]
     if (section == nil or self.frame < section.check_frame or fromFrame >= section.check_frame) then return end
     -- the instant he passes under the rainbow arch
-    if (self.rings >= section.quota) then
+    local quota = section.quota - (self.forgiven or 0)
+    if (self.rings < quota and self.data.marathon and self.lives ~= 1) then
+        -- MISSED, WITH A LIFE TO SPARE: it costs one, the rings he was short are forgiven (or every
+        -- check after would ask for them again), and the run goes on as if he had passed
+        if (self.lives > 1) then self.lives = self.lives - 1 end
+        self.forgiven = (self.forgiven or 0) + (quota - self.rings)
+        self:Sound("Fail")
+        if (self.uiReady) then
+            TheSpecialStageUI:ShowBanner((self.lives == 0) and "NOT ENOUGH RINGS"
+                                         or ((self.lives == 1) and "LAST LIFE" or (self.lives .. " LIVES LEFT")), 2.5)
+        end
+        if (section.leads_to == "PALETTE SHIFT") then self:PassZone(section, true) end
+        self.section = self.section + 1
+        return
+    end
+    if (self.rings >= quota) then
         if (self.data.marathon and section.leads_to == "PALETTE SHIFT") then
             self:PassZone(section)
             self.section = self.section + 1
@@ -1104,17 +1128,26 @@ end
 -- A marathon zone's third check passed: its item is taken, and THE HOLD begins -- thumbs up,
 -- the camera on him, running on down the long straight after the check while the colours
 -- crossfade into the next zone's. The last zone of the run ends it instead.
-function SpecialStage:PassZone(section)
+function SpecialStage:PassZone(section, missed)
     local s = self.section
-    if (self.items[s] ~= nil) then self.items[s]:SetVisible(false) end
-    self:Sound("GetEmerald")
+    local say = function(text, seconds)
+        -- (a missed check with a life to spare has already said so: PassChecks)
+        if (self.uiReady and not missed) then TheSpecialStageUI:ShowBanner(text, seconds) end
+    end
+    if (not missed) then
+        if (self.items[s] ~= nil) then self.items[s]:SetVisible(false) end
+        self:Sound("GetEmerald")
+    end
     local nextSection = self.data.sections[s + 1]
     -- the thumbs-up lasts as long as the straights past the check do, less a moment to take hold
-    self.thumbs = math.max(THUMBS_TIME, (section.last_frame - section.check_frame) / SPEED - HOLD_MARGIN)
-    self.thumbsTotal = self.thumbs
+    -- (none for a check he missed: the colours still change, he just does not celebrate)
+    if (not missed) then
+        self.thumbs = math.max(THUMBS_TIME, (section.last_frame - section.check_frame) / SPEED - HOLD_MARGIN)
+        self.thumbsTotal = self.thumbs
+    end
     if (nextSection == nil and self.gen ~= nil) then
         -- the next zone is still being built: the hold waits for it (AppendZone takes it from here)
-        if (self.uiReady) then TheSpecialStageUI:ShowBanner("EMERALD GET !", 3.0) end
+        say("EMERALD GET !", 3.0)
         self.waitingZone = true
         return
     end
@@ -1123,7 +1156,7 @@ function SpecialStage:PassZone(section)
         self.over = 5.0
         return
     end
-    if (self.uiReady) then TheSpecialStageUI:ShowBanner("EMERALD GET !", 3.0) end   -- (the item's own words, later)
+    say("EMERALD GET !", 3.0)       -- (the item's own words, later)
     self.holding = { clock = 0.0, to = nextSection.palette or self.palette }
 end
 
@@ -1155,7 +1188,9 @@ function SpecialStage:UpdateUI()
     end
     local section = self.data.sections[math.min(self.section, #self.data.sections)]
     TheSpecialStageUI:SetRings(self.rings)
-    TheSpecialStageUI:SetTotal(section.quota)      -- what this round ASKS for: it does not count down
+    TheSpecialStageUI:SetTotal(section.quota - (self.forgiven or 0))   -- what this round ASKS for: it does not count down
+    -- a marathon's lives, when it has a number of them
+    TheSpecialStageUI:SetLives((self.data.marathon and (self.lives or 0) > 0) and self.lives or nil)
 end
 
 -- ------------------------------------------------------------------ sounds

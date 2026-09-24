@@ -50,6 +50,7 @@ ITEMS = [
     ("marathon", "item_marathon"),
     ("extras", "item_extras"),
     ("chao_garden", "item_chao_garden"),
+    ("options", "item_options"),            # OptionsPrompt.lua: the mockup's own Options row art
     ("save", "item_save"),                  # SavePrompt.lua: save to the Saves folder
     ("load", "item_load"),                  # ...and load from it (the GameCube has no Load)
 ]
@@ -61,8 +62,8 @@ ROW_OF = {"item_marathon": "item_time_attack", "item_extras": "item_records",
 
 # More rows than the mockup's four: all of them spaced evenly, ROW_GAP apart centre to centre,
 # from where the first row's centre is -- so the last clears the watermark running under them.
-FIRST_CENTRE = 115.0
-ROW_GAP = 40.0
+FIRST_CENTRE = 108.0
+ROW_GAP = 36.0              # seven rows: the last still clears the watermark (it starts at 344)
 
 
 def uuid_index(index):
