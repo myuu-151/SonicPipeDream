@@ -1814,7 +1814,8 @@ function SpecialStage:Tick(deltaTime)
             self.spinDash = { rev = 0.0, pulse = 1.0 }
             self.skid = self.boost            -- from whatever speed he had
             self.boost = 1.0
-            self:Sound("Jump")
+            -- a rev: curling up is the first spin-up (so a tap of R rings twice, rev then release)
+            self:Sound("SpinRev")
         end
     elseif (locked or not grounded or not SpinDown()) then
         -- let go: off he goes (unless the stage took the controls, or he left the pipe)
