@@ -17,32 +17,41 @@ for hours.
 
 ## Features
 
-- **Seven stages**, each with its own track, its own pipe colours, its own sky and its own chaos
-  emerald: blue, yellow, purple, green, red, sky and white.
-- **Run anywhere round the pipe** -- up the walls, over the top and back down, without end.
+- **Seven stages**, each with its own track, its own pipe colours, its own sky, its own music and
+  its own chaos emerald: blue, yellow, purple, green, red, sky and white.
+- **Marathon**: one run made as you play it, a new one every time. Zone after zone, it gets harder
+  as it goes, and after every zone the pipe and the sky change colour while Sonic takes a victory
+  lap. Play 1 to 20 zones or go on without end, and choose how hard it starts, how fast it climbs
+  and how many spare rings it gives you.
+- **Time Attack**: the marathon against a clock that counts down. Every check passed puts time
+  back. Rings only save you from a hit, and a hit takes them all; with no rings, a hit costs a life.
+- **Run anywhere round the pipe**: up the walls, over the top and back down, without end.
   Hold a direction and Sonic winds up past his normal speed; let go and he slides back down.
-- **Jump and drop dash.** Leap across the pipe with all your speed behind you, or jump again in
-  mid-air to dash straight back down.
+- **Jump, drop dash and bounce.** Leap across the pipe with all your speed behind you, jump again
+  in mid-air to dash straight back down, and hold jump through the landing to bounce highest.
+- **Spin dash.** Curl up and skid to a stop, rev, and let go to blast off down the pipe.
 - **Ring checks** that ask more of you stage by stage. Every check can be passed with the rings
-  the section holds; the last stages leave very little room for mistakes.
+  the section holds; the last stages leave very little room for mistakes. Get hit and your rings
+  scatter.
 - **Eight animated skies**, from a classic special stage blue to sunset, aurora, inferno and
   midnight.
-- **A stage select** with a moving preview of every stage, and your emeralds remembered between
-  sessions.
-- **Coming:** Marathon, one endless run that gets harder as it goes and changes colour every
-  third check.
+- **A stage select** with a moving preview of every stage, and your emeralds kept with **Save**
+  and **Load** on the menu.
+- **Controllers**: Switch Pro, Joy-Cons, PlayStation and Xbox pads, as well as the keyboard.
+- **Options**: turn off the music in the stages (the menus keep theirs).
 
 ## Controls
 
-| | Menus | Stage |
-|---|---|---|
-| Up / Down (or W / S) | Move the highlight | Pause menu |
-| A / D | | Steer round the pipe |
-| Space | Choose | Jump; again in the air to drop dash |
-| Enter | Choose | |
-| Escape | Back | Pause: Continue or Exit |
-| Backspace | Back | |
-| R | | Restart the stage |
+| Keyboard | Controller | Menus | Stage |
+|---|---|---|---|
+| A / D | Stick or d-pad | | Steer round the pipe |
+| Up / Down (or W / S) | Stick or d-pad | Move the highlight | Move the highlight, paused |
+| Space | A | Choose | Jump; again in the air to drop dash; hold through a landing to bounce highest |
+| E (hold) | R (hold) | | Spin dash: skid to a stop, press jump to rev, let go to blast off |
+| Enter | A / Start | Choose | |
+| Escape | Start | Back | Pause: Continue or Exit |
+| Backspace | B | Back | |
+| R | | | Restart the stage; in Marathon and Time Attack, a new run |
 
 ## Platforms
 
