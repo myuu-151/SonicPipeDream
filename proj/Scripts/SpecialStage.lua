@@ -101,6 +101,29 @@ local SQUASH = 0.42             -- flatter by this the instant it hits...
 local SQUASH_DAMP = 7.0         -- ...the wobble dying away this fast...
 local SQUASH_HZ = 4.5           -- ...at this many wobbles a second
 local SQUASH_TIME = 0.5         -- and done by then
+
+-- THE SPIN DASH. Hold R (the pad's R or ZR; E on a keyboard) with his feet on the pipe: he skids to
+-- a stop, curled into the ball. Press A (Space) to rev it up -- each press adds charge, and charge
+-- bleeds away between presses. Let go of R and he shoots off, and eases back to his own speed.
+local SPIN_SKID = 0.35          -- seconds to skid from full speed to a stop
+local SPIN_REV = 1.0            -- charge a press of A adds...
+local SPIN_REV_MAX = 8.0        -- ...up to this
+local SPIN_REV_BLEED = 1.2      -- charge lost a second, as a share of what there is (Sonic 2's 1/32 a frame)
+local DASH_BASE = 1.6           -- times his speed at the launch, uncharged...
+local DASH_PER_REV = 0.15       -- ...and this much more for each unit of charge (2.8 at full)
+local DASH_EASE = 0.55          -- how fast the extra speed goes: a share a second
+local DASH_BALL = 1.3           -- he stays curled up while he is going faster than this
+local SPIN_TALL = 0.74          -- the ball's height while he revs, squashed down on the pipe...
+local SPIN_PULSE = 0.16         -- ...and flatter still for a moment on each press, wobbling back
+local DASH_LONG = 0.45          -- longer along the track by this the instant he goes, easing back
+local DASH_STRETCH_TIME = 0.35
+local BALL_ROLLS = true         -- the ball turns as it rolls (the GameCube's, gloss painted on, does not)
+
+-- R held: the pad's R (a GameCube's) or ZR, or E on a keyboard.
+local function SpinHeld()
+    if (Input.IsKeyDown(Key.E)) then return true end
+    return Input.IsGamepadButtonDown(Gamepad.R1) or Input.IsGamepadButtonDown(Gamepad.R2)
+end
 local BALL_SPIN = 12.0          -- radians a second: two turns a second in the air
 local REACH_FRAMES = 0.55       -- a hit: within this far along the track...
 local REACH_ANGLE = 11.0        -- ...this far round it (256ths)...
@@ -117,6 +140,15 @@ local SPARKLE_SIZE = 1.5
 local BOOM_LIFE = 0.30
 local BOOM_FRAMES = 3
 local BOOM_SIZE = 3.6
+-- The spin dash's effects (native/gen_fx_assets.py's squares): shards thrown off the rev, puffs of
+-- cloud left behind the dash, and a blue streak along the pipe behind the ball.
+local RAZOR_EVERY, RAZOR_LIFE, RAZOR_SIZE = 0.03, 0.22, 1.0      -- while revving; a burst at each press
+local RAZOR_BURST = 6
+local PUFF_EVERY, PUFF_LIFE, PUFF_SIZE = 0.11, 0.55, 2.6         -- while dashing
+local TRAIL_LIFE = 0.32         -- the tube traced behind the ball: how long a point of it lasts
+local TRAIL_RADIUS = 1.15       -- its radius at the ball, as a share of the ball's (round it, not inside
+                                -- it); it narrows to nothing, and its front is a dome over the ball
+local DASH_FX = 1.15            -- the puffs and the streak while he is going faster than this
 
 -- Drop shadows: a dark blob on the pipe under Sonic and under every ring and bomb (SM_Shadow).
 local SHADOW_LIFT = 0.06        -- off the pipe's surface, or it fights the pipe for the same depth
@@ -174,6 +206,7 @@ local BALL_RADIUS = 1.7
 
 -- ------------------------------------------------------------------ small vector maths
 local function Add(a, b) return { a[1] + b[1], a[2] + b[2], a[3] + b[3] } end
+local function Sub(a, b) return { a[1] - b[1], a[2] - b[2], a[3] - b[3] } end
 local function Scale(a, k) return { a[1] * k, a[2] * k, a[3] * k } end
 local function Dot(a, b) return a[1] * b[1] + a[2] * b[2] + a[3] * b[3] end
 local function Cross(a, b)
@@ -372,6 +405,9 @@ function SpecialStage:Build()
 
     self.meshBall = LoadAsset("SM_PlayerBall")
     self.meshSparkle, self.meshBoom = LoadAsset("SM_FxQuad"), LoadAsset("SM_FxQuadBoom")
+    self.meshFx = { sparkle = self.meshSparkle, boom = self.meshBoom, razor = LoadAsset("SM_FxQuadRazor"),
+                    puff = LoadAsset("SM_FxQuadPuff") }
+    self.meshTube, self.meshTubeCap = LoadAsset("SM_FxTube"), LoadAsset("SM_FxTubeCap")
     self.boomMaterial, self.boomTextures, self.boomFrame = LoadAsset("M_Explosion"), {}, -1
     for i = 0, BOOM_FRAMES - 1 do self.boomTextures[i] = LoadAsset("T_Explosion_" .. i) end
     self.meshShadow = LoadAsset("SM_Shadow")
@@ -852,6 +888,15 @@ function SpecialStage:Restart()
     self.fallTime = 0.0             -- how long he has been in the air
     self.diving = false             -- jumped again in the air: dropping straight back down
     self.rings = 0
+    self.spinDash = nil             -- revving a spin dash: { rev, pulse }
+    self.skid = nil                 -- his speed while he skids into it (1 is his own)
+    self.boost = 1.0                -- his speed after one (1 is his own; eases back to it)
+    self.dashClock = nil            -- time since the last launch (the stretch)
+    self.dashRoll = 0.0             -- the curled ball's turn on the pipe
+    -- For testing the spin dash without a pad: S2_TEST_SPIN=<seconds> holds R that long into the
+    -- run, revs four times and lets go, and again every 8 seconds.
+    self.testSpin = (os ~= nil and os.getenv ~= nil and tonumber(os.getenv("S2_TEST_SPIN") or "")) or nil
+    self.testSpinClock = 0.0
     -- A marathon's lives (GameOptions: LIVES; 0 is never out) and the rings a lost life forgave:
     -- every check after asks that many fewer (see PassChecks).
     self.lives = (self.data.marathon and GameOptions ~= nil) and GameOptions.marathon.lives or 1
@@ -889,7 +934,15 @@ function SpecialStage:Restart()
     end
     self.uiReady = false
     self.failed = false
-    self.fxPool = self.fxPool or { sparkle = {}, boom = {} }
+    self.fxPool = self.fxPool or {}
+    for _, kind in ipairs({ "sparkle", "boom", "razor", "puff" }) do
+        self.fxPool[kind] = self.fxPool[kind] or {}
+    end
+    self.fxClock = { razor = 0.0, puff = 0.0 }
+    self.trace = {}
+    self.tubeNodes = self.tubeNodes or {}
+    for _, node in ipairs(self.tubeNodes) do node:SetVisible(false) end
+    if (self.tubeCap ~= nil) then self.tubeCap:SetVisible(false) end
     for _, fx in ipairs(self.fx or {}) do                   -- whatever was mid-flight goes back to the pool
         fx.node:SetVisible(false)
         table.insert(self.fxPool[fx.kind], fx.node)
@@ -901,7 +954,7 @@ end
 function SpecialStage:FxNode(kind)
     local node = table.remove(self.fxPool[kind])
     if (node == nil) then
-        local mesh = (kind == "boom") and self.meshBoom or self.meshSparkle
+        local mesh = (self.meshFx ~= nil and self.meshFx[kind]) or ((kind == "boom") and self.meshBoom or self.meshSparkle)
         if (mesh == nil) then return nil end
         node = SpawnMesh(self:GetWorld(), mesh)
     end
@@ -930,6 +983,119 @@ function SpecialStage:SpawnBoom(o)
                               dAngle = 0.0, dHeight = 1.5, size = BOOM_SIZE }
 end
 
+-- THE SPIN DASH'S EFFECTS, spawned as he goes. Shards spray back off the ball while he revs (a burst
+-- at each press); while he dashes, puffs of cloud are left behind and a blue streak runs along the
+-- pipe behind the ball. The puffs and the streak stay where they were dropped (`at`, a frame of the
+-- track); a ring's sparkles move with him (`ahead`).
+function SpecialStage:SpinFx(dt, burst)
+    local clock = self.fxClock
+    if (clock == nil) then return end
+    local back = BALL_RADIUS / (self.data.step or 5.0)          -- the ball's back, in frames behind him
+    local function Razor()
+        -- from the back of the ball, spat outward: back, and up or round the pipe, fanned out
+        local node = self:FxNode("razor")
+        if (node == nil) then return end
+        -- (where the ball meets the pipe, at its back: sprayed out round the pipe and back along it,
+        -- rising only a little, as sparks off a wheel spinning on the spot)
+        local side = (math.random() < 0.5) and -1.0 or 1.0
+        self.fx[#self.fx + 1] = { kind = "razor", node = node, age = 0.0, life = RAZOR_LIFE * (0.7 + math.random() * 0.6),
+                                  ahead = -back * 0.6, angle = self.angle, height = 0.15,
+                                  dAngle = side * (6.0 + math.random() * 22.0), dHeight = 0.2 + math.random() * 1.2,
+                                  dAhead = -(0.4 + math.random() * 0.9), size = RAZOR_SIZE * (0.7 + math.random() * 0.6),
+                                  long = 2.6, floor = 0.1 }
+    end
+    if (self.spinDash ~= nil) then
+        for _ = 1, (burst and RAZOR_BURST or 0) do Razor() end
+        clock.razor = clock.razor + dt
+        while (clock.razor >= RAZOR_EVERY) do
+            clock.razor = clock.razor - RAZOR_EVERY
+            Razor()
+        end
+    else
+        clock.razor = 0.0
+    end
+    if (self.boost > DASH_FX and self.height <= 0.0) then
+        clock.puff = clock.puff + dt
+        -- the tube: where the ball's middle is, every frame (see TraceTube)
+        if (dt > 0.0) then
+            local here = self:Place(self.frame, self.angle, BALL_RADIUS)
+            table.insert(self.trace, 1, { pos = here, age = 0.0 })
+        end
+        while (clock.puff >= PUFF_EVERY) do
+            clock.puff = clock.puff - PUFF_EVERY
+            local node = self:FxNode("puff")
+            if (node ~= nil) then
+                self.fx[#self.fx + 1] = { kind = "puff", node = node, age = 0.0, life = PUFF_LIFE,
+                                          at = self.frame - 0.8, angle = self.angle + (math.random() - 0.5) * 10.0,
+                                          height = 0.6, dAngle = (math.random() - 0.5) * 12.0,
+                                          dHeight = 1.2 + math.random() * 0.8, size = PUFF_SIZE * (0.8 + math.random() * 0.4) }
+            end
+        end
+    else
+        clock.puff = 0.0
+    end
+    self:TraceTube(dt)
+end
+
+-- THE TUBE TRACED BEHIND THE BALL, as Sonic Adventure's: the ball's middle, frame by frame, joined
+-- up by lengths of an open cylinder, each from one point to the next, so it is one unbroken tube
+-- along exactly the way the ball went. Each point is dropped as it ages, and the tube narrows to
+-- nothing toward its tail.
+function SpecialStage:TraceTube(dt)
+    local trace = self.trace
+    for _, p in ipairs(trace) do p.age = p.age + dt end
+    while (#trace > 0 and trace[#trace].age >= TRAIL_LIFE) do table.remove(trace) end
+    local nodes = self.tubeNodes
+    local used = 0
+    if (self.meshTube ~= nil) then
+        for i = 1, #trace - 1 do
+            local a, b = trace[i], trace[i + 1]
+            local v = Sub(a.pos, b.pos)
+            local len = math.sqrt(Dot(v, v))
+            if (len > 1e-3) then
+                used = used + 1
+                local node = nodes[used]
+                if (node == nil) then
+                    node = SpawnMesh(self:GetWorld(), self.meshTube)
+                    nodes[used] = node
+                end
+                local x = Scale(v, 1.0 / len)
+                local ref = (math.abs(x[2]) < 0.9) and { 0.0, 1.0, 0.0 } or { 1.0, 0.0, 0.0 }
+                local y = Normalize(Sub(ref, Scale(x, Dot(ref, x))))
+                local r = BALL_RADIUS * TRAIL_RADIUS * math.max(0.0, 1.0 - b.age / TRAIL_LIFE) ^ 0.7
+                node:SetVisible(true)
+                node:SetWorldPosition(ToVec(b.pos))
+                node:SetWorldRotationQuat(QuatFromAxes(x, y, Cross(x, y)))
+                node:SetScale(Vec(len, r * 2.0, r * 2.0))
+            end
+        end
+    end
+    for i = used + 1, #nodes do nodes[i]:SetVisible(false) end
+
+    -- the front: a dome over the ball, turned the way it is going, as wide as the tube there
+    if (self.tubeCap == nil and self.meshTubeCap ~= nil) then
+        self.tubeCap = SpawnMesh(self:GetWorld(), self.meshTubeCap)
+    end
+    if (self.tubeCap ~= nil) then
+        local shown = false
+        if (#trace >= 2 and trace[1].age < 0.05) then
+            local v = Sub(trace[1].pos, trace[2].pos)
+            local len = math.sqrt(Dot(v, v))
+            if (len > 1e-3) then
+                local x = Scale(v, 1.0 / len)
+                local ref = (math.abs(x[2]) < 0.9) and { 0.0, 1.0, 0.0 } or { 1.0, 0.0, 0.0 }
+                local y = Normalize(Sub(ref, Scale(x, Dot(ref, x))))
+                local d = BALL_RADIUS * TRAIL_RADIUS * 2.0
+                self.tubeCap:SetWorldPosition(ToVec(trace[1].pos))
+                self.tubeCap:SetWorldRotationQuat(QuatFromAxes(x, y, Cross(x, y)))
+                self.tubeCap:SetScale(Vec(d, d, d))
+                shown = true
+            end
+        end
+        self.tubeCap:SetVisible(shown)
+    end
+end
+
 -- Move, size and face every live effect; retire the finished ones. `facing` is the camera's
 -- own rotation: a square given it faces the camera exactly.
 function SpecialStage:UpdateFx(dt, facing)
@@ -941,8 +1107,12 @@ function SpecialStage:UpdateFx(dt, facing)
             table.insert(self.fxPool[fx.kind], fx.node)
         else
             local t = math.max(0.0, fx.age) / fx.life
-            local place = self:Place(self.frame + fx.ahead, fx.angle + fx.dAngle * t, fx.height + fx.dHeight * t)
-            local size
+            local function At(u)
+                local frame = fx.at or (self.frame + fx.ahead + (fx.dAhead or 0.0) * u)
+                return self:Place(frame, fx.angle + fx.dAngle * u, math.max(fx.floor or -99.0, fx.height + fx.dHeight * u))
+            end
+            local place = At(t)
+            local size, sx, rotation = nil, nil, facing
             if (fx.kind == "boom") then
                 size = fx.size * (0.55 + 0.45 * t)
                 local frame = math.min(BOOM_FRAMES - 1, math.floor(t * BOOM_FRAMES))
@@ -950,14 +1120,28 @@ function SpecialStage:UpdateFx(dt, facing)
                     self.boomFrame = frame
                     self.boomMaterial:SetTexture(1, self.boomTextures[frame])
                 end
+            elseif (fx.kind == "razor") then
+                -- a shard flies off and thins away, pointed the way it flies (on the screen)
+                size = fx.size * (1.0 - t)
+                sx = size * fx.long
+                local toward = Scale(Normalize(self.camLook or { 0.0, 0.0, -1.0 }), -1.0)   -- to the camera
+                local v = Sub(At(t + 0.05), place)
+                v = Sub(v, Scale(toward, Dot(v, toward)))
+                if (Dot(v, v) > 1e-8) then
+                    local x = Normalize(v)
+                    rotation = QuatFromAxes(x, Cross(toward, x), toward)
+                end
+            elseif (fx.kind == "puff") then
+                -- a puff swells as it rises, and shrinks away at the end
+                size = fx.size * (0.5 + 0.7 * t) * math.min(1.0, (1.0 - t) * 4.0)
             else
                 -- a sparkle swells, twinkles and goes
                 size = fx.size * math.sin(math.pi * t) * (0.75 + 0.25 * math.sin(fx.age * 50.0))
             end
             fx.node:SetVisible(fx.age >= 0.0)
             fx.node:SetWorldPosition(ToVec(place))
-            fx.node:SetWorldRotationQuat(facing)
-            fx.node:SetScale(Vec(size, size, size))
+            fx.node:SetWorldRotationQuat(rotation)
+            fx.node:SetScale(Vec(sx or size, size, size))
             keep[#keep + 1] = fx
         end
     end
@@ -1202,12 +1386,14 @@ end
 -- each on top of the last. So every effect has its own level here, set against the music at 1.0:
 -- the ring well under it, the one-off fanfares about level with it.
 local MIX = { Ring = 0.22, LoseRings = 0.55, Jump = 0.40, Checkpoint = 0.65, GetEmerald = 1.0,
-              Explosion = 0.60, Fail = 0.70, ExitStage = 0.60 }
+              Explosion = 0.60, Fail = 0.70, ExitStage = 0.60, SpinRev = 0.45, SpinRelease = 0.70 }
+-- A sound played from another's asset (none now).
+local SOUND_ASSET = {}
 
-function SpecialStage:Sound(name)
+function SpecialStage:Sound(name, pitch)
     self.sounds = self.sounds or {}
-    if (self.sounds[name] == nil) then self.sounds[name] = LoadAsset("SW_" .. name) or false end
-    if (self.sounds[name]) then Audio.PlaySound2D(self.sounds[name], MIX[name] or 0.6) end
+    if (self.sounds[name] == nil) then self.sounds[name] = LoadAsset("SW_" .. (SOUND_ASSET[name] or name)) or false end
+    if (self.sounds[name]) then Audio.PlaySound2D(self.sounds[name], MIX[name] or 0.6, pitch or 1.0) end
 end
 
 -- ------------------------------------------------------------------ palettes
@@ -1337,7 +1523,7 @@ function SpecialStage:Tick(deltaTime)
     local locked = (self.hold > 0.0 or self.intro > 0.0 or self.thumbs > 0.0 or self.over >= 0.0)
     -- steering: round the pipe, and only round it, while his feet are on it
     local want = 0.0
-    if (not locked and self.stun <= 0.0) then
+    if (not locked and self.stun <= 0.0 and self.spinDash == nil) then
         if (Input.IsKeyDown(Key.A)) then want = want + 1.0 end
         if (Input.IsKeyDown(Key.D)) then want = want - 1.0 end
         -- A controller (PadInput.lua does its buttons): the stick, and the d-pad as a held key.
@@ -1385,7 +1571,7 @@ function SpecialStage:Tick(deltaTime)
             self.steer = self.steer + (target - self.steer) * math.min(1.0, grip * dt)
         end
         self.angle = self:WrapAngle(self.angle + self.steer * dt)
-        if (want == 0.0 and self.hold <= 0.0 and math.abs(self.angle) > FALL_ANGLE) then
+        if (want == 0.0 and self.hold <= 0.0 and self.spinDash == nil and math.abs(self.angle) > FALL_ANGLE) then
             self.cling = self.cling + dt
             if (self.cling >= CLING) then
                 self:LeaveSurface(0.0, false)   -- let go up the overhang: he drops off it, on his feet
@@ -1393,6 +1579,48 @@ function SpecialStage:Tick(deltaTime)
             end
         else
             self.cling = 0.0
+        end
+    end
+
+    -- THE SPIN DASH: R down on the pipe curls him up and he skids to a stop; A revs; R up launches.
+    local grounded = self.height <= 0.0 and not self.falling
+    local testHold, testRev = false, false
+    if (self.testSpin ~= nil and not locked) then
+        -- (the test: 1.4 s held from each 8 s mark, a rev every 0.25 s of it)
+        self.testSpinClock = self.testSpinClock + dt
+        local into = self.testSpinClock - self.testSpin
+        if (into >= 0.0) then
+            local t = into % 8.0
+            testHold = t < 1.4
+            local before = (t - dt) / 0.25
+            testRev = testHold and t > 0.3 and math.floor(t / 0.25) ~= math.floor(before)
+        end
+    end
+    local function SpinDown() return SpinHeld() or testHold end
+    if (self.spinDash == nil) then
+        if (not locked and grounded and self.stun <= 0.0 and SpinDown()) then
+            self.spinDash = { rev = 0.0, pulse = 1.0 }
+            self.skid = self.boost            -- from whatever speed he had
+            self.boost = 1.0
+            self:Sound("Jump")
+        end
+    elseif (locked or not grounded or not SpinDown()) then
+        -- let go: off he goes (unless the stage took the controls, or he left the pipe)
+        if (not locked and grounded) then
+            self.boost = DASH_BASE + DASH_PER_REV * self.spinDash.rev
+            self.dashClock = 0.0
+            self:Sound("SpinRelease")
+        end
+        self.spinDash, self.skid = nil, nil
+    else
+        local s = self.spinDash
+        s.rev = s.rev * math.exp(-SPIN_REV_BLEED * dt)
+        s.pulse = s.pulse + dt
+        if (Input.IsKeyJustDown(Key.Space) or testRev) then
+            s.rev = math.min(SPIN_REV_MAX, s.rev + SPIN_REV)
+            s.pulse = 0.0
+            self:SpinFx(0.0, true)
+            self:Sound("SpinRev", 1.0 + 0.05 * s.rev)     -- higher the more it is charged
         end
     end
 
@@ -1409,7 +1637,7 @@ function SpecialStage:Tick(deltaTime)
         autoJump, self.testDive = true, nil
         if (self.testBounces > 0) then self.testBounces, self.testDive = self.testBounces - 1, self.testDiveAt end
     end
-    local pressed = not locked and (Input.IsKeyJustDown(Key.Space) or autoJump)
+    local pressed = not locked and self.spinDash == nil and (Input.IsKeyJustDown(Key.Space) or autoJump)
     if (pressed and inBounce and not self.diving) then
         self.bouncePress = true                 -- remembered: the drop dash goes at the top
     end
@@ -1516,7 +1744,21 @@ function SpecialStage:Tick(deltaTime)
     elseif (self.over < 0.0 or self.section > #self.data.sections) then
         local speed = SPEED
         if (self.stun > 0.0) then speed = SPEED * 0.45 end
+        if (self.spinDash ~= nil) then
+            -- skidding into the rev: to a stop, from whatever speed he had
+            self.skid = math.max(0.0, (self.skid or 1.0) - dt * math.max(1.0, self.skid or 1.0) / SPIN_SKID)
+            speed = speed * self.skid
+        else
+            speed = speed * self.boost
+        end
         self.frame = math.min(self.frame + speed * dt, self.data.frames - 2.0)
+    end
+    -- a dash's extra speed eases away, back to his own
+    self.boost = 1.0 + (self.boost - 1.0) * math.exp(-DASH_EASE * dt)
+    if (self.boost < 1.005) then self.boost = 1.0 end
+    if (self.dashClock ~= nil) then
+        self.dashClock = self.dashClock + dt
+        if (self.dashClock > DASH_STRETCH_TIME) then self.dashClock = nil end
     end
     self.stun = math.max(0.0, self.stun - dt)
 
@@ -1529,8 +1771,9 @@ function SpecialStage:Tick(deltaTime)
     self.runClock = self.runClock + dt
     self.thumbs = math.max(0.0, self.thumbs - dt)
     local airborne = (self.height > 0.0)
+    local curled = not airborne and (self.spinDash ~= nil or self.boost > DASH_BALL)
     local mesh
-    if (airborne and not self.falling) then
+    if ((airborne and not self.falling) or curled) then
         mesh = self.meshBall
     else
         -- (at the start he is already running, up the lead-in, while START is up)
@@ -1560,9 +1803,23 @@ function SpecialStage:Tick(deltaTime)
         end
         place = Add(pos, Add(Scale(left, x), Scale(upHere, self.data.pipe_radius + y)))
     end
-    -- THE TENNIS BALL: how tall the ball is, up the screen (1 round). Its width goes the other way,
-    -- so it keeps its volume, and its bottom stays where it was, so a squash sits on the pipe.
-    local tall = 1.0
+    if (curled) then
+        -- the ball on the pipe: its middle a radius off the surface
+        place = self:Place(self.frame, self.angle, BALL_RADIUS)
+    end
+    -- THE TENNIS BALL: how tall the ball is, up the screen (1 round), and how long along the track.
+    -- Its width goes the other way, so it keeps its volume, and its bottom stays where it was, so a
+    -- squash sits on the pipe.
+    local tall, long = 1.0, 1.0
+    if (curled and self.spinDash ~= nil) then
+        -- revving: squashed down on the pipe, flatter still for a moment at each press
+        local t = self.spinDash.pulse
+        tall = SPIN_TALL - SPIN_PULSE * math.exp(-SQUASH_DAMP * t) * math.cos(TWO_PI * SQUASH_HZ * t)
+    elseif (curled and self.dashClock ~= nil) then
+        -- launched: stretched out along the track, easing back round
+        local t = self.dashClock
+        long = 1.0 + DASH_LONG * math.exp(-6.0 * t) * math.cos(TWO_PI * 2.0 * t)
+    end
     if (airborne and not self.falling) then
         if (self.diving) then
             tall = 1.0 + DROP_STRETCH * math.min(1.0, (self.diveClock or 0.0) / 0.08)
@@ -1572,24 +1829,36 @@ function SpecialStage:Tick(deltaTime)
         end
     end
     if (tall ~= 1.0) then
-        local _, _, upHere = self:TrackAt(self.frame)
+        local upHere = inward
+        if (not curled) then _, _, upHere = self:TrackAt(self.frame) end
         place = Add(place, Scale(upHere, BALL_RADIUS * (tall - 1.0)))
     end
     self.player:SetWorldPosition(ToVec(place))
-    if (tall ~= 1.0) then
-        -- Squashed along the screen's up: the ball's own up turned to it, and no roll meanwhile (a
-        -- roll would carry the squash round with it; the ball is a plain sphere, so it is not missed).
+    if (tall ~= 1.0 or long ~= 1.0) then
+        -- Squashed along the screen's up (or, on the pipe, the pipe's up where he is) and stretched
+        -- along the track: the ball's own axes turned to them, and no roll meanwhile (a roll would
+        -- carry the squash round with it; the ball is a plain sphere, so it is not missed).
         local _, fwdHere, upHere = self:TrackAt(self.frame)
+        if (curled) then fwdHere, upHere = fwd, inward end
         self.player:SetWorldRotationQuat(FacingQuat(fwdHere, upHere))
-        local wide = 1.0 / math.sqrt(tall)
-        self.player:SetScale(Vec(wide, tall, wide))
+        local side = 1.0 / math.sqrt(tall * long)
+        self.player:SetScale(Vec(long, tall, side))
         self.squashed = true
     elseif (self.squashed) then
         self.player:SetScale(Vec(1.0, 1.0, 1.0))
         self.squashed = false
     end
-    if (tall ~= 1.0) then
+    if (tall ~= 1.0 or long ~= 1.0) then
         -- (turned above)
+    elseif (curled) then
+        -- rolling along the pipe, as fast as he is going
+        self.dashRoll = self.dashRoll + (BALL_ROLLS and (SPEED * self.boost * (self.data.step or 1.0) / BALL_RADIUS) * dt or 0.0)
+        local side = Cross(fwd, inward)
+        local c, sn = math.cos(self.dashRoll), math.sin(self.dashRoll)
+        local function Turn(v)
+            return Add(Add(Scale(v, c), Scale(Cross(side, v), sn)), Scale(side, Dot(side, v) * (1.0 - c)))
+        end
+        self.player:SetWorldRotationQuat(FacingQuat(Turn(fwd), Turn(inward)))
     elseif (airborne and not self.falling) then
         -- The ball rolls THE WAY IT IS GOING: about the line square to its flight (on along the
         -- track, and across and up or down the pipe's section) and to the track's up. It used to
@@ -1698,6 +1967,7 @@ function SpecialStage:Tick(deltaTime)
     self.camera:SetWorldPosition(ToVec(eye))
     local facing = CameraQuat(look, camUp)
     self.camera:SetWorldRotationQuat(facing)
+    self.camLook = look                 -- (the spin dash's shards turn to their flight on the screen)
     -- For looking at the effects without having to steer into anything: S2_TEST_FX sets one of
     -- each off in front of Sonic every second.
     if (os ~= nil and os.getenv ~= nil and os.getenv("S2_TEST_FX") ~= nil) then
@@ -1708,6 +1978,7 @@ function SpecialStage:Tick(deltaTime)
             self:SpawnBoom({ frame = self.frame + 6.0, angle = 14.0 })
         end
     end
+    self:SpinFx(dt, false)
     self:UpdateFx(dt, facing)
 
     -- the rings spin: every ring in sight steps to the next mesh of the turn, all together

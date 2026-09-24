@@ -64,6 +64,8 @@ EFFECTS = [
     ("Select.ogg", "SW_MenuSelect", 0x51C0FFEE0030001E),        # a menu going on to the next (and pausing),
     ("SpecialWarp.ogg", "SW_MenuWarp", 0x51C0FFEE0030001D),     # and a stage chosen (and left),
     ("back.wav", "SW_MenuBack", 0x51C0FFEE0030001F),            # and B, back out of a menu
+    ("Release.ogg", "SW_SpinRelease", 0x51C0FFEE00300020),      # a spin dash let go
+    ("Charge.ogg", "SW_SpinRev", 0x51C0FFEE00300021),           # ...and revved, a press of A
 ]
 
 
