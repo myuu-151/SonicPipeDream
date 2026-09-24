@@ -105,6 +105,9 @@ local SQUASH_TIME = 0.5         -- and done by then
 -- THE SPIN DASH. Hold R (the pad's R or ZR; E on a keyboard) with his feet on the pipe: he skids to
 -- a stop, curled into the ball. Press A (Space) to rev it up -- each press adds charge, and charge
 -- bleeds away between presses. Let go of R and he shoots off, and eases back to his own speed.
+local BOUNCE_HOLD = 0.45        -- A held down this long, unbroken, as he lands: the bounce goes all the
+                                -- way up. (Held at all, it did: a quick tap at the right moment, or
+                                -- mashing, got the top every time.) A tap is the next step up, however fast.
 local SPIN_SKID = 0.35          -- seconds to skid from full speed to a stop
 local SPIN_REV = 1.0            -- charge a press of A adds...
 local SPIN_REV_MAX = 8.0        -- ...up to this
@@ -1502,10 +1505,25 @@ local MIX = { Ring = 0.22, LoseRings = 0.55, Jump = 0.40, Checkpoint = 0.65, Get
 -- A sound played from another's asset (none now).
 local SOUND_ASSET = {}
 
+-- THERE ARE ONLY 8 VOICES (a GameCube's; the engine gives the PC the same), and the music has one or
+-- two. With every sound alike, a burst of rings -- each 0.67 s -- filled the rest, and anything played
+-- then was dropped: a checkpoint, the emerald, silent. So each sound has a PRIORITY, and one that
+-- matters takes the voice of one that matters less (the engine evicts a lower priority to play a
+-- higher; the music is the highest of all, SpecialStageMusic.lua); and the ones that come in bursts
+-- play ONE AT A TIME, each cutting the last off, so a burst holds one voice however long it goes on.
+local PRIORITY = { Ring = 10, SpinRev = 15, Jump = 20, LoseRings = 30, Explosion = 30, SpinRelease = 40,
+                   Checkpoint = 60, GetEmerald = 60, Fail = 60, ExitStage = 60, MenuWarp = 60 }
+local ONE_AT_A_TIME = { Ring = true, SpinRev = true, Jump = true }
+
 function SpecialStage:Sound(name, pitch)
     self.sounds = self.sounds or {}
-    if (self.sounds[name] == nil) then self.sounds[name] = LoadAsset("SW_" .. (SOUND_ASSET[name] or name)) or false end
-    if (self.sounds[name]) then Audio.PlaySound2D(self.sounds[name], MIX[name] or 0.6, pitch or 1.0) end
+    -- (not remembered as missing: a load that failed once -- short of memory, on a GameCube -- is
+    -- tried again the next time, rather than leaving that sound silent for the rest of the run)
+    local sound = self.sounds[name] or LoadAsset("SW_" .. (SOUND_ASSET[name] or name))
+    self.sounds[name] = sound
+    if (sound == nil) then return end
+    if (ONE_AT_A_TIME[name]) then Audio.StopSounds(sound) end
+    Audio.PlaySound2D(sound, MIX[name] or 0.6, pitch or 1.0, 0.0, false, PRIORITY[name] or 20)
 end
 
 -- ------------------------------------------------------------------ palettes
@@ -1694,6 +1712,9 @@ function SpecialStage:Tick(deltaTime)
         end
     end
 
+    -- how long A has been held down, unbroken (a long hold is what sends a bounce to the top)
+    if (Input.IsKeyDown(Key.Space)) then self.jumpHeldFor = (self.jumpHeldFor or 0.0) + dt else self.jumpHeldFor = 0.0 end
+
     -- THE SPIN DASH: R down on the pipe curls him up and he skids to a stop; A revs; R up launches.
     local grounded = self.height <= 0.0 and not self.falling
     local testHold, testRev = false, false
@@ -1833,7 +1854,7 @@ function SpecialStage:Tick(deltaTime)
                 self.nx, self.ny = 0.0, 1.0
                 -- one step up from the last bounce -- or, jump held down as he lands, all the way
                 local up = (self.bounces > 1) and (self.bounceLaunch or BOUNCE_FIRST) + BOUNCE_STEP or BOUNCE_FIRST
-                local held = Input.IsKeyDown(Key.Space)
+                local held = (self.jumpHeldFor or 0.0) >= BOUNCE_HOLD
                 if (self.testLog) then held = self.testHold end         -- (a test: the keyboard is not the player's)
                 if (held) then up = BOUNCE_TOP end
                 self.vy = math.min(BOUNCE_TOP, up)

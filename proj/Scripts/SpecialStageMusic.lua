@@ -11,6 +11,10 @@ Script.Require("GameOptions")   -- OPTIONS > AUDIO can mute it
 
 SpecialStageMusic = {}
 
+-- Above every sound effect's (SpecialStage.lua's PRIORITY): a burst of effects never takes the
+-- music's voice.
+MUSIC_PRIORITY = 100
+
 -- The special stage theme, and stage -> its own music. native/gen_music_assets.py makes the
 -- assets from external/audio (and the GameCube's export_assets_gc.py, streamed from the disc).
 -- An intro that runs into its loop ends where the loop ends: it is the lead-in and then one whole
@@ -27,7 +31,7 @@ local STAGE_MUSIC = {
     [5] = { intro = "SW_SpecialStage_Stage4Intro", loop = "SW_SpecialStage_Stage4Loop" },
     [6] = { loop = "SW_SpecialStage_Stage5" },        -- one whole track that loops on itself
     [7] = { intro = "SW_SpecialStage_Stage7Intro", loop = "SW_SpecialStage_Stage7Loop" },
-    Marathon = { loop = "SW_SpecialStage_Marathon" },   -- one whole track that loops on itself
+    Marathon = { loop = "SW_SpecialStage_Marathon", volume = 1.5 },     -- one whole track, looped; louder
 }
 
 function SpecialStageMusic:Create()
@@ -67,12 +71,13 @@ function SpecialStageMusic:Begin()
         self.stopped, self.looping, self.elapsed = true, false, 0.0
         return
     end
+    self.trackVolume = music.volume or 1.0
     self.intro, self.loop = Load(music.intro), Load(music.loop)
     self.stopped, self.looping, self.elapsed = false, false, 0.0
     if (self.playIntro and self.intro ~= nil) then
         self.introLength = self.intro:GetDuration()
         -- volume, pitch, start time, loop
-        Audio.PlaySound2D(self.intro, self.volume, 1.0, 0.0, false)
+        Audio.PlaySound2D(self.intro, self.volume * self.trackVolume, 1.0, 0.0, false, MUSIC_PRIORITY)
     else
         self:StartLoop()
     end
@@ -81,7 +86,7 @@ end
 function SpecialStageMusic:StartLoop()
     self.looping = true
     if (self.loop ~= nil) then
-        Audio.PlaySound2D(self.loop, self.volume, 1.0, 0.0, true)
+        Audio.PlaySound2D(self.loop, self.volume * (self.trackVolume or 1.0), 1.0, 0.0, true, MUSIC_PRIORITY)
     end
 end
 

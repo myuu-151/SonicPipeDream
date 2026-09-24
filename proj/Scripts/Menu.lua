@@ -242,7 +242,7 @@ function Menu:Close() self:Show(false) end
 function MenuSound(name, volume)
     MenuSounds = MenuSounds or {}
     if (MenuSounds[name] == nil) then MenuSounds[name] = LoadAsset("SW_" .. name) or false end
-    if (MenuSounds[name]) then Audio.PlaySound2D(MenuSounds[name], volume or 0.6) end
+    if (MenuSounds[name]) then Audio.PlaySound2D(MenuSounds[name], volume or 0.6, 1.0, 0.0, false, 50) end
 end
 
 function Menu:Move(by)

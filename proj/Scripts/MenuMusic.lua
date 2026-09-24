@@ -26,7 +26,7 @@ function MenuMusic.Start()
     m.playing, m.looping, m.elapsed = true, false, 0.0
     if (m.intro) then
         m.introLength = m.intro:GetDuration()
-        Audio.PlaySound2D(m.intro, VOLUME, 1.0, 0.0, false)
+        Audio.PlaySound2D(m.intro, VOLUME, 1.0, 0.0, false, 100)       -- (above every effect: see SpecialStage.lua)
     else
         m.StartLoop()
     end
@@ -35,7 +35,7 @@ end
 function MenuMusic.StartLoop()
     local m = MenuMusic
     m.looping = true
-    if (m.loop) then Audio.PlaySound2D(m.loop, VOLUME, 1.0, 0.0, true) end
+    if (m.loop) then Audio.PlaySound2D(m.loop, VOLUME, 1.0, 0.0, true, 100) end
 end
 
 function MenuMusic.Stop()
