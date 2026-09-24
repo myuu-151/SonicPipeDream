@@ -157,8 +157,12 @@ for k = 0, TRACE_SIDES do
     local a = 2.0 * math.pi * k / TRACE_SIDES
     TRACE_ROUND[k] = { math.cos(a), math.sin(a) }
 end
-local TRACE_COLOUR = { 0.16, 0.42, 1.0 }    -- a vivid deep blue, unlit
-local TRACE_ALPHA = 0.72        -- at the ball
+-- Its colour, unlit: a deep blue through its middle, brightening to a light glowing blue at its edges
+-- as the camera sees them (and more solid there), as an energy trail -- a flat blue read as dull.
+local TRACE_CORE = { 0.04, 0.20, 0.95 }
+local TRACE_RIM = { 0.22, 0.58, 1.0 }       -- (still a strong blue: lighter than this washed it out)
+local TRACE_ALPHA = 0.9         -- at the ball, at its edges...
+local TRACE_CLEAR = 0.55        -- ...and through its middle, as a share of that
 local DASH_FX = 1.15            -- the puffs and the streak while he is going faster than this
 
 -- Drop shadows: a dark blob on the pipe under Sonic and under every ring and bomb (SM_Shadow).
@@ -1083,7 +1087,8 @@ function SpecialStage:TraceMesh(trace)
     self.traceXyz, self.traceRgba = self.traceXyz or {}, self.traceRgba or {}
     local xyz, rgba = self.traceXyz, self.traceRgba
     local vi, ci = 0, 0
-    local cr, cg, cb = TRACE_COLOUR[1], TRACE_COLOUR[2], TRACE_COLOUR[3]
+    local look = Normalize(self.camLook or { 0.0, 0.0, -1.0 })
+    local lx, ly, lz = look[1], look[2], look[3]
     local seg = 2
     for r = 1, TRACE_RINGS do
         local centre, along, ringR, u
@@ -1109,15 +1114,23 @@ function SpecialStage:TraceMesh(trace)
         if (Dot(y, y) < 1e-6) then y = { 0.0, 1.0, 0.0 } end
         y = Normalize(y)
         local z = Cross(along, y)
+        -- where it is wider than the ball, lifted by the difference: its bottom stays on the pipe
+        centre = Add(centre, Scale(upHere, math.max(0.0, ringR - BALL_RADIUS * 0.97)))
         local alpha = TRACE_ALPHA * (1.0 - u) ^ TRAIL_FADE
         local ox, oy, oz = centre[1], centre[2], centre[3]
-        local y1, y2, y3 = y[1] * ringR, y[2] * ringR, y[3] * ringR
-        local z1, z2, z3 = z[1] * ringR, z[2] * ringR, z[3] * ringR
         for k = 0, TRACE_SIDES do
             local cs = TRACE_ROUND[k]
-            local c, s = cs[1], cs[2]
-            xyz[vi + 1], xyz[vi + 2], xyz[vi + 3] = ox + y1 * c + z1 * s, oy + y2 * c + z2 * s, oz + y3 * c + z3 * s
-            rgba[ci + 1], rgba[ci + 2], rgba[ci + 3], rgba[ci + 4] = cr, cg, cb, alpha
+            -- the way this vertex faces, and how edge-on the camera sees it (1 at the edge)
+            local nx = y[1] * cs[1] + z[1] * cs[2]
+            local ny = y[2] * cs[1] + z[2] * cs[2]
+            local nz = y[3] * cs[1] + z[3] * cs[2]
+            local rim = 1.0 - math.abs(nx * lx + ny * ly + nz * lz)
+            rim = rim * rim
+            xyz[vi + 1], xyz[vi + 2], xyz[vi + 3] = ox + nx * ringR, oy + ny * ringR, oz + nz * ringR
+            rgba[ci + 1] = TRACE_CORE[1] + (TRACE_RIM[1] - TRACE_CORE[1]) * rim
+            rgba[ci + 2] = TRACE_CORE[2] + (TRACE_RIM[2] - TRACE_CORE[2]) * rim
+            rgba[ci + 3] = TRACE_CORE[3] + (TRACE_RIM[3] - TRACE_CORE[3]) * rim
+            rgba[ci + 4] = alpha * (TRACE_CLEAR + (1.0 - TRACE_CLEAR) * rim)
             vi, ci = vi + 3, ci + 4
         end
     end
