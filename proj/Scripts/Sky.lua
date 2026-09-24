@@ -279,19 +279,22 @@ function Sky:ShowMenu()
                 TheMenu.busy = true
                 TheSavePrompt.onClose = function() TheMenu.busy = false end
                 TheSavePrompt:Open(key)
-            elseif (key == "marathon" and TheOptions ~= nil) then
+            elseif ((key == "marathon" or key == "time_attack") and TheOptions ~= nil) then
                 -- its setup first (OptionsPrompt.lua); START there begins the run: zone after zone,
                 -- made as it is played (MarathonGen.lua), behind the loading screen while its first
-                -- zone is built (see TickMarathonStart)
+                -- zone is built (see TickMarathonStart). A time attack is the same run, against the
+                -- clock (SpecialStage.lua: data.timeAttack).
+                local run = (key == "time_attack") and "timeAttack" or "marathon"
                 TheMenu.busy = true
                 TheOptions.onClose = function() TheMenu.busy = false end
                 TheOptions.onStart = function()
                     TheOptions.onStart = nil
+                    GameOptions.run = run
                     TheMenu:Close()
-                    if (TheLoading ~= nil) then TheLoading:Show("marathon") end
+                    if (TheLoading ~= nil) then TheLoading:Show(key) end
                     self.marathonStart = { step = 0, clock = 0.0 }
                 end
-                TheOptions:Open("marathon")
+                TheOptions:Open(run)
             end
         end
     end

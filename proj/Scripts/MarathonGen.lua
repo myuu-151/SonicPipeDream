@@ -192,7 +192,7 @@ local CLIMB = { 0.0, 0.25, 0.5, 0.75 }              -- difficulty a section: non
 local LENIENCY = { 0.85, 1.0, 1.2 }                 -- tight, normal, generous
 
 local function Setup()
-    local m = GameOptions ~= nil and GameOptions.marathon or nil
+    local m = GameOptions ~= nil and GameOptions.Run() or nil         -- the marathon's, or the time attack's
     if (m == nil) then return D.start, D.ramp, 1.0 end
     return m.start or D.start, CLIMB[m.climb] or D.ramp, LENIENCY[m.leniency] or 1.0
 end

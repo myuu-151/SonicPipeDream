@@ -1,6 +1,6 @@
 -- OptionsPrompt.lua
 -- A box of settings over the title menu, as SavePrompt.lua's: OPTIONS opens it at its first page,
--- and MARATHON at the marathon's setup, whose START begins the run.
+-- and MARATHON and TIME ATTACK at their setups, whose START begins the run.
 --
 --     +--------------------------------------------+
 --     |                  MARATHON                  |
@@ -9,7 +9,6 @@
 --     |         STARTING DIFFICULTY       2        |
 --     |         DIFFICULTY CLIMB     NORMAL        |
 --     |         RING LENIENCY        NORMAL        |
---     |         LIVES                     1        |
 --     |         START                              |
 --     |                                            |
 --     |           A  CHANGE        B  BACK         |
@@ -19,9 +18,10 @@
 -- setting either way; B goes back a page, and from the first closes. The settings are
 -- GameOptions.lua's: they take effect at once and are kept with the save.
 --
---     TheOptions:Open(page)   "options" (the default) or "marathon"; the menu keeps still meanwhile
+--     TheOptions:Open(page)   "options" (the default), "marathon" or "timeAttack"; the menu keeps
+--                             still meanwhile
 --     TheOptions.onClose      called when it closes (B, or START)
---     TheOptions.onStart      called by the marathon page's START, after it has closed
+--     TheOptions.onStart      called by a setup page's START, after it has closed
 
 Script.Require("GameOptions")
 
@@ -42,18 +42,24 @@ local FIRST_LINE, LINE_GAP = 66.0, 30.0
 local MAX_LINES = 7
 
 -- The pages. A line opens another page, is an on/off setting (GameOptions[option]), a setting with
--- a list of values (GameOptions.marathon[setting], GameOptions.CHOICES), or START.
+-- a list of values (GameOptions[page.of][setting], GameOptions.CHOICES), or START.
 local PAGES = {
     options = { title = "OPTIONS", lines = { { label = "AUDIO", open = "audio" } } },
     audio = { title = "AUDIO", back = "options",
               lines = { { label = "MUTE IN-STAGE MUSIC", option = "muteStageMusic" } } },
-    marathon = { title = "MARATHON",
+    marathon = { title = "MARATHON", of = "marathon",
                  lines = { { label = "ROUNDS", setting = "rounds" },
                            { label = "STARTING DIFFICULTY", setting = "start" },
                            { label = "DIFFICULTY CLIMB", setting = "climb" },
                            { label = "RING LENIENCY", setting = "leniency" },
-                           { label = "LIVES", setting = "lives" },
                            { label = "START", start = true } } },
+    -- against the clock: rings only save him from a hit, so there is no leniency; lives instead
+    timeAttack = { title = "TIME ATTACK", of = "timeAttack",
+                   lines = { { label = "ROUNDS", setting = "rounds" },
+                             { label = "STARTING DIFFICULTY", setting = "start" },
+                             { label = "DIFFICULTY CLIMB", setting = "climb" },
+                             { label = "LIVES", setting = "lives" },
+                             { label = "START", start = true } } },
 }
 
 local function MakeText(parent, font, colour)
@@ -151,7 +157,7 @@ function OptionsPrompt:Refresh()
         if (line ~= nil and line.option ~= nil) then
             value = GameOptions[line.option] and "ON" or "OFF"
         elseif (line ~= nil and line.setting ~= nil) then
-            value = GameOptions.CHOICES[line.setting].show(GameOptions.marathon[line.setting])
+            value = GameOptions.CHOICES[line.setting].show(GameOptions[page.of][line.setting])
         end
         self.labels[i]:SetText(line and line.label or "")
         self.labels[i]:SetColor((i == self.index) and YELLOW or WHITE)
@@ -197,13 +203,13 @@ local function Sound(name)
 end
 
 -- A setting one step along its list of values, round from the end to the start.
-local function Step(setting, by)
+local function Step(settings, setting, by)
     local values = GameOptions.CHOICES[setting].values
     local at = 1
     for i, v in ipairs(values) do
-        if (v == GameOptions.marathon[setting]) then at = i end
+        if (v == settings[setting]) then at = i end
     end
-    GameOptions.marathon[setting] = values[(at - 1 + by) % #values + 1]
+    settings[setting] = values[(at - 1 + by) % #values + 1]
 end
 
 function OptionsPrompt:Tick(deltaTime)
@@ -260,7 +266,7 @@ function OptionsPrompt:Tick(deltaTime)
         Sound("MenuMove")
         self:Refresh()
     elseif (line.setting ~= nil and (yes or left or right)) then
-        Step(line.setting, left and -1 or 1)
+        Step(GameOptions[page.of], line.setting, left and -1 or 1)
         GameOptions.touched = true
         Sound("MenuMove")
         self:Refresh()

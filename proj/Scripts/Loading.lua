@@ -131,9 +131,9 @@ function Loading:Refresh()
     self.title:SetVisible(named)
     self.name:SetVisible(named)
     self.gem:SetVisible(named)
-    if (named and n == "marathon") then
+    if (named and (n == "marathon" or n == "time_attack")) then
         -- the emerald the first zone leads to (SpecialStage.lua's SpawnItem: the first of them)
-        self.title:SetText("MARATHON")
+        self.title:SetText((n == "time_attack") and "TIME ATTACK" or "MARATHON")
         self.name:SetText(EMERALD_NAME[1])
         self.name:SetColor(EMERALD_COLOUR[1])
         self.gem:SetTexture(LoadAsset("T_Menu_Emerald1"))

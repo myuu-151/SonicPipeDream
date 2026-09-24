@@ -34,7 +34,7 @@ local TWO_PI = math.pi * 2.0
 
 -- How it feels. Frames are the track's own unit: 8 to a straight piece.
 local LAST_STAGE = 7            -- the gauntlet: StageData1..7, each with its own palette and emerald
-Script.Require("GameOptions")   -- a marathon's rounds and lives (OptionsPrompt.lua)
+Script.Require("GameOptions")   -- a marathon's (or time attack's) rounds and lives (OptionsPrompt.lua)
 
 local SPEED = 15.0              -- frames a second, forward. The original never lets you change it.
 local STEER = 150.0             -- 256ths of a circle a second, at full tilt: round the pipe in 1.7 s
@@ -90,9 +90,11 @@ local BOUNCE = true
 local BOUNCE_FIRST = 37.5       -- the first (about 4 units up)...
 local BOUNCE_STEP = 9.5         -- ...each after it this much faster (6, then 9: a jump's height)...
 local BOUNCE_TOP = 66.0         -- ...up to this (about 12 units: past a jump, still inside the pipe)
--- AND HOLDING IS REACH: jump still HELD down as he hits the pipe sends the bounce straight to
--- BOUNCE_TOP. Tapped (let go before he lands), it is one step up from the last, as ever. The drop
--- dash itself still goes at the top of a bounce however early it was asked for.
+-- AND TIMING IS REACH: the drop dash asked for NEAR THE TOP of the flight -- the first press of A
+-- in it within PEAK_WINDOW of the top -- sends the bounce straight to BOUNCE_TOP. Any other is one
+-- step up from the last, as ever; so mashing A (the first press always early, on the way up) only
+-- climbs, step by step. The drop dash itself still goes at the top of a bounce however early it
+-- was asked for.
 local BOUNCE_GRAVITY = 1.6      -- times GRAVITY while bouncing
 -- and the ball squashes and stretches as a tennis ball does (visual only): tall as it drops, flat
 -- as it hits, then springing tall and wobbling back to round
@@ -105,9 +107,7 @@ local SQUASH_TIME = 0.5         -- and done by then
 -- THE SPIN DASH. Hold R (the pad's R or ZR; E on a keyboard) with his feet on the pipe: he skids to
 -- a stop, curled into the ball. Press A (Space) to rev it up -- each press adds charge, and charge
 -- bleeds away between presses. Let go of R and he shoots off, and eases back to his own speed.
-local BOUNCE_HOLD = 0.45        -- A held down this long, unbroken, as he lands: the bounce goes all the
-                                -- way up. (Held at all, it did: a quick tap at the right moment, or
-                                -- mashing, got the top every time.) A tap is the next step up, however fast.
+local PEAK_WINDOW = 0.1         -- seconds either side of the top of a flight that count as "near the top"
 local SPIN_SKID = 0.35          -- seconds to skid from full speed to a stop
 local SPIN_REV = 1.0            -- charge a press of A adds...
 local SPIN_REV_MAX = 8.0        -- ...up to this
@@ -272,6 +272,12 @@ local function QuatFromAxes(x, y, z)
     return Vec(qx, qy, qz, qw)
 end
 
+-- A time attack's time as the screen shows it: M:SS.CC (minutes, seconds, hundredths).
+function FormatClock(t)
+    local cs = math.floor((t or 0.0) * 100.0 + 0.5)
+    return string.format("%d:%02d.%02d", cs // 6000, (cs // 100) % 60, cs % 100)
+end
+
 -- Quaternions as plain {x, y, z, w} tables, for laying a marathon's zones end to end.
 local function QuatT(q) return { q.x, q.y, q.z, q.w } end
 local function QuatMul(a, b)
@@ -353,7 +359,7 @@ function SpecialStage:LeaveSurface(push, held)
     self.height = radius - r
     self.falling = (push <= 0.0)
     self.diving, self.cling, self.fallTime = false, 0.0, 0.0
-    self.bounceClock, self.bouncePress = nil, nil             -- (a bounce sets its own, after this)
+    self.bounceClock, self.bouncePress, self.firstPressToTop = nil, nil, nil     -- (a bounce sets its own, after this)
 end
 
 function SpecialStage:WrapAngle(angle)
@@ -610,6 +616,10 @@ function SpecialStage:BuildMarathon()
                    arch = kit.arch, palette_skies = kit.palette_skies, pieces = {}, sections = {}, path = {},
                    frames = 0 }
     data.join = { offset = 0, quota = 0, rng = seed }
+    -- THE TIME ATTACK is this same run against the clock (GameOptions.run, set by the menu): the
+    -- rings ask nothing at the checks, they only save him from a hit, and a hit with none costs a
+    -- life (Collide); the clock stops at the end of the last round.
+    data.timeAttack = (GameOptions ~= nil and GameOptions.run == "timeAttack") or nil
     local t0 = (os ~= nil and os.clock ~= nil) and os.clock() or 0
     local zone = MarathonGen.BuildZone(seed, 1)
     if (zone == nil) then return nil end
@@ -712,7 +722,7 @@ function SpecialStage:TickMarathonGen()
     local playing = (self.section - 1) // spz + 1              -- the zone he is in
     -- the run's length (GameOptions: ROUNDS, 0 endless): no zone is built past the last, and the
     -- last one's hold ends the run (PassZone)
-    local rounds = (GameOptions ~= nil and GameOptions.marathon.rounds) or 0
+    local rounds = (GameOptions ~= nil and GameOptions.Run().rounds) or 0
     if (rounds > 0 and self.zonesBuilt >= rounds) then return end
     if (self.gen == nil and self.zonesBuilt <= playing) then
         local seed, z = self.runSeed, self.zonesBuilt + 1
@@ -843,6 +853,24 @@ end
 -- ------------------------------------------------------------------ coming and going
 -- The emerald ends the stage: it is won, and the stage select comes back with that emerald
 -- in colour. One stage does not run into the next -- you choose the next one yourself.
+-- A time attack's hit with no rings to lose: a life gone, or, the last, the run over.
+function SpecialStage:LoseLife()
+    if (self.lives == 0) then return end                -- never out
+    if (self.lives > 1) then
+        self.lives = self.lives - 1
+        self:Sound("Fail")
+        if (self.uiReady) then
+            TheSpecialStageUI:ShowBanner((self.lives == 1) and "LAST LIFE" or (self.lives .. " LIVES LEFT"), 2.5)
+        end
+        return
+    end
+    self.clockStopped = true
+    self.over = 3.5
+    self.failed = true
+    self:Sound("Fail")
+    if (self.uiReady) then TheSpecialStageUI:ShowBanner("GAME OVER", 3.2) end
+end
+
 function SpecialStage:Finish()
     local won = (not self.data.marathon) and self.stage or nil
     self:Leave()
@@ -915,10 +943,9 @@ function SpecialStage:Restart()
     -- run, revs four times and lets go, and again every 8 seconds.
     self.testSpin = (os ~= nil and os.getenv ~= nil and tonumber(os.getenv("S2_TEST_SPIN") or "")) or nil
     self.testSpinClock = 0.0
-    -- A marathon's lives (GameOptions: LIVES; 0 is never out) and the rings a lost life forgave:
-    -- every check after asks that many fewer (see PassChecks).
-    self.lives = (self.data.marathon and GameOptions ~= nil) and GameOptions.marathon.lives or 1
-    self.forgiven = 0
+    -- A time attack's lives (GameOptions: LIVES; 0 is never out): a hit with no rings costs one.
+    self.lives = (self.data.timeAttack and GameOptions ~= nil) and GameOptions.timeAttack.lives or 1
+    self.clock, self.clockStopped = 0.0, false      -- a time attack's time: from START to the end of the last round
     -- For testing the checks without playing to them: set S2_TEST_RINGS in the environment.
     self.autoplay = (os ~= nil and os.getenv ~= nil and os.getenv("S2_AUTOPLAY") ~= nil)
     if (os ~= nil and os.getenv ~= nil and os.getenv("S2_AUTOJUMP") ~= nil) then
@@ -1368,6 +1395,7 @@ function SpecialStage:Collide(fromFrame)
                 self:Sound("Explosion")
                 if (had > 0) then self:Sound("LoseRings") end      -- only if there were any to lose
                 self:SpawnBoom(o)
+                if (had == 0 and self.data.timeAttack and self.over < 0.0) then self:LoseLife() end
             else
                 self.rings = self.rings + 1
                 self:Sound("Ring")
@@ -1382,21 +1410,7 @@ function SpecialStage:PassChecks(fromFrame)
     local section = self.data.sections[self.section]
     if (section == nil or self.frame < section.check_frame or fromFrame >= section.check_frame) then return end
     -- the instant he passes under the rainbow arch
-    local quota = section.quota - (self.forgiven or 0)
-    if (self.rings < quota and self.data.marathon and self.lives ~= 1) then
-        -- MISSED, WITH A LIFE TO SPARE: it costs one, the rings he was short are forgiven (or every
-        -- check after would ask for them again), and the run goes on as if he had passed
-        if (self.lives > 1) then self.lives = self.lives - 1 end
-        self.forgiven = (self.forgiven or 0) + (quota - self.rings)
-        self:Sound("Fail")
-        if (self.uiReady) then
-            TheSpecialStageUI:ShowBanner((self.lives == 0) and "NOT ENOUGH RINGS"
-                                         or ((self.lives == 1) and "LAST LIFE" or (self.lives .. " LIVES LEFT")), 2.5)
-        end
-        if (section.leads_to == "PALETTE SHIFT") then self:PassZone(section, true) end
-        self.section = self.section + 1
-        return
-    end
+    local quota = self.data.timeAttack and 0 or section.quota      -- a time attack's checks ask nothing
     if (self.rings >= quota) then
         if (self.data.marathon and section.leads_to == "PALETTE SHIFT") then
             self:PassZone(section)
@@ -1451,8 +1465,14 @@ function SpecialStage:PassZone(section, missed)
         return
     end
     if (nextSection == nil) then
-        if (self.uiReady) then TheSpecialStageUI:ShowBanner("MARATHON CLEAR !", 4.5) end
-        self.over = 5.0
+        if (self.data.timeAttack) then
+            self.clockStopped = true
+            if (self.uiReady) then TheSpecialStageUI:ShowBanner("CLEAR  " .. FormatClock(self.clock), 6.0) end
+            self.over = 6.5
+        else
+            if (self.uiReady) then TheSpecialStageUI:ShowBanner("MARATHON CLEAR !", 4.5) end
+            self.over = 5.0
+        end
         return
     end
     say("EMERALD GET !", 3.0)       -- (the item's own words, later)
@@ -1487,9 +1507,14 @@ function SpecialStage:UpdateUI()
     end
     local section = self.data.sections[math.min(self.section, #self.data.sections)]
     TheSpecialStageUI:SetRings(self.rings)
-    TheSpecialStageUI:SetTotal(section.quota - (self.forgiven or 0))   -- what this round ASKS for: it does not count down
-    -- a marathon's lives, when it has a number of them
-    TheSpecialStageUI:SetLives((self.data.marathon and (self.lives or 0) > 0) and self.lives or nil)
+    if (self.data.timeAttack) then
+        TheSpecialStageUI:SetClock(FormatClock(self.clock))            -- the time, where TOTAL was
+    else
+        TheSpecialStageUI:SetClock(nil)
+        TheSpecialStageUI:SetTotal(section.quota)                      -- what this round ASKS for: it does not count down
+    end
+    -- a time attack's lives, when it has a number of them
+    TheSpecialStageUI:SetLives((self.data.timeAttack and (self.lives or 0) > 0) and self.lives or nil)
 end
 
 -- ------------------------------------------------------------------ sounds
@@ -1651,6 +1676,10 @@ function SpecialStage:Tick(deltaTime)
     -- screen), the thumbs-up after a check is passed, and from the emerald taken (or a check
     -- failed) to the end of the stage. Hands off, he slides back down to the floor.
     local locked = (self.hold > 0.0 or self.intro > 0.0 or self.thumbs > 0.0 or self.over >= 0.0)
+    -- a time attack's clock: from the end of START to the end of the last round (or the last life)
+    if (self.data.timeAttack and not self.clockStopped and self.hold <= 0.0 and self.intro <= 0.0 and self.over < 0.0) then
+        self.clock = self.clock + dt
+    end
     -- steering: round the pipe, and only round it, while his feet are on it
     local want = 0.0
     if (not locked and self.stun <= 0.0 and self.spinDash == nil) then
@@ -1712,8 +1741,6 @@ function SpecialStage:Tick(deltaTime)
         end
     end
 
-    -- how long A has been held down, unbroken (a long hold is what sends a bounce to the top)
-    if (Input.IsKeyDown(Key.Space)) then self.jumpHeldFor = (self.jumpHeldFor or 0.0) + dt else self.jumpHeldFor = 0.0 end
 
     -- THE SPIN DASH: R down on the pipe curls him up and he skids to a stop; A revs; R up launches.
     local grounded = self.height <= 0.0 and not self.falling
@@ -1773,6 +1800,10 @@ function SpecialStage:Tick(deltaTime)
     local pressed = not locked and self.spinDash == nil and (Input.IsKeyJustDown(Key.Space) or autoJump)
     if (pressed and inBounce and not self.diving) then
         self.bouncePress = true                 -- remembered: the drop dash goes at the top
+    end
+    if (pressed and self.height > 0.0 and not self.diving and self.firstPressToTop == nil) then
+        -- the first press of this flight: how far from its top, in seconds (either side)
+        self.firstPressToTop = math.abs(self.vy) / math.max(1e-3, self.gravity or GRAVITY)
     end
     local diveNow = not locked and self.height > 0.0 and not self.diving and not rising and
                     (pressed or (inBounce and self.bouncePress ~= nil))
@@ -1845,6 +1876,8 @@ function SpecialStage:Tick(deltaTime)
             self.height, self.diving, self.falling = 0.0, false, false
             self.bounceClock = nil
             self.bounces = bounce and (self.bounces or 0) + 1 or 0      -- in a row; a plain landing ends it
+            local timed = self.firstPressToTop ~= nil and self.firstPressToTop <= PEAK_WINDOW
+            self.firstPressToTop = nil                                  -- the next flight's own
             if (bounce) then
                 -- THE BOUNCE: off the pipe where he hit it, his run round it going on as sideways
                 -- speed (LeaveSurface), so he bounces along the pipe, not on one spot -- and straight
@@ -1852,11 +1885,11 @@ function SpecialStage:Tick(deltaTime)
                 self:LeaveSurface(0.0, true)
                 self.falling, self.push = false, 0.0
                 self.nx, self.ny = 0.0, 1.0
-                -- one step up from the last bounce -- or, jump held down as he lands, all the way
+                -- one step up from the last bounce -- or, the drop dash asked for near the top of
+                -- the flight, all the way
                 local up = (self.bounces > 1) and (self.bounceLaunch or BOUNCE_FIRST) + BOUNCE_STEP or BOUNCE_FIRST
-                local held = (self.jumpHeldFor or 0.0) >= BOUNCE_HOLD
-                if (self.testLog) then held = self.testHold end         -- (a test: the keyboard is not the player's)
-                if (held) then up = BOUNCE_TOP end
+                if (self.testLog and self.testHold ~= nil) then timed = self.testHold end     -- (a test)
+                if (timed) then up = BOUNCE_TOP end
                 self.vy = math.min(BOUNCE_TOP, up)
                 self.bounceLaunch = self.vy
                 self.gravity = GRAVITY * BOUNCE_GRAVITY

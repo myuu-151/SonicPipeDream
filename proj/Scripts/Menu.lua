@@ -37,7 +37,7 @@ local WHITE = Vec(1.0, 1.0, 1.0, 1.0)
 -- Which items can be chosen. Marathon is switched on by the game when the gauntlet is done.
 -- MARATHON is always open, by the owner's decision for now (it was to wait for the seventh
 -- emerald; StageSelect.lua and Sky.lua still unlock it then, which changes nothing while it is open).
-local UNLOCKED = { main_game = true, marathon = true, extras = false, chao_garden = false,
+local UNLOCKED = { main_game = true, marathon = true, time_attack = true, extras = false, chao_garden = false,
                    options = true,                  -- OptionsPrompt.lua
                    save = true, load = true }       -- SavePrompt.lua
 
@@ -146,23 +146,28 @@ end
 -- they are closer together, so the bar is as tall as the same share of the spacing -- at its
 -- mockup height it covered the rows above and below.
 local MOCKUP_ROW_PITCH = 53.7
+local TEXT_H = 30               -- a row's letters, from the top of its art (gen_menu_assets.py)
+local BAR_DROP = 7.0            -- the bar reaches this much further down (mockup pixels), its top
+                                -- where it was, so its blue underline sits beneath the lettering
 
 function Menu:PlaceSelection()
     local L = MenuLayout
     local k = self.k
+    -- the middle of the row's LETTERS, TEXT_H tall from its top (gen_menu_assets.py: some items'
+    -- art is taller, with room under the letters)
     local here = L.parts[self.items[self.index].name]
-    local centre = here.y + here.h * 0.5
+    local centre = here.y + math.min(here.h, TEXT_H) * 0.5
     local pitch = MOCKUP_ROW_PITCH
     if (#self.items > 1) then
         local a, b = L.parts[self.items[1].name], L.parts[self.items[2].name]
-        pitch = (b.y + b.h * 0.5) - (a.y + a.h * 0.5)
+        pitch = b.y - a.y
     end
 
     local bar = L.parts.T_Menu_SelectBar
     local h = math.min(bar.h, bar.h * pitch / MOCKUP_ROW_PITCH)
     local quad = self.quads.T_Menu_SelectBar
     quad:SetPosition(self.left + bar.x * k, self.top + (centre - h * 0.5) * k)
-    quad:SetDimensions(bar.w * k * bar.cw / bar.aw, h * k * bar.ch / bar.ah)
+    quad:SetDimensions(bar.w * k * bar.cw / bar.aw, (h + BAR_DROP) * k * bar.ch / bar.ah)
     local cur = L.parts.T_Menu_Cursor
     self.quads.T_Menu_Cursor:SetPosition(self.left + cur.x * k, self.top + (centre - cur.h * 0.5) * k)
 end

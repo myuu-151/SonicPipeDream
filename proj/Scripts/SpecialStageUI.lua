@@ -23,6 +23,7 @@
 --     TheSpecialStageUI:ShowStart()        at the start of a stage
 --     TheSpecialStageUI:SetRings(n)        as rings are collected or lost
 --     TheSpecialStageUI:SetTotal(n)        the number in the TOTAL box (rings to go, or the total)
+--     TheSpecialStageUI:SetClock(text)     a time attack's time, in place of the TOTAL box (nil: the box)
 --     TheSpecialStageUI:ShowCool()         when a ring check is passed
 --     TheSpecialStageUI:ShowBanner(t, s)   a line of words for s seconds
 --     TheSpecialStageUI:ShowPause(on, i)   the pause menu, CONTINUE (1) or EXIT (2) picked
@@ -116,6 +117,32 @@ function SpecialStageUI:SetLives(n)
     end
 end
 
+-- A time attack's clock ("1:23.45"), TIME over it, where the TOTAL box is: nil puts the box back.
+function SpecialStageUI:SetClock(text)
+    if (text == self.clock) then return end
+    self.clock = text
+    if (self.built) then
+        local on = (text ~= nil)
+        self.clockLabel:SetVisible(on)
+        self.clockText:SetVisible(on)
+        self.totalBox:SetVisible(not on)
+        self.totalNumber:SetVisible(not on)
+        if (on) then
+            self.clockText:SetText(text)
+            self:PlaceClock()
+        end
+    end
+end
+
+-- Centred on CLOCK_X however many characters it has (about 9.5 a character at its size, on the 320
+-- screen, measured): a little right of the middle, so three figures of rings do not run into it.
+local CLOCK_X = 176.0
+function SpecialStageUI:PlaceClock()
+    if (self.k == nil or self.clock == nil) then return end
+    self:Place(self.clockLabel, CLOCK_X - 4 * 4.8, 5.0)
+    self:Place(self.clockText, CLOCK_X - #self.clock * 4.75, 17.0)
+end
+
 function SpecialStageUI:SetTotal(n)
     self.total = n
     if (self.built) then
@@ -202,6 +229,13 @@ function SpecialStageUI:Build()
     self.totalBox    = MakeQuad(self, LoadAsset("T_UI_Total"), WHITE)           -- the frame, word and all
     self.totalNumber = MakeText(self, tostring(self.total), WHITE)
     self.livesIcon   = MakeQuad(self, LoadAsset("T_UI_Lives"), WHITE)
+    self.clockLabel  = MakeText(self, "TIME", YELLOW)
+    self.clockText   = MakeText(self, self.clock or "", WHITE)
+    local timed = (self.clock ~= nil)
+    self.clockLabel:SetVisible(timed)
+    self.clockText:SetVisible(timed)
+    self.totalBox:SetVisible(not timed)
+    self.totalNumber:SetVisible(not timed)
     self.livesNumber = MakeText(self, "", WHITE)
     self.livesIcon:SetVisible(self.lives ~= nil)
     self.livesNumber:SetVisible(self.lives ~= nil)
@@ -292,6 +326,10 @@ function SpecialStageUI:Layout()
     self.totalNumber:SetTextSize(19.0 * self.k)
     self.totalAt = { x = bx + bw * 0.5, y = by + 15.0 }
     self:PlaceTotal()
+    -- a time attack's clock, there instead
+    self.clockLabel:SetTextSize(14.0 * self.k)
+    self.clockText:SetTextSize(19.0 * self.k)
+    self:PlaceClock()
     self.coolText:SetTextSize(26.0 * self.k)
     self.banner:SetTextSize(22.0 * self.k)
     for _, t in ipairs(self.pauseItems) do t:SetTextSize(22.0 * self.k) end

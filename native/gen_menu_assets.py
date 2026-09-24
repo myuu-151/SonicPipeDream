@@ -43,11 +43,12 @@ LUA = os.path.abspath(os.path.join(HERE, "..", "proj", "Scripts", "MenuLayout.lu
 UUID_MENU = 0x51C0FFEE00002200      # + index; clear of the UI's (…2000) and the font's (…2100)
 
 # The menu's items, top to bottom: the key the menu script knows it by, and its art. Marathon
-# takes Time Attack's place and its row; Extras and Chao Garden (set by gen_menu_type.py) take
-# the mockup's Records and Options rows.
+# takes Time Attack's place and its row, and Time Attack (the mockup's own art) comes under it;
+# Extras and Chao Garden (set by gen_menu_type.py) take the mockup's Records and Options rows.
 ITEMS = [
     ("main_game", "item_main_game"),
     ("marathon", "item_marathon"),
+    ("time_attack", "item_time_attack"),    # the marathon against the clock
     ("extras", "item_extras"),
     ("chao_garden", "item_chao_garden"),
     ("options", "item_options"),            # OptionsPrompt.lua: the mockup's own Options row art
@@ -57,13 +58,17 @@ ITEMS = [
 MOCKUP_ITEMS = 4            # the mockup drew four rows; the rest are spaced in with them (below)
 
 # The mockup row an item without one of its own sits on.
-ROW_OF = {"item_marathon": "item_time_attack", "item_extras": "item_records",
+ROW_OF = {"item_marathon": "item_time_attack", "item_time_attack": "item_records", "item_extras": "item_records",
           "item_chao_garden": "item_options", "item_save": "item_options", "item_load": "item_options"}
 
 # More rows than the mockup's four: all of them spaced evenly, ROW_GAP apart centre to centre,
 # from where the first row's centre is -- so the last clears the watermark running under them.
-FIRST_CENTRE = 108.0
-ROW_GAP = 36.0              # seven rows: the last still clears the watermark (it starts at 344)
+FIRST_CENTRE = 72.0
+ROW_GAP = 35.5              # eight rows: the last still clears the watermark (it starts at 344)
+# Every row's LETTERS are this tall and are what is centred: some items' art is 34 tall with the
+# letters in its top 30 (room below for a descender), and centred by the art's height those rows sat
+# 2 higher than the rest. Menu.lua centres the bar on the same.
+TEXT_H = 30
 ITEM_X = 39                 # every row's left edge: the mockup's were 38 to 41, and Main Game stuck out
 
 
@@ -270,7 +275,7 @@ def main():
             if part not in ROW_AT:
                 row = where.get(part) or where[ROW_OF[part]]
                 h = Image.open(os.path.join(PARTS, part + ".png")).height
-                ROW_AT[part] = (ITEM_X, int(round(FIRST_CENTRE + i * ROW_GAP - h * 0.5)))
+                ROW_AT[part] = (ITEM_X, int(round(FIRST_CENTRE + i * ROW_GAP - TEXT_H * 0.5)))
     for i, (key, part) in enumerate(ITEMS):
         img = load(part)
         drawn = img
