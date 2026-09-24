@@ -54,6 +54,11 @@ for hours.
 How it is made -- the stage and track generators, the ring and bomb patterns, the skies -- is in
 [docs/development.md](docs/development.md).
 
+## Credits
+
+- **Music**: megabaz
+- **Sonic model**: murissargb
+
 Built on the [Octave engine](https://github.com/myuu-151/Octave-libogc).
 
 *A fan game, not affiliated with SEGA. Sonic the Hedgehog is a trademark of SEGA.*

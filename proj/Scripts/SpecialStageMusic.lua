@@ -25,6 +25,7 @@ local STAGE_MUSIC = {
     [5] = { intro = "SW_SpecialStage_Stage4Intro", loop = "SW_SpecialStage_Stage4Loop" },
     [6] = { loop = "SW_SpecialStage_Stage5" },        -- one whole track that loops on itself
     [7] = { intro = "SW_SpecialStage_Stage7Intro", loop = "SW_SpecialStage_Stage7Loop" },
+    Marathon = { loop = "SW_SpecialStage_Marathon" },   -- one whole track that loops on itself
 }
 
 function SpecialStageMusic:Create()

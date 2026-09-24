@@ -41,6 +41,7 @@ TRACKS = [
     ("stage7_loop.wav", "SW_SpecialStage_Stage7Loop", 0x51C0FFEE0030000C),
     ("menuintro.wav", "SW_SpecialStage_MenuIntro", 0x51C0FFEE0030000D),        # the menus': once,
     ("menuloop.wav", "SW_SpecialStage_MenuLoop", 0x51C0FFEE0030000E),          # then this
+    ("marathon.wav", "SW_SpecialStage_Marathon", 0x51C0FFEE0030000F),          # the marathon's, whole, looped
 ]
 
 
