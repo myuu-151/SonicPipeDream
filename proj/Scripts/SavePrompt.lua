@@ -1,5 +1,5 @@
 -- SavePrompt.lua
--- What SAVE (and, on the PC, LOAD) on the title menu opens. On the GameCube it is about the
+-- What SAVE and LOAD on the title menu open. On the GameCube it is about the
 -- memory card in slot A; on the PC about the SAVES FOLDER beside the game -- a folder of its own,
 -- holding the save file (`emeralds`), which can be copied out, or a save copied in from Windows
 -- Explorer and loaded.
@@ -16,9 +16,10 @@
 -- SAVE says, as the case is -- on the GameCube: no card; not a memory card; damaged or not
 -- formatted; another region's card; FULL (with the blocks it needs and the blocks free); or ready
 -- to save, a new file or over the game's own. On the PC: a new save in the folder, or over the one
--- there. LOAD (the PC) says what save the folder holds -- how many emeralds -- or that there is
--- none. The card, or the folder, is looked at again every second while this is up, so a card put
--- in, or a file dropped into the folder, shows at once.
+-- there. LOAD says what save the card, or the folder, holds -- how many emeralds -- or that there is
+-- none (and on the GameCube, what is wrong with slot A, when something is). The card, or the
+-- folder, is looked at again every second while this is up, so a card put in, or a file dropped
+-- into the folder, shows at once.
 --
 -- The GameCube's save is one block: the emeralds, and the name and icon the card's own screen
 -- shows (SaveInfo.lua, handed to the engine by Screens.lua).
@@ -147,14 +148,33 @@ function SavePrompt:Look()
     local back = "B  BACK"
     self.lookIn = LOOK_EVERY
     if (self.mode == "load") then
-        local n = EmeraldsIn()
         self.title:SetText(self.onCard and "MEMORY CARD  SLOT A" or "SAVES FOLDER")
+        if (self.onCard) then
+            -- what is in slot A first: no card, or one that cannot be read, says so
+            local state = System.GetSaveCard(SAVE, SAVE_BYTES)
+            local problem = {
+                nocard = { "THERE IS NO MEMORY CARD IN SLOT A", "PUT ONE IN TO LOAD" },
+                wrongdevice = { "THE DEVICE IN SLOT A IS NOT", "A MEMORY CARD" },
+                damaged = { "THE MEMORY CARD IN SLOT A IS DAMAGED", "OR NOT FORMATTED" },
+                encoding = { "THE MEMORY CARD IN SLOT A IS", "FROM ANOTHER REGION" },
+                busy = { "THE MEMORY CARD IN SLOT A", "CANNOT BE READ" },
+                error = { "THE MEMORY CARD IN SLOT A", "CANNOT BE READ" },
+            }
+            if (problem[state] ~= nil) then
+                self.state = state
+                self:Say(problem[state][1], problem[state][2], nil, back)
+                return
+            end
+        end
+        local n = EmeraldsIn()
+        local where = self.onCard and "ON THE MEMORY CARD IN SLOT A" or "IN THE SAVES FOLDER"
         if (n == nil) then
             self.state = "nofile"
-            self:Say("THERE IS NO SAVE IN THE SAVES FOLDER", "PUT ONE THERE TO LOAD IT", nil, back)
+            self:Say("THERE IS NO SONIC PIPE DREAM SAVE", where,
+                     (not self.onCard) and "PUT ONE THERE TO LOAD IT" or nil, back)
         else
             self.state = "loadable"
-            self:Say("LOAD THE SAVE IN THE SAVES FOLDER", n .. " OF " .. STAGES .. " EMERALDS", nil,
+            self:Say("LOAD THE SAVE " .. where, n .. " OF " .. STAGES .. " EMERALDS", nil,
                      "A  LOAD        B  BACK")
         end
         return
