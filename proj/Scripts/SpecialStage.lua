@@ -112,8 +112,9 @@ local SPIN_SKID = 0.35          -- seconds to skid from full speed to a stop
 local SPIN_REV = 1.0            -- charge a press of A adds...
 local SPIN_REV_MAX = 8.0        -- ...up to this
 local SPIN_REV_BLEED = 1.2      -- charge lost a second, as a share of what there is (Sonic 2's 1/32 a frame)
-local DASH_BASE = 1.6           -- times his speed at the launch, uncharged...
-local DASH_PER_REV = 0.15       -- ...and this much more for each unit of charge (2.8 at full)
+local DASH_BASE = 1.15          -- times his speed at the launch, uncharged: a tap of R is only a nudge...
+local DASH_MAX = 2.8            -- ...and fully charged (SPIN_REV_MAX, where the rev's pitch tops out) this
+local DASH_PER_REV = (DASH_MAX - DASH_BASE) / SPIN_REV_MAX      -- each unit of charge between
 local DASH_EASE = 0.55          -- how fast the extra speed goes: a share a second
 local DASH_BALL = 1.3           -- he stays curled up while he is going faster than this
 local SPIN_TALL = 0.74          -- the ball's height while he revs, squashed down on the pipe...
@@ -1813,9 +1814,7 @@ function SpecialStage:Tick(deltaTime)
         if (not locked and grounded and self.stun <= 0.0 and SpinDown()) then
             self.spinDash = { rev = 0.0, pulse = 1.0 }
             self.skid = self.boost            -- from whatever speed he had
-            self.boost = 1.0
-            -- a rev: curling up is the first spin-up (so a tap of R rings twice, rev then release)
-            self:Sound("SpinRev")
+            self.boost = 1.0              -- (silent: the revs are A's, and letting go is the release)
         end
     elseif (locked or not grounded or not SpinDown()) then
         -- let go: off he goes (unless the stage took the controls, or he left the pipe)
