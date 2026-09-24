@@ -243,21 +243,16 @@ function Sky:ShowMenu()
         TheStageSelect:Close()
         TheStageSelect.onChoose = function(stage)
             TheStageSelect:Close()
-            self:StartSpecialStage(stage)
-            -- The stage hands back here when its emerald is taken.
-            if (TheSpecialStage ~= nil) then
-                TheSpecialStage.onExit = function()
-                    TheStageSelect:Open()           -- paused and EXIT chosen
-                end
-                TheSpecialStage.onFinished = function(won)
-                    TheStageSelect:SetWon(won, true)
-                    -- All seven emeralds is what MARATHON waits for.
-                    if (TheStageSelect:AllWon() and TheMenu ~= nil) then
-                        TheMenu:SetUnlocked("marathon", true)
-                    end
-                    TheStageSelect:Open()
-                end
+            -- A stage not played last time comes in behind a short loading screen, as on the
+            -- GameCube (the PC hardly needs one: it is for the look). Going back into the same
+            -- stage does not show it, nor does a restart, which never leaves the stage.
+            if (stage ~= self.lastStage and TheLoading ~= nil) then
+                local won = TheStageSelect.won ~= nil and TheStageSelect.won[stage]
+                TheLoading:Show(stage, won)
+                self.stageStart = { stage = stage, step = 0, clock = 0.0 }
+                return
             end
+            self:EnterStage(stage)
         end
         TheStageSelect.onBack = function()
             TheStageSelect:Close()
@@ -285,6 +280,26 @@ function Sky:ShowMenu()
     end
 end
 
+-- A stage from the stage select: started, and handing back to the select when it is over.
+function Sky:EnterStage(stage)
+    self.lastStage = stage
+    self:StartSpecialStage(stage)
+    -- The stage hands back here when its emerald is taken.
+    if (TheSpecialStage ~= nil) then
+        TheSpecialStage.onExit = function()
+            TheStageSelect:Open()           -- paused and EXIT chosen
+        end
+        TheSpecialStage.onFinished = function(won)
+            TheStageSelect:SetWon(won, true)
+            -- All seven emeralds is what MARATHON waits for.
+            if (TheStageSelect:AllWon() and TheMenu ~= nil) then
+                TheMenu:SetUnlocked("marathon", true)
+            end
+            TheStageSelect:Open()
+        end
+    end
+end
+
 -- Into a marathon, behind the loading screen: shown for a frame first, so it is up before the
 -- first zone is built; then the stage; then the screen comes down once the stage has drawn and it
 -- has been up long enough to read -- and the run starts from the top, so the START run-up is
@@ -297,6 +312,7 @@ function Sky:TickMarathonStart(deltaTime)
     if (m.step == 0) then
         m.step = 1                                  -- the loading screen is drawn this frame
     elseif (m.step == 1) then
+        self.lastStage = "Marathon"
         self:StartSpecialStage("Marathon")
         if (TheSpecialStage ~= nil) then
             TheSpecialStage.onExit = function() TheMenu:Open() end
@@ -311,9 +327,29 @@ function Sky:TickMarathonStart(deltaTime)
     end
 end
 
+-- Into a stage from the stage select, the same way: the screen up, the stage, the screen down.
+local STAGE_LOADING_AT_LEAST = 0.8
+
+function Sky:TickStageStart(deltaTime)
+    local m = self.stageStart
+    m.clock = m.clock + deltaTime
+    if (m.step == 0) then
+        m.step = 1                                  -- the loading screen is drawn this frame
+    elseif (m.step == 1) then
+        self:EnterStage(m.stage)
+        m.step = 2
+    elseif (TheSpecialStage ~= nil and TheSpecialStage.built and TheSpecialStage.stage == m.stage
+            and m.clock >= STAGE_LOADING_AT_LEAST) then
+        TheSpecialStage:Restart()                   -- from the top, so START is seen whole
+        if (TheLoading ~= nil) then TheLoading:Hide() end
+        self.stageStart = nil
+    end
+end
+
 function Sky:Tick(deltaTime)
     -- Tick is the GAME's; the editor calls EditorTick. So nothing starts in the editor.
     if (self.marathonStart ~= nil) then self:TickMarathonStart(deltaTime) end
+    if (self.stageStart ~= nil) then self:TickStageStart(deltaTime) end
     if (not self.started) then
         self.started = true
         local skipMenu = (os ~= nil and os.getenv ~= nil and os.getenv("S2_NOMENU") ~= nil)
