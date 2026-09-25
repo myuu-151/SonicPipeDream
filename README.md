@@ -6,6 +6,10 @@
 
 > **In active development.** Sonic Pipe Dream is a work in progress: stages, controls and the way
 > it plays may change from one build to the next, and some features are not there yet.
+>
+> Found a bug? Please report it as a ticket on the
+> [Issues page](https://github.com/myuu-151/SonicPipeDream/issues): what happened, what you expected,
+> and how to make it happen again if you can.
 
 Race Sonic down a twisting half-pipe that hangs in a sky full of shifting diamonds. Grab the
 rings, dodge the bombs, and reach each ring check with enough rings to pass it. Get through all
