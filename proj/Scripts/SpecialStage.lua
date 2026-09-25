@@ -1701,11 +1701,12 @@ local SOUND_ASSET = {}
 -- two. With every sound alike, a burst of rings -- each 0.67 s -- filled the rest, and anything played
 -- then was dropped: a checkpoint, the emerald, silent. So each sound has a PRIORITY, and one that
 -- matters takes the voice of one that matters less (the engine evicts a lower priority to play a
--- higher; the music is the highest of all, SpecialStageMusic.lua); and the ones that come in bursts
--- play ONE AT A TIME, each cutting the last off, so a burst holds one voice however long it goes on.
+-- higher; the music is the highest of all, SpecialStageMusic.lua); and the jump and the spin rev
+-- play ONE AT A TIME, each cutting the last off (the engine's Max Instances, 1). Rings ring over each
+-- other: the lowest priority of all, a burst of them gives way to anything that matters.
 local PRIORITY = { Ring = 10, SpinRev = 15, Jump = 20, LoseRings = 30, Explosion = 30, SpinRelease = 40,
                    Checkpoint = 60, GetEmerald = 60, Fail = 60, Hurt = 60, ExitStage = 60, MenuWarp = 60 }
-local ONE_AT_A_TIME = { Ring = true, SpinRev = true, Jump = true }
+local ONE_AT_A_TIME = { SpinRev = true, Jump = true }
 
 function SpecialStage:Sound(name, pitch)
     self.sounds = self.sounds or {}
@@ -1714,7 +1715,10 @@ function SpecialStage:Sound(name, pitch)
     local sound = self.sounds[name] or LoadAsset("SW_" .. (SOUND_ASSET[name] or name))
     self.sounds[name] = sound
     if (sound == nil) then return end
-    if (ONE_AT_A_TIME[name]) then Audio.StopSounds(sound) end
+    if (ONE_AT_A_TIME[name]) then
+        -- (an engine from before Max Instances: stop it here)
+        if (sound.SetMaxInstances ~= nil) then sound:SetMaxInstances(1) else Audio.StopSounds(sound) end
+    end
     Audio.PlaySound2D(sound, MIX[name] or 0.6, pitch or 1.0, 0.0, false, PRIORITY[name] or 20)
 end
 
