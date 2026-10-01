@@ -225,6 +225,19 @@ end
 -- and neither has to be built twice.
 function Sky:ShowMenu()
     local world = self:GetWorld()
+    -- The title screen comes first (Intro.lua), once, and calls back here for the menus when
+    -- START is pressed. S2_NOINTRO goes straight to the menus.
+    local skipIntro = (os ~= nil and os.getenv ~= nil and os.getenv("S2_NOINTRO") ~= nil)
+    if (not self.introShown and not skipIntro) then
+        self.introShown = true
+        local intro = world:SpawnNode("Canvas")
+        intro:SetName("Intro")
+        intro:SetScript("Intro")
+        if (TheIntro ~= nil) then
+            TheIntro.onDone = function() self:ShowMenu() end
+            return
+        end
+    end
     local menu = world:SpawnNode("Canvas")
     menu:SetName("Menu")
     menu:SetScript("Menu")
