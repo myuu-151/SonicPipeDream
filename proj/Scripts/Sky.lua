@@ -230,13 +230,7 @@ function Sky:ShowMenu()
     local skipIntro = (os ~= nil and os.getenv ~= nil and os.getenv("S2_NOINTRO") ~= nil)
     if (not self.introShown and not skipIntro) then
         self.introShown = true
-        local intro = world:SpawnNode("Canvas")
-        intro:SetName("Intro")
-        intro:SetScript("Intro")
-        if (TheIntro ~= nil) then
-            TheIntro.onDone = function() self:ShowMenu() end
-            return
-        end
+        if (self:ShowTitle(function() self:ShowMenu() end)) then return end
     end
     local menu = world:SpawnNode("Canvas")
     menu:SetName("Menu")
@@ -277,6 +271,11 @@ function Sky:ShowMenu()
         end
     end
     if (TheMenu ~= nil) then
+        -- B on the title menu: back to the title screen (the menu closes; START there opens it again)
+        TheMenu.onBack = function()
+            TheMenu:Close()
+            self.titleAgain = true          -- next tick: not while the menu is in its own Tick
+        end
         TheMenu.onChoose = function(key)
             if (key == "main_game" and TheStageSelect ~= nil) then
                 TheMenu:Close()
@@ -311,6 +310,18 @@ function Sky:ShowMenu()
             end
         end
     end
+end
+
+-- The title screen (Intro.lua), afresh: the last one's node gone first. onDone is called when
+-- START is pressed there. False if it could not be put up.
+function Sky:ShowTitle(onDone)
+    if (self.introNode ~= nil) then self.introNode:Destruct() end
+    self.introNode = self:GetWorld():SpawnNode("Canvas")
+    self.introNode:SetName("Intro")
+    self.introNode:SetScript("Intro")
+    if (TheIntro == nil) then return false end
+    TheIntro.onDone = onDone
+    return true
 end
 
 -- A stage from the stage select: started, and handing back to the select when it is over.
@@ -388,6 +399,10 @@ function Sky:Tick(deltaTime)
     if (self.marathonStart ~= nil) then self:TickMarathonStart(deltaTime) end
     if (self.stageStart ~= nil) then self:TickStageStart(deltaTime) end
     MenuMusic.Tick(deltaTime)
+    if (self.titleAgain) then
+        self.titleAgain = false
+        if (not self:ShowTitle(function() TheMenu:Open() end)) then TheMenu:Open() end
+    end
     if (not self.started) then
         self.started = true
         local skipMenu = (os ~= nil and os.getenv ~= nil and os.getenv("S2_NOMENU") ~= nil)

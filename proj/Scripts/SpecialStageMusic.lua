@@ -31,7 +31,11 @@ local STAGE_MUSIC = {
     [5] = { intro = "SW_SpecialStage_Stage4Intro", loop = "SW_SpecialStage_Stage4Loop" },
     [6] = { loop = "SW_SpecialStage_Stage5" },        -- one whole track that loops on itself
     [7] = { intro = "SW_SpecialStage_Stage7Intro", loop = "SW_SpecialStage_Stage7Loop" },
-    Marathon = { loop = "SW_SpecialStage_Marathon", volume = 1.5 },     -- one whole track, looped; louder
+    -- A marathon: its start once, then its loop. A time attack (the same run, against the clock)
+    -- has a track of its own, looped from the top. (The old marathon track, SW_SpecialStage_Marathon,
+    -- is no longer played.)
+    Marathon = { intro = "SW_SpecialStage_MarathonIntro", loop = "SW_SpecialStage_MarathonLoop" },
+    TimeAttack = { loop = "SW_SpecialStage_TimeAttack" },
 }
 
 function SpecialStageMusic:Create()
@@ -64,6 +68,7 @@ end
 -- The music of the stage being played, from the top: its intro, or straight into its loop.
 function SpecialStageMusic:Begin()
     local stage = (TheSpecialStage ~= nil) and TheSpecialStage.stage or 1
+    if (stage == "Marathon" and GameOptions ~= nil and GameOptions.run == "timeAttack") then stage = "TimeAttack" end
     local music = STAGE_MUSIC[stage] or THEME
     if (GameOptions.muteStageMusic) then
         -- muted in OPTIONS > AUDIO: nothing loaded, nothing played (the menus' music is not this)

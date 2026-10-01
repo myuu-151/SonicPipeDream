@@ -37,7 +37,7 @@ How it is made -- the stage and track generators, the ring and bomb patterns, th
 
 ## Credits
 
-- **Music**: megabaz
+- **Music**: Falk
 - **Sonic model**: murissargb
 - **Lives icon**: eris1521987
 

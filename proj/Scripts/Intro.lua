@@ -3,14 +3,14 @@
 -- behind its ribbon to a thumbs up, the title theme playing once, the camera swaying gently
 -- from side to side; then PRESS START, and START (or A, or Enter) goes on to the menus.
 --
--- A Canvas script (its one quad is PRESS START); everything else it spawns into the world and
+-- A Canvas script (its one widget is PRESS START); everything else it spawns into the world and
 -- takes away again when it is done. Sky:ShowMenu spawns it first and is called back
 -- (onDone) to put up the menus. S2_NOINTRO skips it.
 --
 -- The assets are made in Blender and written by native/export_intro.py (the emblem: the ring
 -- and ribbon wearing pictures of themselves, the wings chrome, from a matcap; Sonic, a mesh a
 -- frame of the IntroPop action), native/gen_day_sky.py (the sky: OctaveSimpleSkies' Day pack),
--- native/gen_title_water.py (the sea), native/gen_title_text.py (PRESS START) and
+-- native/gen_title_water.py (the sea) and
 -- native/gen_music_assets.py (SW_TitleTheme). They
 -- sit where they were in Blender: the emblem's middle is the origin and it faces +Z.
 
@@ -19,7 +19,7 @@ Intro = {}
 local FPS, FRAMES = 24, 96              -- IntroPop: 24 a second, 96 frames, the pose held from 35
 local PRESS_AFTER = FRAMES / FPS + 0.3  -- PRESS START comes up once he has struck the pose
 local BLINK = 0.55                      -- on, then off, this long each
-local VOLUME = 0.9
+local VOLUME = 2.0                      -- the title theme is quiet in its file: played up
 
 -- The camera: in front, swinging a little to each side and back, always on the emblem.
 local DISTANCE = 8.0                    -- as far as Blender's camera stood
@@ -79,6 +79,23 @@ function Intro:Create()
     TheIntro = self
 end
 
+-- What the scene shows before the title: the special stage's sky (it waits, hidden, for the menus)
+-- and the scene's default cube (a "Static Mesh" with SM_Cube, left at the origin from the start
+-- and never seen behind the menus), which stands where the emblem is. Hidden from the title's
+-- first frame -- before it is built, as it may wait a moment (Intro.waitFor) -- until it is done.
+function Intro:HideScene()
+    if (self.hidden ~= nil) then return end
+    self.hidden = {}
+    if (TheSky ~= nil) then TheSky:SetVisible(false) end
+    for _, node in ipairs(self:GetWorld():FindNodesWithName("Static Mesh") or {}) do
+        local mesh = node.GetStaticMesh ~= nil and node:GetStaticMesh() or nil
+        if (mesh ~= nil and mesh:GetName() == "SM_Cube" and node:IsVisible()) then
+            node:SetVisible(false)
+            table.insert(self.hidden, node)
+        end
+    end
+end
+
 function Intro:Build()
     local world = self:GetWorld()
     self.nodes = {}
@@ -92,18 +109,7 @@ function Intro:Build()
         return node
     end
 
-    -- the day sky, over the special stage's (which waits, hidden, for the menus)
-    if (TheSky ~= nil) then TheSky:SetVisible(false) end
-    -- The scene's default cube (a "Static Mesh" with SM_Cube, left at the origin from the start
-    -- and never seen behind the menus) stands where the emblem is: hidden while this is up.
-    self.hidden = {}
-    for _, node in ipairs(world:FindNodesWithName("Static Mesh") or {}) do
-        local mesh = node.GetStaticMesh ~= nil and node:GetStaticMesh() or nil
-        if (mesh ~= nil and mesh:GetName() == "SM_Cube" and node:IsVisible()) then
-            node:SetVisible(false)
-            table.insert(self.hidden, node)
-        end
-    end
+    self:HideScene()
     local dome = Spawn(LoadAsset("SM_DaySkyDome"))
     dome:SetScript("DaySky")
     -- and the sea under it, rippling (WaterBed.lua, native/gen_title_water.py)
@@ -133,16 +139,20 @@ function Intro:Build()
         world:SetActiveCamera(self.camera)
     end
     local cam = self.camera
-    self.cameraWas = { pos = cam:GetWorldPosition(), rot = cam:GetWorldRotationQuat(), fov = cam:GetFieldOfView() }
+    self.cameraWas = { pos = cam:GetWorldPosition(), rot = cam:GetWorldRotationQuat(), fov = cam:GetFieldOfView(),
+                       far = cam.GetFar ~= nil and cam:GetFar() or nil }
     cam:SetFar(2000.0)
 
     self.music = LoadAsset("SW_TitleTheme")
     if (self.music ~= nil) then Audio.PlaySound2D(self.music, VOLUME, 1.0, 0.0, false, 100) end
 
-    self.press = self:CreateChild("Quad")
+    -- PRESS START in the UI's own lettering (F_SonicUI: the loading screen's STAGE 2)
+    self.press = self:CreateChild("Text")
     self.press:SetAnchorMode(AnchorMode.TopLeft)
-    self.press:SetTexture(LoadAsset("T_Title_PressStart"))
+    local font = LoadAsset("F_SonicUI")
+    if (font ~= nil) then self.press:SetFont(font) end
     self.press:SetColor(Vec(1.0, 1.0, 1.0, 1.0))
+    self.press:SetText("PRESS START")
     self.press:SetVisible(false)
 
     self.built = true
@@ -156,13 +166,12 @@ function Intro:Layout()
         self:SetPosition(0.0, 0.0)
         self:SetDimensions(width, height)
     end
-    -- PRESS START: its picture is 512 x 64, the words 384 wide; the words a third of a 4:3
-    -- screen across, under the emblem
-    local screenW = math.min(width, height * 4.0 / 3.0)
-    local w = screenW * 0.34 * 512.0 / 384.0
-    local h = w * 64.0 / 512.0
-    self.press:SetPosition((width - w) * 0.5, height * 0.86 - h * 0.5)
-    self.press:SetDimensions(w, h)
+    -- PRESS START: as big as the loading screen's STAGE line (44 at 480 high), centred, under
+    -- the emblem
+    local size = 44.0 * height / 480.0
+    self.press:SetTextSize(size)
+    local wide = (self.press.GetTextWidth ~= nil) and self.press:GetTextWidth() or 0.0
+    self.press:SetPosition((width - wide) * 0.5, height * 0.86 - size * 0.5)
 
     -- the field of view (up and down) that puts VIEW_WIDTH across the screen at the emblem
     local aspect = width / math.max(1.0, height)
@@ -189,6 +198,7 @@ function Intro:Finish()
     cam:SetWorldPosition(was.pos)
     cam:SetWorldRotationQuat(was.rot)
     cam:SetFieldOfView(was.fov)
+    if (was.far ~= nil) then cam:SetFar(was.far) end
     if (TheSky ~= nil) then TheSky:SetVisible(true) end
     for _, node in ipairs(self.hidden or {}) do node:SetVisible(true) end
     self:SetVisible(false)
@@ -197,6 +207,10 @@ function Intro:Finish()
 end
 
 function Intro:Tick(deltaTime)
+    -- Something else to finish first (the GameCube's sky loads its stars before anything of the
+    -- title is loaded: Screens.lua sets this): until then, nothing.
+    if (not self.done) then self:HideScene() end
+    if (not self.built and Intro.waitFor ~= nil and not Intro.waitFor()) then return end
     if (self.done) then return end
     if (not self.built) then self:Build() end
     self.clock = self.clock + deltaTime
@@ -213,6 +227,11 @@ function Intro:Tick(deltaTime)
     self.press:SetVisible(ready and ((self.clock - PRESS_AFTER) % (BLINK * 2.0)) < BLINK)
     if (Input.IsKeyJustDown(Key.Enter)) then
         if (ready) then
+            -- the menus' "on to the next" (Menu.lua's MenuSound; the menus are not loaded yet)
+            -- (held in a global: the intro's own things are let go of right after, and the sound
+            -- must not go with them while it plays; the menus use the same one)
+            IntroSelectSound = IntroSelectSound or LoadAsset("SW_MenuSelect")
+            if (IntroSelectSound ~= nil) then Audio.PlaySound2D(IntroSelectSound, 0.7, 1.0, 0.0, false, 50) end
             self:Finish()
         else
             self.clock = PRESS_AFTER        -- START before the pose: straight to it

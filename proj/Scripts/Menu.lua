@@ -321,5 +321,10 @@ function Menu:Tick(deltaTime)
 
     -- See Armed: a screen ignores the key that opened it.
     if (not self:Armed()) then return end
-    if (Input.IsKeyJustDown(Key.Enter) or Input.IsKeyJustDown(Key.Space)) then self:Choose() end
+    if (Input.IsKeyJustDown(Key.Enter) or Input.IsKeyJustDown(Key.Space)) then
+        self:Choose()
+    elseif (Input.IsKeyJustDown(Key.Backspace) and self.onBack ~= nil) then
+        MenuSound("MenuBack")                       -- B: back out, to the title screen
+        self.onBack()
+    end
 end
