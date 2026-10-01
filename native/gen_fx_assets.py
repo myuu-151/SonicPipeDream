@@ -23,6 +23,7 @@ out unlit on the GameCube). One square a material, because a mesh names its mate
 import math
 import os
 
+import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
 from gen_s2sky_assets import (TYPE_MATERIALLITE, TYPE_STATICMESH, asset_ref, f32, header, i32, null_ref,
@@ -39,13 +40,17 @@ EXPLOSION_FRAMES = 3
 
 # The transformation's sparkles (Sonic 2's): the ring sparkle's star in deep gold and in blue,
 # each with the same white-hot middle.
+# (the ring sparkle's shape; deeper colour in the arms, and the glow carried further out, so they
+# are not dull against the pipe)
 SPARKLE_COLOURS = {
-    "Gold": ((255, 170, 0), (255, 235, 150)),
-    "Blue": ((40, 80, 255), (170, 200, 255)),
+    "Gold": ((255, 140, 0), (255, 225, 90)),
+    "Blue": ((20, 70, 255), (120, 170, 255)),
 }
+SPARKLE_DOT = 0.08
+SPARKLE_GLOW = 1.6                  # the alpha's lift: the faint glow round the star shows more
 
 
-def sparkle(size=64, colours=((255, 224, 96), (255, 250, 200))):
+def sparkle(size=64, colours=((255, 224, 96), (255, 250, 200)), dot=0.09):
     """A four-pointed star with a hot middle, on BLACK: it is added to the picture, so black is
     nothing and the star only ever brightens what is behind it. `colours`: the tips', the core's."""
     ss = 4
@@ -57,7 +62,7 @@ def sparkle(size=64, colours=((255, 224, 96), (255, 250, 200))):
         r, t = n * reach, n * thick
         d.polygon([(c, c - r), (c + t, c), (c, c + r), (c - t, c)], fill=colour)         # upright
         d.polygon([(c - r, c), (c, c - t), (c + r, c), (c, c + t)], fill=colour)         # and across
-    d.ellipse((c - n * 0.09, c - n * 0.09, c + n * 0.09, c + n * 0.09), fill=(255, 255, 255))
+    d.ellipse((c - n * dot, c - n * dot, c + n * dot, c + n * dot), fill=(255, 255, 255))
     glow = img.filter(ImageFilter.GaussianBlur(n * 0.03))
     img = Image.blend(img, glow, 0.35).resize((size, size), Image.LANCZOS)
     return img.convert("RGBA")
@@ -277,13 +282,23 @@ def main():
                   img.tobytes(), wrap=0, quiet=True)
     material("M_Sparkle", UUID + 2, UUID + 1, "T_Sparkle", ADDITIVE)
     quad("SM_FxQuad", UUID + 3, UUID + 2, "M_Sparkle")
+    # The coloured ones are TRANSLUCENT, not added: added, a blue star over the cyan pipe was only a
+    # brighter cyan, and both looked like the ring's. Their alpha is the star's own brightness.
     for i, (tint, colours) in enumerate(sorted(SPARKLE_COLOURS.items())):
-        img = sparkle(colours=colours)
+        img = sparkle(colours=colours, dot=SPARKLE_DOT)
+        px = np.asarray(img).astype(np.float32)
+        bright = px[..., :3].max(axis=2)
+        px[..., 3] = np.clip(bright * SPARKLE_GLOW, 0, 255)
+        # the colour at full strength everywhere, the fade carried by the alpha alone: left dark at
+        # the edges (black, faded) the blend drew a dark fringe round each star
+        scale = 255.0 / np.maximum(bright, 1.0)
+        px[..., :3] = np.clip(px[..., :3] * scale[..., None], 0, 255)
+        img = Image.fromarray(px.astype(np.uint8), "RGBA")
         img.save(os.path.join(LOOK, "T_Sparkle%s.png" % tint))
         base = UUID + 32 + 3 * i
         write_texture(os.path.join(OUT, "T_Sparkle%s.oct" % tint), "T_Sparkle" + tint, base, img.width,
-                      img.height, img.tobytes(), wrap=0, quiet=True)
-        material("M_Sparkle" + tint, base + 1, base, "T_Sparkle" + tint, ADDITIVE)
+                      img.height, img.tobytes(), wrap=0, quiet=True, force_hq=True)
+        material("M_Sparkle" + tint, base + 1, base, "T_Sparkle" + tint, TRANSLUCENT)
         quad("SM_FxQuad" + tint, base + 2, base + 1, "M_Sparkle" + tint)
 
     for f in range(EXPLOSION_FRAMES):

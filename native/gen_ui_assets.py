@@ -133,13 +133,13 @@ SCALE_ART = True
 FORCE_HQ = True
 
 
-def save(img, index, name, scale=SCALE):
+def save(img, index, name, scale=SCALE, force_hq=None):
     os.makedirs(TEX, exist_ok=True)
     img = img.convert("RGBA")
     if SCALE_ART:
         img = img.resize((img.width * scale, img.height * scale), Image.NEAREST)
     write_texture(os.path.join(TEX, name + ".oct"), name, UUID_UI + index, img.width, img.height,
-                  img.tobytes(), wrap=CLAMP, force_hq=FORCE_HQ)
+                  img.tobytes(), wrap=CLAMP, force_hq=FORCE_HQ if force_hq is None else force_hq)
 
 
 def hue_to(img, hue):
@@ -237,9 +237,11 @@ def main():
                         top=SUPER_TOP, bottom=SUPER_BOTTOM, key_black=True), 15, "T_UI_Super", scale=1)
     # the Super Sonic prompt: the GameCube's Z button (external/ui/button_z.png, from the SVG) and his
     # head small beside it (the owner's super_head_small.png, 70 x 68, as the lives icon)
-    save(art("button_z2"), 16, "T_UI_ButtonZ", scale=1)       # the owner's, keyed off its background (49 x 24)
+    # (both kept uncompressed on the console -- tiny, and their clear backgrounds came out as boxes
+    # from the CMPR cook)
+    save(art("button_z2"), 16, "T_UI_ButtonZ", scale=1, force_hq=True)       # the owner's, keyed off its background (49 x 24)
     # ...with the emerald beside the Z (the owner's green one, outlined: external/ui/T_UI_SuperEmerald.png)
-    save(art("T_UI_SuperEmerald"), 17, "T_UI_SuperSmall", scale=1)
+    save(art("T_UI_SuperEmerald"), 17, "T_UI_SuperSmall", scale=1, force_hq=True)
     save(art("total_remade"), 4, "T_UI_Total", scale=2)       # drawn by gen_ui_total.py
     save(art("time_remade"), 14, "T_UI_Time", scale=2)        # ...and its TIME, for a time attack
     start = art("startnew2")

@@ -52,6 +52,7 @@ local PAGES = {
                            { label = "JUMP", info = "A" },
                            { label = "DROP DASH", info = "A IN THE AIR" },
                            { label = "SPIN DASH", info = "HOLD R, A TO REV" },
+                           { label = "SUPER SONIC", info = "Z, 50 RINGS" },
                            { label = "PAUSE", info = "START" },
                            { label = "BACK", info = "B" } } },
     audio = { title = "AUDIO", back = "options",
