@@ -9,7 +9,7 @@ DaySky = {}
 function DaySky:Create()
     -- The title's clouds come at the camera (it looks down -Z; the clouds' V runs with world Z, and
     -- a falling offset carries them toward +Z), and fast: the pack drifts them sideways at 0.02.
-    self.windSpeed = 0.30
+    self.windSpeed = 1.0
     self.windDirX = 0.0
     self.windDirY = -1.0
     self.time = 0.0
