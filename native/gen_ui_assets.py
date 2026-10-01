@@ -170,23 +170,38 @@ LIVES_TOP, LIVES_BOTTOM = (120, 200, 255), (20, 48, 165)     # the gradient: sky
 LIVES_INK = (8, 12, 40)                                # the outline, as the HUD's other pictures have
 
 
-def lives_icon(path, height=64, outline=2):
-    """The lives counter's Sonic: the drawing's own shape and eye whites, its flat navy made a blue
-    gradient top to bottom, cut to its size, with a dark outline round it."""
+# The Super Sonic button prompt: his head (external/ui/super_sonic_prompt.png, flat yellow on black),
+# made the same way, its yellow a gold gradient.
+SUPER_TOP, SUPER_BOTTOM = (255, 255, 215), (255, 205, 0)    # near white at the top, hot gold below
+
+
+def lives_icon(path, height=64, outline=2, flat=None, top=LIVES_TOP, bottom=LIVES_BOTTOM, key_black=False):
+    """The lives counter's Sonic: the drawing's own shape and eye whites, its flat colour (`flat`,
+    the navy) made a gradient top to bottom (`top` to `bottom`), cut to its size, with a dark
+    outline round it. `key_black`: the drawing is on solid black, which is made clear first."""
     raw = Image.open(path).convert("RGBA")
+    if key_black:
+        a = np.asarray(raw).astype(np.float32)
+        alpha = np.clip(a[..., :3].max(axis=2) * 2.0, 0, 255)   # black clear, anything lit solid
+        raw = Image.fromarray(np.dstack([a[..., :3], alpha]).astype(np.uint8), "RGBA")
     raw = raw.crop(raw.getchannel("A").getbbox())
     a = np.asarray(raw).astype(np.float32)
     rgb, alpha = a[..., :3] / 255.0, a[..., 3]
-    navy = np.array([0x2F, 0x39, 0x75]) / 255.0
-    # how much of each pixel is the navy drawing (1) and how much the eyes' white (0)
-    t = np.clip((1.0 - rgb.mean(axis=2)) / (1.0 - navy.mean()), 0.0, 1.0)
+    flat = np.array(flat if flat is not None else [0x2F, 0x39, 0x75]) / 255.0
+    # how much of each pixel is the flat drawing (1) and how much the eyes' white (0)
+    t = np.clip((1.0 - rgb.mean(axis=2)) / max(1e-3, 1.0 - flat.mean()), 0.0, 1.0)
     h = t.shape[0]
     ys = np.linspace(0.0, 1.0, h)[:, None, None]
-    grad = np.array(LIVES_TOP)[None, None, :] * (1 - ys) + np.array(LIVES_BOTTOM)[None, None, :] * ys
+    grad = np.array(top)[None, None, :] * (1 - ys) + np.array(bottom)[None, None, :] * ys
     col = grad * t[..., None] + 255.0 * (1 - t[..., None])
     img = Image.fromarray(np.dstack([col, alpha]).clip(0, 255).astype(np.uint8), "RGBA")
     img = img.resize((max(1, round(img.width * height / img.height)), height), Image.LANCZOS)
-    # the outline: the silhouette grown by `outline` pixels, in ink, under the icon
+    return outlined(img, outline)
+
+
+def outlined(img, outline=2):
+    """`img` with the HUD's dark outline round it: its silhouette grown by `outline` pixels, in
+    ink, under it; cut to its size."""
     sil = img.getchannel("A").point(lambda v: 255 if v > 40 else 0)
     pad = outline + 1
     grown = Image.new("L", (img.width + 2 * pad, img.height + 2 * pad), 0)
@@ -195,7 +210,7 @@ def lives_icon(path, height=64, outline=2):
     canvas = Image.new("RGBA", grown.size, (0, 0, 0, 0))
     canvas.paste(Image.new("RGBA", grown.size, LIVES_INK + (255,)), (0, 0), grown)
     canvas.alpha_composite(img, (pad, pad))
-    return canvas
+    return canvas.crop(canvas.getchannel("A").getbbox())       # no empty edge beyond the outline
 
 
 def main():
@@ -208,6 +223,15 @@ def main():
     save(hue_to(art("emblem_bluenew2"), 0.985), 12, "T_UI_EmblemRed", scale=2)
     save(art("sonicringsnew"), 3, "T_UI_SonicRings", scale=2)      # 256 across already
     save(lives_icon(os.path.join(ART, "lives_sonic_eris1521987.png"), height=64), 13, "T_UI_Lives", scale=1)
+    # ...and Super Sonic's: the owner's own picture of the head (external/ui/T_UI_Super2.png, his
+    # gradient, on nothing), given the same outline. (It began as super_sonic_prompt.png through
+    # lives_icon with SUPER_TOP / SUPER_BOTTOM, which still works if the picture is not there.)
+    super2 = os.path.join(ART, "T_UI_Super2.png")
+    if os.path.exists(super2):
+        save(outlined(Image.open(super2).convert("RGBA")), 15, "T_UI_Super", scale=1)
+    else:
+        save(lives_icon(os.path.join(ART, "super_sonic_prompt.png"), height=64, flat=(254, 242, 5),
+                        top=SUPER_TOP, bottom=SUPER_BOTTOM, key_black=True), 15, "T_UI_Super", scale=1)
     save(art("total_remade"), 4, "T_UI_Total", scale=2)       # drawn by gen_ui_total.py
     save(art("time_remade"), 14, "T_UI_Time", scale=2)        # ...and its TIME, for a time attack
     start = art("startnew2")
