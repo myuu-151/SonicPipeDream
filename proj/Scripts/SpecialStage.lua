@@ -192,6 +192,20 @@ local START_HOLD = 4.5          -- seconds running up the lead-in at the start w
 local SONIC_FPS = 42.0          -- his animations were made at 24 frames a second, but at the speed
                                 -- he covers the track that reads as a jog: played faster, by eye
 local SONIC_FRAMES = 16         -- in a run cycle
+-- SUPER SONIC, with all seven emeralds won (StageSelect: AllEmeraldsWon): Z with SUPER_RINGS rings
+-- transforms him, as in Sonic 2 -- the curl and the burst (anim_transform.py: the blue frames, then
+-- the flash and the gold ones), gold and blue sparkles round him, his sound and his aura -- and as
+-- Super he flies the pipe (the Fly loop, anim_super_fly.py), faster, bombs cannot hurt him, and his
+-- rings drain SUPER_DRAIN a second; at none he is himself again. The meshes are a frame each
+-- (export_sonic_to_octave.py, SONIC_WHO=Super), loaded only when he can transform.
+local SUPER_RINGS = 50
+local SUPER_DRAIN = 1.0             -- rings a second
+local SUPER_SPEED = 1.25            -- of his own
+local SUPER_HOVER = 1.2             -- units off the pipe, flying
+local SUPER_FLY_FRAMES, SUPER_FLY_FPS = 24, 12.0
+local TRANSFORM_BLUE, TRANSFORM_GOLD, TRANSFORM_FPS = 6, 13, 12.0     -- frames: his, then Super's
+local SUPER_SPARKLE_RATE = 16.0     -- a second, round him, while he transforms
+local SUPER_HOLD_SPARKLE_RATE = 3.0 -- ...and while he flies
 local THUMBS_TIME = 2.8         -- seconds of thumbs-up running after a check is passed. The ring
                                 -- check leaves 44 empty frames past the arch: 2.9 s at this speed.
 -- THE MARATHON (StageDataMarathon, made ahead of time by gen_stage.py and written by
@@ -471,7 +485,8 @@ function SpecialStage:Build()
     self.meshBall = LoadAsset("SM_PlayerBall")
     self.meshSparkle, self.meshBoom = LoadAsset("SM_FxQuad"), LoadAsset("SM_FxQuadBoom")
     self.meshFx = { sparkle = self.meshSparkle, boom = self.meshBoom, razor = LoadAsset("SM_FxQuadRazor"),
-                    puff = LoadAsset("SM_FxQuadPuff"), lostring = self.meshRing }
+                    puff = LoadAsset("SM_FxQuadPuff"), lostring = self.meshRing,
+                    sparkleGold = LoadAsset("SM_FxQuadGold"), sparkleBlue = LoadAsset("SM_FxQuadBlue") }
     self.meshTrace = LoadAsset("SM_FxTrace")
     self.boomMaterial, self.boomTextures, self.boomFrame = LoadAsset("M_Explosion"), {}, -1
     for i = 0, BOOM_FRAMES - 1 do self.boomTextures[i] = LoadAsset("T_Explosion_" .. i) end
@@ -1013,6 +1028,10 @@ function SpecialStage:Restart()
     self.fallTime = 0.0             -- how long he has been in the air
     self.diving = false             -- jumped again in the air: dropping straight back down
     self.rings = 0
+    self:EndSuper()                 -- (a restart mid-Super)
+    self.super = nil                -- "transform" while he transforms, "on" while he is Super
+    self.superClock = 0.0
+    self.superSparkle = 0.0
     self.spinDash = nil             -- revving a spin dash: { rev, pulse }
     self.skid = nil                 -- his speed while he skids into it (1 is his own)
     self.boost = 1.0                -- his speed after one (1 is his own; eases back to it)
@@ -1061,7 +1080,7 @@ function SpecialStage:Restart()
     self.uiReady = false
     self.failed = false
     self.fxPool = self.fxPool or {}
-    for _, kind in ipairs({ "sparkle", "boom", "razor", "puff", "lostring" }) do
+    for _, kind in ipairs({ "sparkle", "boom", "razor", "puff", "lostring", "sparkleGold", "sparkleBlue" }) do
         self.fxPool[kind] = self.fxPool[kind] or {}
     end
     self.fxClock = { razor = 0.0, puff = 0.0 }
@@ -1545,7 +1564,11 @@ function SpecialStage:Collide(fromFrame)
         if (not o.taken and o.frame >= fromFrame - REACH_FRAMES and AngleBetween(o.angle, self.angle) <= REACH_ANGLE) then
             o.taken = true
             if (o.node ~= nil) then self:Release(o) end
-            if (o.bomb) then
+            if (o.bomb and self.super ~= nil) then
+                -- Super: it goes off, and that is all
+                self:Sound("Explosion")
+                self:SpawnBoom(o)
+            elseif (o.bomb) then
                 -- A TIME ATTACK'S RECOVERY: still stunned from the last hit, he takes no more -- bombs
                 -- come in clusters, and the next one along found him with no rings (the first took them
                 -- all) and cost a life a moment later. It still goes off.
@@ -1566,6 +1589,123 @@ function SpecialStage:Collide(fromFrame)
                 self:SpawnSparkles(o)
             end
         end
+    end
+end
+
+-- ------------------------------------------------------------------ Super Sonic
+-- Z (Q on a keyboard) just pressed.
+local function SuperPressed()
+    if (Input.IsKeyJustDown(Key.Q)) then return true end
+    return Input.IsGamepadButtonJustDown(Gamepad.Z)
+end
+
+-- He can transform now: all seven emeralds, the rings for it, on the pipe, himself, the run on.
+function SpecialStage:CanSuper()
+    return AllEmeraldsWon == true and self.super == nil and self.rings >= SUPER_RINGS
+        and self.height <= 0.0 and self.spinDash == nil and self.stun <= 0.0
+        and self.hold <= 0.0 and self.over < 0.0 and not self.failed
+end
+
+-- His frames, the first time they are wanted (only with the emeralds: 2 MB a GameCube need not hold).
+function SpecialStage:LoadSuper()
+    if (self.superFly ~= nil) then return self.superFly[0] ~= nil end
+    self.superFly, self.superTransform, self.sonicTransform = {}, {}, {}
+    for i = 0, SUPER_FLY_FRAMES - 1 do self.superFly[i] = LoadAsset(string.format("SM_Super_Fly_%02d", i)) end
+    for i = 0, TRANSFORM_GOLD - 1 do self.superTransform[i] = LoadAsset(string.format("SM_Super_Transform_%02d", i)) end
+    for i = 0, TRANSFORM_BLUE - 1 do self.sonicTransform[i] = LoadAsset(string.format("SM_Sonic_Transform_%02d", i)) end
+    return self.superFly[0] ~= nil
+end
+
+function SpecialStage:BeginSuper()
+    if (not self:LoadSuper()) then
+        Log.Warning("Super Sonic: his frames did not load")
+        return
+    end
+    self.super, self.superClock, self.superSparkle = "transform", 0.0, 0.0
+    self:Sound("SuperSonic")
+    self.aura = self.aura or {}
+    self.aura.intro = self.aura.intro or LoadAsset("SW_SuperAuraIntro")
+    self.aura.loop = self.aura.loop or LoadAsset("SW_SuperAuraLoop")
+    if (self.aura.intro ~= nil) then
+        self.aura.left = self.aura.intro:GetDuration()
+        Audio.PlaySound2D(self.aura.intro, MIX.SuperAura, 1.0, 0.0, false, PRIORITY.SuperAura)
+    else
+        self.aura.left = 0.0
+    end
+    self.aura.looping = false
+end
+
+function SpecialStage:EndSuper()
+    if (self.aura ~= nil) then
+        if (self.aura.intro ~= nil) then Audio.StopSounds(self.aura.intro) end
+        if (self.aura.loop ~= nil) then Audio.StopSounds(self.aura.loop) end
+        self.aura.looping = false
+    end
+    self.super = nil
+end
+
+-- Sparkles round him, gold and blue (Sonic 2's), `n` of them this tick.
+function SpecialStage:SpawnSuperSparkles(n)
+    for i = 1, n do
+        local kind = (math.random() < 0.5) and "sparkleGold" or "sparkleBlue"
+        local node = self:FxNode(kind)
+        if (node == nil) then return end
+        local a = math.random() * TWO_PI
+        local push = 0.5 + math.random() * 1.0
+        self.fx[#self.fx + 1] = { kind = kind, node = node, age = 0.0, life = SPARKLE_LIFE * 1.3,
+                                  ahead = 0.0, angle = self.angle, height = self.data.hover + 1.5,
+                                  dAngle = math.cos(a) * push * 16.0, dHeight = math.sin(a) * push * 3.0,
+                                  size = SPARKLE_SIZE * (1.0 + math.random() * 0.8) }
+    end
+end
+
+function SpecialStage:TickSuper(dt)
+    if (self.super == nil) then
+        -- (a test without a pad: GcTest.superAt = seconds into the run, with the rings for it)
+        -- (the rings come 5 s before, so the prompt can be seen)
+        if (GcTest ~= nil and GcTest.superAt ~= nil and not self.superTested and self.hold <= 0.0
+                and self.runClock >= GcTest.superAt - 5.0) then
+            self.rings = math.max(self.rings, SUPER_RINGS)
+        end
+        if (GcTest ~= nil and GcTest.superAt ~= nil and not self.superTested and self.runClock >= GcTest.superAt
+                and self.hold <= 0.0) then
+            self.superTested, self.testSuper = true, true
+        end
+        if (self:CanSuper() and (SuperPressed() or self.testSuper)) then
+            self.testSuper = nil
+            self:BeginSuper()
+        end
+        return
+    end
+    self.superClock = self.superClock + dt
+    -- the aura: its intro once, then its loop (on the clock, as the music is)
+    local aura = self.aura
+    if (aura ~= nil and not aura.looping) then
+        aura.left = aura.left - dt
+        if (aura.left <= dt * 0.5) then
+            aura.looping = true
+            if (aura.loop ~= nil) then Audio.PlaySound2D(aura.loop, MIX.SuperAura, 1.0, 0.0, true, PRIORITY.SuperAura) end
+        end
+    end
+    if (self.super == "transform") then
+        self.superSparkle = self.superSparkle + SUPER_SPARKLE_RATE * dt
+        if (self.superClock * TRANSFORM_FPS >= TRANSFORM_BLUE + TRANSFORM_GOLD) then
+            self.super, self.superClock = "on", 0.0
+        end
+    else
+        self.superSparkle = self.superSparkle + SUPER_HOLD_SPARKLE_RATE * dt
+        -- the rings drain, one by one; at none he is himself again
+        self.superDrain = (self.superDrain or 0.0) + SUPER_DRAIN * dt
+        while (self.superDrain >= 1.0) do
+            self.superDrain = self.superDrain - 1.0
+            self.rings = math.max(0, self.rings - 1)
+        end
+        if (self.rings <= 0 or self.over >= 0.0) then self:EndSuper() end
+    end
+    local n = math.floor(self.superSparkle)
+    if (n > 0) then
+        self.superSparkle = self.superSparkle - n
+        self:SpawnSuperSparkles(n)
     end
 end
 
@@ -1674,6 +1814,7 @@ function SpecialStage:UpdateUI()
     end
     local section = self.data.sections[math.min(self.section, #self.data.sections)]
     TheSpecialStageUI:SetRings(self.rings)
+    if (TheSpecialStageUI.SetSuperPrompt ~= nil) then TheSpecialStageUI:SetSuperPrompt(self:CanSuper()) end
     if (self.data.timeAttack) then
         TheSpecialStageUI:SetClock(FormatClock(self.timeLeft))            -- the time, where TOTAL was
     else
@@ -1693,7 +1834,8 @@ end
 -- each on top of the last. So every effect has its own level here, set against the music at 1.0:
 -- the ring well under it, the one-off fanfares about level with it.
 local MIX = { Ring = 0.22, LoseRings = 0.55, Jump = 0.40, Checkpoint = 0.65, GetEmerald = 1.0,
-              Explosion = 0.60, Fail = 0.70, ExitStage = 0.60, SpinRev = 0.45, SpinRelease = 0.70, Hurt = 0.80 }
+              Explosion = 0.60, Fail = 0.70, ExitStage = 0.60, SpinRev = 0.45, SpinRelease = 0.70, Hurt = 0.80,
+              SuperSonic = 0.9, SuperAura = 0.5 }
 -- A sound played from another's asset (none now).
 local SOUND_ASSET = {}
 
@@ -1705,7 +1847,8 @@ local SOUND_ASSET = {}
 -- play ONE AT A TIME, each cutting the last off (the engine's Max Instances, 1). Rings ring over each
 -- other: the lowest priority of all, a burst of them gives way to anything that matters.
 local PRIORITY = { Ring = 10, SpinRev = 15, Jump = 20, LoseRings = 30, Explosion = 30, SpinRelease = 40,
-                   Checkpoint = 60, GetEmerald = 60, Fail = 60, Hurt = 60, ExitStage = 60, MenuWarp = 60 }
+                   Checkpoint = 60, GetEmerald = 60, Fail = 60, Hurt = 60, ExitStage = 60, MenuWarp = 60,
+                   SuperSonic = 60, SuperAura = 50 }
 local ONE_AT_A_TIME = { SpinRev = true, Jump = true }
 
 function SpecialStage:Sound(name, pitch)
@@ -2095,6 +2238,7 @@ function SpecialStage:Tick(deltaTime)
         else
             speed = speed * self.boost
         end
+        if (self.super == "on") then speed = speed * SUPER_SPEED end
         self.frame = math.min(self.frame + speed * dt, self.data.frames - 2.0)
     end
     -- a dash's extra speed eases away, back to his own
@@ -2114,10 +2258,22 @@ function SpecialStage:Tick(deltaTime)
     -- Sonic: on the pipe he runs, feet on the surface; in the air he is the ball
     self.runClock = self.runClock + dt
     self.thumbs = math.max(0.0, self.thumbs - dt)
+    self:TickSuper(dt)
     local airborne = (self.height > 0.0)
     local curled = not airborne and (self.spinDash ~= nil or self.boost > DASH_BALL)
     local mesh
-    if ((airborne and not self.falling) or curled) then
+    if (self.super == "transform") then
+        local k = math.floor(self.superClock * TRANSFORM_FPS)
+        if (k < TRANSFORM_BLUE) then
+            mesh = self.sonicTransform[k]
+        else
+            mesh = self.superTransform[math.min(k - TRANSFORM_BLUE, TRANSFORM_GOLD - 1)]
+        end
+        curled = false
+    elseif (self.super == "on") then
+        mesh = self.superFly[math.floor(self.superClock * SUPER_FLY_FPS) % SUPER_FLY_FRAMES]
+        curled = false
+    elseif ((airborne and not self.falling) or curled) then
         mesh = self.meshBall
     else
         -- (at the start he is already running, up the lead-in, while START is up)
@@ -2176,6 +2332,11 @@ function SpecialStage:Tick(deltaTime)
         local upHere = inward
         if (not curled) then _, _, upHere = self:TrackAt(self.frame) end
         place = Add(place, Scale(upHere, BALL_RADIUS * (tall - 1.0)))
+    end
+    if (self.super == "on" and not airborne) then
+        -- flying: a little off the surface, and a slow bob
+        local _, _, upHere = self:TrackAt(self.frame)
+        place = Add(place, Scale(upHere, SUPER_HOVER + 0.25 * math.sin(self.superClock * 2.5)))
     end
     self.player:SetWorldPosition(ToVec(place))
     if (tall ~= 1.0 or long ~= 1.0) then

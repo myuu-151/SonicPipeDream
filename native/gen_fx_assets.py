@@ -3,6 +3,8 @@
     python native/gen_fx_assets.py        (needs Pillow; no Blender)
 
     -> proj/Assets/Stage/FX/T_Sparkle.oct, M_Sparkle.oct         a four-pointed star, ADDITIVE
+       ...and T_SparkleGold / T_SparkleBlue, M_, SM_FxQuad-: the same in gold and blue, for the
+       transformation (SPARKLE_COLOURS)
                             T_Explosion_0..2.oct, M_Explosion.oct   the bomb going off: external/ui/blowup.png
                             SM_FxQuad.oct, SM_FxQuadBoom.oct        the square they are drawn on
                             T_Razor, M_Razor, SM_FxQuadRazor        the spin dash's rev: a sharp shard, ADDITIVE
@@ -35,15 +37,23 @@ ADDITIVE, TRANSLUCENT = 3, 2
 EXPLOSION_FRAMES = 3
 
 
-def sparkle(size=64):
+# The transformation's sparkles (Sonic 2's): the ring sparkle's star in deep gold and in blue,
+# each with the same white-hot middle.
+SPARKLE_COLOURS = {
+    "Gold": ((255, 170, 0), (255, 235, 150)),
+    "Blue": ((40, 80, 255), (170, 200, 255)),
+}
+
+
+def sparkle(size=64, colours=((255, 224, 96), (255, 250, 200))):
     """A four-pointed star with a hot middle, on BLACK: it is added to the picture, so black is
-    nothing and the star only ever brightens what is behind it."""
+    nothing and the star only ever brightens what is behind it. `colours`: the tips', the core's."""
     ss = 4
     n = size * ss
     img = Image.new("RGB", (n, n), (0, 0, 0))
     d = ImageDraw.Draw(img)
     c = n / 2.0
-    for reach, thick, colour in ((0.48, 0.045, (255, 224, 96)), (0.30, 0.080, (255, 250, 200))):
+    for reach, thick, colour in ((0.48, 0.045, colours[0]), (0.30, 0.080, colours[1])):
         r, t = n * reach, n * thick
         d.polygon([(c, c - r), (c + t, c), (c, c + r), (c - t, c)], fill=colour)         # upright
         d.polygon([(c - r, c), (c, c - t), (c + r, c), (c, c + t)], fill=colour)         # and across
@@ -267,6 +277,14 @@ def main():
                   img.tobytes(), wrap=0, quiet=True)
     material("M_Sparkle", UUID + 2, UUID + 1, "T_Sparkle", ADDITIVE)
     quad("SM_FxQuad", UUID + 3, UUID + 2, "M_Sparkle")
+    for i, (tint, colours) in enumerate(sorted(SPARKLE_COLOURS.items())):
+        img = sparkle(colours=colours)
+        img.save(os.path.join(LOOK, "T_Sparkle%s.png" % tint))
+        base = UUID + 32 + 3 * i
+        write_texture(os.path.join(OUT, "T_Sparkle%s.oct" % tint), "T_Sparkle" + tint, base, img.width,
+                      img.height, img.tobytes(), wrap=0, quiet=True)
+        material("M_Sparkle" + tint, base + 1, base, "T_Sparkle" + tint, ADDITIVE)
+        quad("SM_FxQuad" + tint, base + 2, base + 1, "M_Sparkle" + tint)
 
     for f in range(EXPLOSION_FRAMES):
         img = explosion(f)

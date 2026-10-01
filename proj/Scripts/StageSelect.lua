@@ -100,7 +100,7 @@ end
 function StageSelect:LoadWon()
     self.won = {}
     for i = 1, STAGES do self.won[i] = false end
-    if (System == nil or System.DoesSaveExist == nil or not System.DoesSaveExist(SAVE)) then return end
+    if (System == nil or System.DoesSaveExist == nil or not System.DoesSaveExist(SAVE)) then self:NoteAllWon(); return end
     local stream = Stream.Create()
     System.ReadSave(SAVE, stream)
     stream:SetPos(0)                    -- the save is read INTO the stream; rewind to read it
@@ -109,6 +109,18 @@ function StageSelect:LoadWon()
         self.won[i] = (text:sub(i, i) == "1")
     end
     GameOptions.Decode(text)
+    self:NoteAllWon()
+end
+
+-- AllEmeraldsWon, for the stage (Super Sonic, SpecialStage.lua), which may run with this screen
+-- gone. For testing him: GcTest.allEmeralds (the GameCube) or S2_ALL_EMERALDS in the environment
+-- count every emerald as won, without saving so.
+function StageSelect:NoteAllWon()
+    local pretend = (GcTest ~= nil and GcTest.allEmeralds) or (os ~= nil and os.getenv ~= nil and os.getenv("S2_ALL_EMERALDS") ~= nil)
+    if (pretend) then
+        for i = 1, STAGES do self.won[i] = true end
+    end
+    AllEmeraldsWon = self:AllWon()
 end
 
 -- NOTHING IS WRITTEN UNASKED, the GameCube's way: the first save is made from the menu's SAVE
@@ -137,6 +149,7 @@ end
 function StageSelect:SetWon(stage, won)
     if (stage < 1 or stage > STAGES) then return end
     self.won[stage] = won and true or false
+    AllEmeraldsWon = self:AllWon()
     self:SaveWon()
     if (self.built) then self:Refresh() end
 end

@@ -226,12 +226,20 @@ def main():
     # ...and Super Sonic's: the owner's own picture of the head (external/ui/T_UI_Super2.png, his
     # gradient, on nothing), given the same outline. (It began as super_sonic_prompt.png through
     # lives_icon with SUPER_TOP / SUPER_BOTTOM, which still works if the picture is not there.)
+    super7 = os.path.join(ART, "T_UI_Super7.png")      # the owner's gradient on the big head, outlined, 70 x 68
     super2 = os.path.join(ART, "T_UI_Super2.png")
-    if os.path.exists(super2):
+    if os.path.exists(super7):
+        save(Image.open(super7).convert("RGBA"), 15, "T_UI_Super", scale=1)
+    elif os.path.exists(super2):
         save(outlined(Image.open(super2).convert("RGBA")), 15, "T_UI_Super", scale=1)
     else:
         save(lives_icon(os.path.join(ART, "super_sonic_prompt.png"), height=64, flat=(254, 242, 5),
                         top=SUPER_TOP, bottom=SUPER_BOTTOM, key_black=True), 15, "T_UI_Super", scale=1)
+    # the Super Sonic prompt: the GameCube's Z button (external/ui/button_z.png, from the SVG) and his
+    # head small beside it (the owner's super_head_small.png, 70 x 68, as the lives icon)
+    save(art("button_z2"), 16, "T_UI_ButtonZ", scale=1)       # the owner's, keyed off its background (49 x 24)
+    # ...with the emerald beside the Z (the owner's green one, outlined: external/ui/T_UI_SuperEmerald.png)
+    save(art("T_UI_SuperEmerald"), 17, "T_UI_SuperSmall", scale=1)
     save(art("total_remade"), 4, "T_UI_Total", scale=2)       # drawn by gen_ui_total.py
     save(art("time_remade"), 14, "T_UI_Time", scale=2)        # ...and its TIME, for a time attack
     start = art("startnew2")

@@ -37,15 +37,30 @@ import numpy as np
 from mathutils import Matrix, Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.abspath(os.path.join(HERE, "..", "proj", "Assets", "Sonic"))
+# SUPER SONIC is exported by the same script from his own rig (SONIC_WHO=Super in the environment):
+# his own sheet and material (T_SuperSonic, M_SuperSonic), his meshes SM_Super_<anim>_NN, in
+# proj/Assets/SuperSonic, with ids of his own. Both rigs carry the Transform action (the
+# transformation, anim_transform.py): the blue one plays its first frames, the gold one the rest.
+#     blender -b external/supersonic/SuperSonic_Rigged_Anim2.blend --python native/export_sonic_to_octave.py
+WHO = os.environ.get("SONIC_WHO", "Sonic")
+OUT = os.path.abspath(os.path.join(HERE, "..", "proj", "Assets", "SuperSonic" if WHO == "Super" else "Sonic"))
 
-SONIC_HEIGHT = 4.6          # world units, standing. The pipe is 10 in radius; a ring is 2.5 across.
+SONIC_HEIGHT = 4.6 * (15.01 / 13.44 if WHO == "Super" else 1.0)   # (Super stands taller, quills up: the same body)  # world units, standing. The pipe is 10 in radius; a ring is 2.5 across.
 CELL, SHEET = 64, 256       # the texture sheet: 4 x 4 cells
-ANIMATIONS = (("Run", "Run", None), ("Thumbs", "RunThumbsUp", None), ("Idle", "Idle", 1))
+# short name, action, (the one frame | None), every Nth frame, (first, last) or None for the action's
+if WHO == "Super":
+    ANIMATIONS = (("Fly", "Fly", None, 2, None),                    # the hover, 24 of its 48
+                  ("Transform", "Transform", None, 2, (11, 35)))    # from the burst on, 13 frames
+    PREFIX, TEX_NAME, MAT_NAME = "SM_Super_%s_%02d", "T_SuperSonic", "M_SuperSonic"
+    UUID_BASE = 0x51C0FFEE00005000
+else:
+    ANIMATIONS = (("Run", "Run", None, 1, None), ("Thumbs", "RunThumbsUp", None, 1, None), ("Idle", "Idle", 1, 1, None),
+                  ("Transform", "Transform", None, 2, (1, 11)))      # curling in and the burst, 6 frames
+    PREFIX, TEX_NAME, MAT_NAME = "SM_Sonic_%s_%02d", "T_Sonic", "M_Sonic"
+    UUID_BASE = 0x51C0FFEE00004000
 
 MAGIC, VERSION = 0x4F435421, 13
 TYPE_TEXTURE, TYPE_STATICMESH, TYPE_MATERIALLITE = 0xCDBBDA30, 0xD41D0D1D, 0xA3ED4C6F
-UUID_BASE = 0x51C0FFEE00004000
 UUID_TEX, UUID_MAT = UUID_BASE, UUID_BASE + 1
 
 
@@ -106,25 +121,25 @@ def build_sheet(mesh):
         cell_of_slot[slot] = cell_of_image[key]
     sheet[:, :, 3] = 1.0                                   # opaque: he has no cut-outs
     pixels = (np.clip(sheet, 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8).tobytes()
-    d = header(TYPE_TEXTURE, UUID_TEX, "T_Sonic")
+    d = header(TYPE_TEXTURE, UUID_TEX, TEX_NAME)
     d += u32(SHEET) + u32(SHEET) + u32(1) + u32(1)
     d += u32(2) + u32(0) + u32(0)                          # RGBA8, NEAREST, clamp
     d += u8(0) + u8(0) + u8(1)                             # no mips, not a render target, sRGB
     d += u8(1) + u8(1)                                     # keep it uncompressed on console; no step down
     d += pixels
-    open(os.path.join(OUT, "T_Sonic.oct"), "wb").write(d)
-    print("  T_Sonic: %d images in a %d x %d sheet" % (len(cell_of_image), SHEET, SHEET))
+    open(os.path.join(OUT, TEX_NAME + ".oct"), "wb").write(d)
+    print("  %s: %d images in a %d x %d sheet" % (TEX_NAME, len(cell_of_image), SHEET, SHEET))
     return cell_of_slot
 
 
 def write_material():
-    d = header(TYPE_MATERIALLITE, UUID_MAT, "M_Sonic")
+    d = header(TYPE_MATERIALLITE, UUID_MAT, MAT_NAME)
     d += u32(0)                     # numParameters
     d += u32(1)                     # Lit: he is a character, he should sit in the stage's light
     d += u32(0)                     # Opaque
     d += u32(0)                     # VertexColorMode::None
     d += u32(1)                     # numTextures
-    d += asset_ref(UUID_TEX, "T_Sonic") + u8(0) + u8(1)     # uv0, modulate
+    d += asset_ref(UUID_TEX, TEX_NAME) + u8(0) + u8(1)     # uv0, modulate
     for _ in range(3):
         d += null_ref() + u8(0) + u8(1)
     for _ in range(2):
@@ -136,7 +151,7 @@ def write_material():
     d += i32(0)
     d += u8(0) + u8(0) + u8(1)
     d += u8(0)                      # no culling: the model has single-sided bits
-    open(os.path.join(OUT, "M_Sonic.oct"), "wb").write(d)
+    open(os.path.join(OUT, MAT_NAME + ".oct"), "wb").write(d)
 
 
 # ------------------------------------------------------------------------------ meshes
@@ -178,7 +193,7 @@ def write_frame(name, index, mesh, world, cell_of_slot, fix):
     centre = (lo + hi) * 0.5
     d = header(TYPE_STATICMESH, UUID_BASE + 16 + index, name)
     d += u32(len(verts)) + u32(len(idx)) + u32(1)
-    d += asset_ref(UUID_MAT, "M_Sonic")
+    d += asset_ref(UUID_MAT, MAT_NAME)
     d += u8(0) + u8(0)                                      # no triangle collision; no vertex colour
     for p, n, su, sv in verts:
         d += f32(p[0]) + f32(p[1]) + f32(p[2]) + f32(su) + f32(sv) + f32(0) + f32(0)
@@ -231,13 +246,15 @@ def main():
     shown.to_mesh_clear()
 
     index = 0
-    for short, action_name, only in ANIMATIONS:
+    for short, action_name, only, step, span in ANIMATIONS:
         action = bpy.data.actions[action_name]
         first, last = int(action.frame_range[0]), int(action.frame_range[1])
-        frames = [only] if only else list(range(first, last))      # the last frame IS the first, again
+        if span is not None:
+            first, last = span[0], span[1] + 1
+        frames = [only] if only else list(range(first, last, step))      # (a loop's last frame IS its first, again)
         for k, frame in enumerate(frames):
             mesh, world, shown = pose(action_name, frame)
-            nv, nt = write_frame("SM_Sonic_%s_%02d" % (short, k), index, mesh, world, cell_of_slot, fix)
+            nv, nt = write_frame(PREFIX % (short, k), index, mesh, world, cell_of_slot, fix)
             shown.to_mesh_clear()
             index += 1
         print("  %-7s %2d frames (%s %d-%d), %d verts %d tris each" % (short, len(frames), action_name, first, last, nv, nt))

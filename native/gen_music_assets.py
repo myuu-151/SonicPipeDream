@@ -71,6 +71,9 @@ EFFECTS = [
     ("Release.ogg", "SW_SpinRelease", 0x51C0FFEE00300020),      # a spin dash let go
     ("Charge.ogg", "SW_SpinRev", 0x51C0FFEE00300021),           # ...and revved, a press of A
     ("Hurt.ogg", "SW_Hurt", 0x51C0FFEE00300022),                # GAME OVER (a time attack)
+    ("super-sonic.mp3", "SW_SuperSonic", 0x51C0FFEE00300027),   # the transformation
+    ("super_aura_intro.wav", "SW_SuperAuraIntro", 0x51C0FFEE00300028),   # his aura: this once,
+    ("super_aura_loop.wav", "SW_SuperAuraLoop", 0x51C0FFEE00300029),     # then this while he is Super
 ]
 
 

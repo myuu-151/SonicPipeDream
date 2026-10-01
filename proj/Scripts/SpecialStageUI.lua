@@ -34,6 +34,7 @@
 SpecialStageUI = {}
 
 local SCREEN_W, SCREEN_H = 320.0, 224.0
+local SUPER_ICON_W, SUPER_ICON_H = 91.0, 66.0     -- T_UI_SuperSmall's size (gen_ui_assets.py)
 -- The share of the window kept clear all round. 0 on a monitor, which shows every pixel; a TV
 -- hides its edges (overscan), so a console build sets this to a few percent.
 local SAFE_MARGIN = 0.0
@@ -114,6 +115,18 @@ function SpecialStageUI:SetLives(n)
         self.livesIcon:SetVisible(n ~= nil)
         self.livesNumber:SetVisible(n ~= nil)
         self.livesNumber:SetText((n ~= nil) and ("X " .. n) or "")
+    end
+end
+
+-- The Super Sonic prompt, at the right of the screen: his head small over the Z button, shown
+-- while he can transform (SpecialStage.lua's CanSuper).
+function SpecialStageUI:SetSuperPrompt(on)
+    on = on and true or false
+    if (on == self.superPrompt) then return end
+    self.superPrompt = on
+    if (self.built) then
+        self.superHead:SetVisible(on)
+        self.superButton:SetVisible(on)
     end
 end
 
@@ -236,6 +249,10 @@ function SpecialStageUI:Build()
     self.totalBox:SetVisible(not timed)
     self.totalNumber:SetVisible(not timed)
     self.livesNumber = MakeText(self, "", WHITE)
+    self.superHead   = MakeQuad(self, LoadAsset("T_UI_SuperSmall"), WHITE)
+    self.superButton = MakeQuad(self, LoadAsset("T_UI_ButtonZ"), WHITE)
+    self.superHead:SetVisible(self.superPrompt == true)
+    self.superButton:SetVisible(self.superPrompt == true)
     self.livesIcon:SetVisible(self.lives ~= nil)
     self.livesNumber:SetVisible(self.lives ~= nil)
     if (self.lives ~= nil) then self.livesNumber:SetText("X " .. self.lives) end
@@ -317,6 +334,14 @@ function SpecialStageUI:Layout()
     self:Place(self.livesIcon, 10.0, 43.0, 18.0, 17.5)
     self.livesNumber:SetTextSize(14.0 * self.k)
     self:Place(self.livesNumber, 31.0, 46.0)
+
+    -- the Super Sonic prompt, top right beside TOTAL: the Z button (49 x 24 art) with the emerald
+    -- (T_UI_SuperSmall, SUPER_ICON_W x SUPER_ICON_H) under it
+    local px, zw = 250.0, 30.0
+    local zh = zw * 24.0 / 49.0
+    self:Place(self.superButton, px, 8.0, zw, zh)
+    local hw = 30.0
+    self:Place(self.superHead, px, 8.0 + zh + 3.0, hw, hw * SUPER_ICON_H / SUPER_ICON_W)
 
     -- TOTAL: the frame, centred, and the number in the middle of it. The texture is square
     -- and the art is its top 160 rows of 256, so the box on screen is bw wide and bw * 160/256 tall.
