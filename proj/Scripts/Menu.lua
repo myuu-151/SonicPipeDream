@@ -81,7 +81,8 @@ function Menu:Build()
         self.quads[name] = MakeQuad(self, LoadAsset(name))
     end
     self:BuildWatermark()               -- over the panel, under everything else
-    for _, name in ipairs({ "T_Menu_TitleBanner", "T_Menu_TitleText", "T_Menu_SelectBar",
+    -- (no SONIC PIPE DREAM banner across the top: the title screen has said it; the stage select keeps one)
+    for _, name in ipairs({ "T_Menu_SelectBar",
                             "T_Menu_ButtonA", "T_Menu_LabelSelect",
                             "T_Menu_ButtonB", "T_Menu_LabelBack", "T_Menu_Cursor" }) do
         self.quads[name] = MakeQuad(self, LoadAsset(name))

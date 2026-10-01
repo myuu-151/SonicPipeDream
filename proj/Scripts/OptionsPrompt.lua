@@ -44,7 +44,16 @@ local MAX_LINES = 7
 -- The pages. A line opens another page, is an on/off setting (GameOptions[option]), a setting with
 -- a list of values (GameOptions[page.of][setting], GameOptions.CHOICES), or START.
 local PAGES = {
-    options = { title = "OPTIONS", lines = { { label = "AUDIO", open = "audio" } } },
+    options = { title = "OPTIONS", lines = { { label = "AUDIO", open = "audio" },
+                                             { label = "CONTROLS", open = "controls" } } },
+    -- what the buttons do: nothing to change, a line each (`info`, shown where a value would be)
+    controls = { title = "CONTROLS", back = "options",
+                 lines = { { label = "STEER", info = "STICK, D-PAD" },
+                           { label = "JUMP", info = "A" },
+                           { label = "DROP DASH", info = "A IN THE AIR" },
+                           { label = "SPIN DASH", info = "HOLD R, A TO REV" },
+                           { label = "PAUSE", info = "START" },
+                           { label = "BACK", info = "B" } } },
     audio = { title = "AUDIO", back = "options",
               lines = { { label = "MUTE IN-STAGE MUSIC", option = "muteStageMusic" } } },
     marathon = { title = "MARATHON", of = "marathon",
@@ -131,7 +140,7 @@ function OptionsPrompt:Place()
     self.title:SetPosition((w - Wide(self.title)) * 0.5, top + 20.0 * k)
     local columns = false
     for _, line in ipairs(page.lines) do
-        if (line.setting ~= nil or line.option ~= nil) then columns = true end
+        if (line.setting ~= nil or line.option ~= nil or line.info ~= nil) then columns = true end
     end
     for i = 1, MAX_LINES do
         local label, value = self.labels[i], self.values[i]
@@ -159,6 +168,8 @@ function OptionsPrompt:Refresh()
             value = GameOptions[line.option] and "ON" or "OFF"
         elseif (line ~= nil and line.setting ~= nil) then
             value = GameOptions.CHOICES[line.setting].show(GameOptions[page.of][line.setting])
+        elseif (line ~= nil and line.info ~= nil) then
+            value = line.info
         end
         self.labels[i]:SetText(line and line.label or "")
         self.labels[i]:SetColor((i == self.index) and YELLOW or WHITE)
@@ -168,7 +179,11 @@ function OptionsPrompt:Refresh()
     local act = "A  SELECT"
     if (chosen ~= nil and (chosen.option ~= nil or chosen.setting ~= nil)) then act = "A  CHANGE" end
     if (chosen ~= nil and chosen.start) then act = "A  START" end
-    self.buttons:SetText(act .. "        B  BACK")
+    if (page.lines[1] ~= nil and page.lines[1].info ~= nil) then
+        self.buttons:SetText("B  BACK")         -- a page to read: nothing to choose
+    else
+        self.buttons:SetText(act .. "        B  BACK")
+    end
 end
 
 function OptionsPrompt:Show(visible)

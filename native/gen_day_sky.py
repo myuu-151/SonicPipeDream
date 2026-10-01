@@ -129,15 +129,30 @@ def gen_mesh(path):
     open(path, "wb").write(d)
 
 
-def copy_texture(src, name, uuid):
+def copy_texture(src, name, uuid, at_most=None, rgb5a3=False):
     """One of the pack's textures (the game has them) under a name of the title's own, marked to stay
     uncompressed on the console. Their alpha carries the haze and the clouds' edges, and the cooked
     CMPR keeps one bit of it -- and makes every clear texel BLACK: the sky above the haze came out
-    black once the title's gradient reached up into it."""
+    black once the title's gradient reached up into it. `at_most`: no wider or taller than that."""
     d = open(os.path.join(GAME_TEXTURES, src + ".oct"), "rb").read()
     n = struct.unpack_from("<I", d, 21)[0]
     body = bytearray(d[25 + n:])
     body[28 + 3] = 1                    # (after the 7 words and mips, render target, sRGB) high quality
+    if rgb5a3:
+        # Mipmapped and NOT forced high quality: the packager then makes a translucent texture RGB5A3
+        # on the console (Texture.cpp: CMPR with alpha and mipmaps falls back to RGBA5551) -- the full
+        # size, 16 bits a texel, 3 bits of alpha -- instead of RGBA8.
+        body[28] = 1
+        body[28 + 3] = 0
+    w, h = struct.unpack_from("<II", body, 0)
+    if at_most is not None and max(w, h) > at_most:
+        from PIL import Image
+        img = Image.frombytes("RGBA", (w, h), bytes(body[33:33 + w * h * 4]))
+        k = at_most / float(max(w, h))
+        w2, h2 = int(w * k), int(h * k)
+        img = img.resize((w2, h2), Image.LANCZOS)
+        body = body[:33] + bytearray(img.tobytes())
+        struct.pack_into("<II", body, 0, w2, h2)
     out = header(0xCDBBDA30, uuid, name) + bytes(body)
     open(os.path.join(OUT, name + ".oct"), "wb").write(out)
 
@@ -145,6 +160,7 @@ def copy_texture(src, name, uuid):
 def main():
     os.makedirs(OUT, exist_ok=True)
     copy_texture("T_SkyGradient", "T_DaySkyGradient", UUID_GRAD)
+    # (The GameCube's copy of the clouds is made RGB5A3 by export_assets_gc.py's intro())
     copy_texture("T_Clouds", "T_DayClouds", UUID_CLOUD)
     gen_material(os.path.join(OUT, "M_DaySky.oct"))
     gen_mesh(os.path.join(OUT, "SM_DaySkyDome.oct"))
