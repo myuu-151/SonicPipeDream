@@ -17,6 +17,14 @@
 Intro = {}
 
 local FPS, FRAMES = 24, 96              -- IntroPop: 24 a second, 96 frames, the pose held from 35
+-- Of the 96, only 37 differ: until FIRST_MOVING he is out of sight below the ribbon (all as frame 0),
+-- and from STILL_FROM he holds the pose (all as that one). Only those are loaded -- the title has to
+-- fit beside the sky's stars when B on the menu brings it back -- and the rest shown by them.
+local FIRST_MOVING, STILL_FROM = 11, 46
+local function SonicFrame(f)
+    if (f < FIRST_MOVING) then return 0 end
+    return math.min(f, STILL_FROM)
+end
 local PRESS_AFTER = FRAMES / FPS + 0.3  -- PRESS START comes up once he has struck the pose
 local BLINK = 0.55                      -- on, then off, this long each
 local VOLUME = 2.0                      -- the title theme is quiet in its file: played up
@@ -120,7 +128,12 @@ function Intro:Build()
         Spawn(LoadAsset(name))
     end
     self.sonicFrames = {}
-    for i = 0, FRAMES - 1 do self.sonicFrames[i] = LoadAsset(string.format("SM_SonicIntro_%02d", i)) end
+    for i = 0, FRAMES - 1 do
+        local k = SonicFrame(i)
+        if (self.sonicFrames[k] == nil) then
+            self.sonicFrames[k] = LoadAsset(string.format("SM_SonicIntro_%02d", k))
+        end
+    end
     self.sonic = Spawn(self.sonicFrames[0])
 
     -- Sonic is lit (the emblem carries its own light): a key from the upper left, in front, as
@@ -217,7 +230,7 @@ function Intro:Tick(deltaTime)
     self:Layout()
     self:Place(self.clock)
 
-    local frame = math.min(math.floor(self.clock * FPS), FRAMES - 1)
+    local frame = SonicFrame(math.min(math.floor(self.clock * FPS), FRAMES - 1))
     if (frame ~= self.frame and self.sonicFrames[frame] ~= nil) then
         self.frame = frame
         self.sonic:SetStaticMesh(self.sonicFrames[frame])
