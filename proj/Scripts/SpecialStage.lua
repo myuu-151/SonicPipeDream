@@ -492,6 +492,13 @@ function SpecialStage:Build()
 
     self.meshBall = LoadAsset("SM_PlayerBall")
     self.meshBallSuper = LoadAsset("SM_PlayerBallSuper")
+    if (AllEmeraldsWon == true) then
+        -- Super Sonic can come: Lua's garbage kept small from the start, so his frames find room
+        -- when he transforms (at Lua's own pace it was at its peak just then: 2.5 MB, and on the
+        -- bigger stages frames went unloaded -- the blue ball mid-transformation). See LoadSuper.
+        collectgarbage("setpause", 120)
+        collectgarbage("setstepmul", 400)
+    end
     self.meshSparkle, self.meshBoom = LoadAsset("SM_FxQuad"), LoadAsset("SM_FxQuadBoom")
     self.meshFx = { sparkle = self.meshSparkle, boom = self.meshBoom, razor = LoadAsset("SM_FxQuadRazor"),
                     puff = LoadAsset("SM_FxQuadPuff"), lostring = self.meshRing,
@@ -1636,15 +1643,40 @@ function SpecialStage:LoadSuper()
     -- his sound next, small, before the frames fill the heap
     self.sounds = self.sounds or {}
     self.sounds.SuperSonic = self.sounds.SuperSonic or LoadAsset("SW_SuperSonic")
+    -- Lua's garbage collected first: room for his frames in what it gives back
+    collectgarbage()
     self.superFly, self.superTransform, self.sonicTransform = {}, {}, {}
-    for i = 0, SUPER_FLY_FRAMES - 1 do self.superFly[i] = LoadAsset(string.format("SM_Super_Fly_%02d", i)) end
-    for i = 0, TRANSFORM_GOLD - 1 do self.superTransform[i] = LoadAsset(string.format("SM_Super_Transform_%02d", i)) end
-    for i = 0, TRANSFORM_BLUE - 1 do self.sonicTransform[i] = LoadAsset(string.format("SM_Sonic_Transform_%02d", i)) end
+    local missed = 0
+    local function LoadAll(t, n, name)
+        for i = 0, n - 1 do
+            t[i] = LoadAsset(string.format(name, i))
+            if (t[i] == nil) then collectgarbage(); t[i] = LoadAsset(string.format(name, i)) end   -- once more
+            if (t[i] == nil) then missed = missed + 1 end
+        end
+    end
+    LoadAll(self.superFly, SUPER_FLY_FRAMES, "SM_Super_Fly_%02d")
+    LoadAll(self.superTransform, TRANSFORM_GOLD, "SM_Super_Transform_%02d")
+    LoadAll(self.sonicTransform, TRANSFORM_BLUE, "SM_Sonic_Transform_%02d")
+    -- A FRAME THAT FOUND NO ROOM is filled with the nearest that did (a frame held a little long),
+    -- never left empty: the empty mesh fell back to the blue ball, mid-transformation.
+    local function Fill(t, n, also)
+        for i = 0, n - 1 do
+            if (t[i] == nil) then
+                for d = 1, n do
+                    t[i] = t[i - d] or t[i + d]
+                    if (t[i] ~= nil) then break end
+                end
+                t[i] = t[i] or also
+            end
+        end
+    end
+    Fill(self.superFly, SUPER_FLY_FRAMES, nil)
+    Fill(self.superTransform, TRANSFORM_GOLD, self.superFly[0])
+    Fill(self.sonicTransform, TRANSFORM_BLUE, self.superTransform[0])
     if (GcTest ~= nil and GcTest.memLog ~= nil) then
-        local function Count(t, n) local c = 0; for i = 0, n - 1 do if (t[i] ~= nil) then c = c + 1 end end; return c end
-        Log.Warning(string.format("SUPER LOAD fly %d/%d gold %d/%d blue %d/%d", Count(self.superFly, SUPER_FLY_FRAMES),
-            SUPER_FLY_FRAMES, Count(self.superTransform, TRANSFORM_GOLD), TRANSFORM_GOLD,
-            Count(self.sonicTransform, TRANSFORM_BLUE), TRANSFORM_BLUE))
+        local free = (System.GetFreeMemory ~= nil) and (System.GetFreeMemory() // 1024) or -1
+        Log.Warning(string.format("SUPER LOAD missed %d of %d frames, %d KB free after", missed,
+            SUPER_FLY_FRAMES + TRANSFORM_GOLD + TRANSFORM_BLUE, free))
     end
     -- HIS FRAMES TAKE THE HEADROOM LUA'S GARBAGE HAD. At Lua's own pace (pause 200) the heap runs
     -- to twice what is live before it is collected: 1.3 MB swung to 3 MB, and with his 1.8 MB of
@@ -2355,7 +2387,7 @@ function SpecialStage:Tick(deltaTime)
         local k = math.floor(self.runClock * SONIC_FPS) % SONIC_FRAMES
         mesh = (self.thumbs > 0.0) and self.sonicThumbs[k] or self.sonicRun[k]
     end
-    if (mesh == nil) then mesh = self.meshBall end
+    if (mesh == nil) then mesh = (self.super ~= nil) and self.meshBallSuper or self.meshBall end
     if (mesh ~= self.playerMesh) then
         self.playerMesh = mesh
         self.player:SetStaticMesh(mesh)
