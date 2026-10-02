@@ -213,8 +213,8 @@ local SUPER_GLIDE_GRAVITY = 0.6     -- of the pull once his jump turns down: up 
 local SUPER_FLY_FRAMES, SUPER_FLY_FPS = 24, 12.0
 local TRANSFORM_BLUE, TRANSFORM_GOLD, TRANSFORM_FPS = 6, 13, 12.0     -- frames: his, then Super's
 local SUPER_SPARKLE_RATE = 16.0     -- a second, round him, while he transforms
-local SUPER_PRELOAD = false           -- his frames read in the background from the stage's start
-local SUPER_PRELOAD_PER_TICK = 2      -- ...this many in flight at once (LoadSuper)
+local SUPER_PRELOAD = true            -- his frames read in the background from the stage's start
+local SUPER_PRELOAD_PER_TICK = 4      -- ...this many in flight at once (LoadSuper)
 local SUPER_HOLD_SPARKLE_RATE = 12.0  -- ...flying, this many left behind him as a trail    -- ...and while he flies, left behind him as a trail
 local THUMBS_TIME = 2.8         -- seconds of thumbs-up running after a check is passed. The ring
                                 -- check leaves 44 empty frames past the arch: 2.9 s at this speed.
@@ -1635,7 +1635,10 @@ end
 
 -- He can transform now: all seven emeralds, the rings for it, on the pipe, himself, the run on.
 function SpecialStage:CanSuper()
+    -- (with the preload, not until his frames are all in: Z then never waits on a read -- on a
+    -- console, pressed just after a marathon's handoff, it did, for about a second)
     return AllEmeraldsWon == true and self.super == nil and self.rings >= SUPER_RINGS
+        and (not SUPER_PRELOAD or self.superReady == true)
         and self.spinDash == nil and self.stun <= 0.0           -- (in the air too)
         and self.hold <= 0.0 and self.over < 0.0 and not self.failed
 end
@@ -1786,7 +1789,7 @@ end
 
 function SpecialStage:TickSuper(dt)
     -- with every emerald won, his frames are read a few a tick from the stage's start (LoadSuper)
-    -- (off for now, the owner's call: his frames are read at the first transformation instead)
+    -- (SUPER_PRELOAD: on since the meshes were quantized -- room for his frames all stage)
     if (SUPER_PRELOAD and AllEmeraldsWon == true and not self.superReady) then self:LoadSuper(SUPER_PRELOAD_PER_TICK) end
     if (self.super == nil) then
         -- (a test without a pad: GcTest.superAt = seconds into the run, with the rings for it)
