@@ -34,7 +34,9 @@ local STAGE_MUSIC = {
     -- A marathon: its start once, then its loop. A time attack (the same run, against the clock)
     -- has a track of its own, looped from the top. (The old marathon track, SW_SpecialStage_Marathon,
     -- is no longer played.)
-    Marathon = { intro = "SW_SpecialStage_MarathonIntro", loop = "SW_SpecialStage_MarathonLoop" },
+    -- (The owner's call, 2026-10-02: the marathon plays the time attack's track too; its own start
+    -- and loop, SW_SpecialStage_MarathonIntro / MarathonLoop, are no longer played.)
+    Marathon = { loop = "SW_SpecialStage_TimeAttack" },
     TimeAttack = { loop = "SW_SpecialStage_TimeAttack" },
 }
 

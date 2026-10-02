@@ -213,6 +213,8 @@ local SUPER_GLIDE_GRAVITY = 0.6     -- of the pull once his jump turns down: up 
 local SUPER_FLY_FRAMES, SUPER_FLY_FPS = 24, 12.0
 local TRANSFORM_BLUE, TRANSFORM_GOLD, TRANSFORM_FPS = 6, 13, 12.0     -- frames: his, then Super's
 local SUPER_SPARKLE_RATE = 16.0     -- a second, round him, while he transforms
+local SUPER_PRELOAD = false           -- his frames read in the background from the stage's start
+local SUPER_PRELOAD_PER_TICK = 2      -- ...this many in flight at once (LoadSuper)
 local SUPER_HOLD_SPARKLE_RATE = 12.0  -- ...flying, this many left behind him as a trail    -- ...and while he flies, left behind him as a trail
 local THUMBS_TIME = 2.8         -- seconds of thumbs-up running after a check is passed. The ring
                                 -- check leaves 44 empty frames past the arch: 2.9 s at this speed.
@@ -466,6 +468,17 @@ end
 
 -- Build is the things that outlive a stage: the meshes, the light, Sonic, the camera, the
 -- UI and the music. LoadStage is the stage itself, and can be called again for the next one.
+-- Lua's collector set to at least this pace: a pause no longer than `pause`, a step no smaller than
+-- `stepmul` -- never slower than it was. (A marathon runs it far faster, 110 and 1000, while it
+-- builds zones as it goes; setting Super Sonic's 120 and 400 over that slowed it, and the marathon's
+-- garbage ran back up.)
+function TightenCollector(pause, stepmul)
+    local was = collectgarbage("setpause", pause)
+    if (was ~= nil and was < pause) then collectgarbage("setpause", was) end
+    was = collectgarbage("setstepmul", stepmul)
+    if (was ~= nil and was > stepmul) then collectgarbage("setstepmul", was) end
+end
+
 function SpecialStage:Build()
     local world = self:GetWorld()
 
@@ -496,8 +509,7 @@ function SpecialStage:Build()
         -- Super Sonic can come: Lua's garbage kept small from the start, so his frames find room
         -- when he transforms (at Lua's own pace it was at its peak just then: 2.5 MB, and on the
         -- bigger stages frames went unloaded -- the blue ball mid-transformation). See LoadSuper.
-        collectgarbage("setpause", 120)
-        collectgarbage("setstepmul", 400)
+        TightenCollector(120, 400)
     end
     self.meshSparkle, self.meshBoom = LoadAsset("SM_FxQuad"), LoadAsset("SM_FxQuadBoom")
     self.meshFx = { sparkle = self.meshSparkle, boom = self.meshBoom, razor = LoadAsset("SM_FxQuadRazor"),
@@ -1632,31 +1644,71 @@ end
 -- hold; loaded with the stage, the stage no longer fitted and never finished loading). After long
 -- play the heap is cut up and his sheet may find no room: he came out white or black. So the sheet
 -- goes first (the one big block), and without it there is no Super Sonic -- not a white one.
-function SpecialStage:LoadSuper()
-    if (self.superFly ~= nil) then return self.superFly[0] ~= nil end
-    self.superSheet = self.superSheet or LoadAsset("T_SuperSonic")
-    self.superLook = self.superLook or LoadAsset("M_SuperSonic")
-    if (self.superSheet == nil or self.superLook == nil) then
-        Log.Warning("Super Sonic: his sheet did not load")
-        return false
+function SpecialStage:LoadSuper(budget)
+    if (self.superReady) then return self.superFly[0] ~= nil end
+    if (self.superQueue == nil) then
+        if (self.superGaveUp) then return false end
+        self.superSheet = self.superSheet or LoadAsset("T_SuperSonic")
+        self.superLook = self.superLook or LoadAsset("M_SuperSonic")
+        if (self.superSheet == nil or self.superLook == nil) then
+            Log.Warning("Super Sonic: his sheet did not load")
+            self.superGaveUp = (budget ~= nil)          -- (the preload stops asking; Z still tries)
+            return false
+        end
+        -- his sound next, small, before the frames fill the heap
+        self.sounds = self.sounds or {}
+        self.sounds.SuperSonic = self.sounds.SuperSonic or LoadAsset("SW_SuperSonic")
+        -- Lua's garbage collected first, when they are read at once (the preload does without:
+        -- Lua is kept small from the stage's start, and a full collection was a hitch of its own)
+        if (budget == nil) then collectgarbage() end
+        self.superFly, self.superTransform, self.sonicTransform = {}, {}, {}
+        local queue = {}
+        local function Ask(t, n, name)
+            for i = 0, n - 1 do queue[#queue + 1] = { t = t, i = i, name = string.format(name, i) } end
+        end
+        Ask(self.superTransform, TRANSFORM_GOLD, "SM_Super_Transform_%02d")
+        Ask(self.sonicTransform, TRANSFORM_BLUE, "SM_Sonic_Transform_%02d")
+        Ask(self.superFly, SUPER_FLY_FRAMES, "SM_Super_Fly_%02d")
+        self.superQueue, self.superNext, self.superMissed = queue, 1, 0
     end
-    -- his sound next, small, before the frames fill the heap
-    self.sounds = self.sounds or {}
-    self.sounds.SuperSonic = self.sounds.SuperSonic or LoadAsset("SW_SuperSonic")
-    -- Lua's garbage collected first: room for his frames in what it gives back
-    collectgarbage()
-    self.superFly, self.superTransform, self.sonicTransform = {}, {}, {}
-    local missed = 0
-    local function LoadAll(t, n, name)
-        for i = 0, n - 1 do
-            t[i] = LoadAsset(string.format(name, i))
-            if (t[i] == nil) then collectgarbage(); t[i] = LoadAsset(string.format(name, i)) end   -- once more
-            if (t[i] == nil) then missed = missed + 1 end
+    -- THE FRAMES. Read all at once at the first transformation they froze a console for about a
+    -- second; read on the main thread a couple a tick from the stage's start, the countdown
+    -- stuttered. So the preload (a `budget`: frames in flight) asks the engine to read them in the
+    -- BACKGROUND (AsyncLoadAsset) and takes each in hand (LoadAsset, at once now) the tick it has
+    -- arrived -- before the sky's sweeps, which drop what nothing holds. Without a budget (Z before
+    -- they are all in) the rest are read at once.
+    local queue = self.superQueue
+    local function Take(q)
+        q.t[q.i] = LoadAsset(q.name)
+        if (q.t[q.i] == nil and budget == nil) then collectgarbage(); q.t[q.i] = LoadAsset(q.name) end
+        q.done = true
+        if (q.t[q.i] == nil) then self.superMissed = self.superMissed + 1 end
+    end
+    local inFlight = 0
+    for k = 1, self.superNext - 1 do
+        local q = queue[k]
+        if (not q.done) then
+            if (budget == nil) then
+                Take(q)
+            elseif (q.asked == nil or q.asked:IsLoaded()) then
+                Take(q)
+            else
+                q.wait = q.wait + 1
+                if (q.wait > 180) then Take(q) else inFlight = inFlight + 1 end    -- (3 s: read it now)
+            end
         end
     end
-    LoadAll(self.superFly, SUPER_FLY_FRAMES, "SM_Super_Fly_%02d")
-    LoadAll(self.superTransform, TRANSFORM_GOLD, "SM_Super_Transform_%02d")
-    LoadAll(self.sonicTransform, TRANSFORM_BLUE, "SM_Sonic_Transform_%02d")
+    while (self.superNext <= #queue and (budget == nil or inFlight < budget)) do
+        local q = queue[self.superNext]
+        self.superNext = self.superNext + 1
+        if (budget ~= nil and AsyncLoadAsset ~= nil) then
+            q.asked, q.wait = AsyncLoadAsset(q.name), 0
+            inFlight = inFlight + 1
+        else
+            Take(q)
+        end
+    end
+    if (self.superNext <= #queue or inFlight > 0) then return false end
     -- A FRAME THAT FOUND NO ROOM is filled with the nearest that did (a frame held a little long),
     -- never left empty: the empty mesh fell back to the blue ball, mid-transformation.
     local function Fill(t, n, also)
@@ -1675,16 +1727,16 @@ function SpecialStage:LoadSuper()
     Fill(self.sonicTransform, TRANSFORM_BLUE, self.superTransform[0])
     if (GcTest ~= nil and GcTest.memLog ~= nil) then
         local free = (System.GetFreeMemory ~= nil) and (System.GetFreeMemory() // 1024) or -1
-        Log.Warning(string.format("SUPER LOAD missed %d of %d frames, %d KB free after", missed,
-            SUPER_FLY_FRAMES + TRANSFORM_GOLD + TRANSFORM_BLUE, free))
+        Log.Warning(string.format("SUPER LOAD missed %d of %d frames, %d KB free after, t=%.1f", self.superMissed,
+            #queue, free, self.runClock or -1))
     end
+    self.superQueue, self.superReady = nil, true
     -- HIS FRAMES TAKE THE HEADROOM LUA'S GARBAGE HAD. At Lua's own pace (pause 200) the heap runs
     -- to twice what is live before it is collected: 1.3 MB swung to 3 MB, and with his 1.8 MB of
     -- frames in, the top of a swing left a GameCube nothing -- sky frames failed, then the game died
     -- (Super, spin dashing and jumping through bombs, stage 3). Collected sooner, the swing stays
     -- small. (Screens.lua sets Lua's pace back when the stage is left.)
-    collectgarbage("setpause", 120)
-    collectgarbage("setstepmul", 400)
+    TightenCollector(120, 400)
     return self.superFly[0] ~= nil
 end
 
@@ -1733,6 +1785,9 @@ function SpecialStage:SpawnSuperSparkles(n, trail)
 end
 
 function SpecialStage:TickSuper(dt)
+    -- with every emerald won, his frames are read a few a tick from the stage's start (LoadSuper)
+    -- (off for now, the owner's call: his frames are read at the first transformation instead)
+    if (SUPER_PRELOAD and AllEmeraldsWon == true and not self.superReady) then self:LoadSuper(SUPER_PRELOAD_PER_TICK) end
     if (self.super == nil) then
         -- (a test without a pad: GcTest.superAt = seconds into the run, with the rings for it)
         -- (the rings come 5 s before, so the prompt can be seen)
