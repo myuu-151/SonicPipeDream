@@ -1050,6 +1050,7 @@ function SpecialStage:Restart()
     -- run, revs four times and lets go, and again every 8 seconds.
     self.testSpin = (os ~= nil and os.getenv ~= nil and tonumber(os.getenv("S2_TEST_SPIN") or "")) or nil
     self.testSpinClock = 0.0
+    if (GcTest ~= nil and GcTest.spinAt ~= nil) then self.testSpin = GcTest.spinAt end    -- (a test: spin dashes)
     -- A time attack's lives (GameOptions: LIVES; 0 is never out): a hit with no rings costs one.
     self.lives = (self.data.timeAttack and GameOptions ~= nil) and GameOptions.timeAttack.lives or 1
     -- a time attack's time left: from the setup's, down
@@ -1067,6 +1068,8 @@ function SpecialStage:Restart()
         self.testBounces = tonumber(os.getenv("S2_AUTOBOUNCES") or "") or 0
         self.testHold = os.getenv("S2_AUTOHOLD") ~= nil           -- as if jump were held down
     end
+    if (GcTest ~= nil and GcTest.startRings ~= nil) then StartWithRings = GcTest.startRings end   -- (a test: the code)
+    self.superTested = nil          -- (a test: GcTest.superAt goes again after a restart)
     if (StartWithRings ~= nil) then self.rings = StartWithRings end     -- the 50-ring code (OptionsPrompt.lua)
     if (os ~= nil and os.getenv ~= nil and os.getenv("S2_TEST_RINGS") ~= nil) then
         self.rings = tonumber(os.getenv("S2_TEST_RINGS")) or 0
@@ -1637,6 +1640,13 @@ function SpecialStage:LoadSuper()
     for i = 0, SUPER_FLY_FRAMES - 1 do self.superFly[i] = LoadAsset(string.format("SM_Super_Fly_%02d", i)) end
     for i = 0, TRANSFORM_GOLD - 1 do self.superTransform[i] = LoadAsset(string.format("SM_Super_Transform_%02d", i)) end
     for i = 0, TRANSFORM_BLUE - 1 do self.sonicTransform[i] = LoadAsset(string.format("SM_Sonic_Transform_%02d", i)) end
+    -- HIS FRAMES TAKE THE HEADROOM LUA'S GARBAGE HAD. At Lua's own pace (pause 200) the heap runs
+    -- to twice what is live before it is collected: 1.3 MB swung to 3 MB, and with his 1.8 MB of
+    -- frames in, the top of a swing left a GameCube nothing -- sky frames failed, then the game died
+    -- (Super, spin dashing and jumping through bombs, stage 3). Collected sooner, the swing stays
+    -- small. (Screens.lua sets Lua's pace back when the stage is left.)
+    collectgarbage("setpause", 120)
+    collectgarbage("setstepmul", 400)
     return self.superFly[0] ~= nil
 end
 
@@ -2131,6 +2141,24 @@ function SpecialStage:Tick(deltaTime)
     local inBounce = self.bounceClock ~= nil
     local rising = inBounce and self.vy > 0.0
     if (self.testJump ~= nil and self.frame >= self.testJump) then autoJump, self.testJump = true, nil end
+    -- (a test: GcTest.memLog = seconds between reports of memory and effects)
+    if (GcTest ~= nil and GcTest.memLog ~= nil) then
+        self.memLogClock = (self.memLogClock or 0.0) + dt
+        if (self.memLogClock >= GcTest.memLog) then
+            self.memLogClock = 0.0
+            local pooled = 0
+            for _, list in pairs(self.fxPool or {}) do pooled = pooled + #list end
+            local free = (System.GetFreeMemory ~= nil) and (System.GetFreeMemory() // 1024) or -1
+            Log.Warning(string.format("MEM t=%.1f free=%dKB lua=%dKB fx=%d pooled=%d trace=%d super=%s dash=%s h=%.2f",
+                self.runClock, free, math.floor(collectgarbage("count")), #self.fx, pooled, #(self.trace or {}),
+                tostring(self.super), tostring(self.spinDash ~= nil or self.dashClock ~= nil), self.height))
+        end
+    end
+    -- (a test without a pad: GcTest.jumpEvery = seconds between jumps)
+    if (GcTest ~= nil and GcTest.jumpEvery ~= nil and self.height <= 0.0 and self.hold <= 0.0) then
+        self.testJumpClock = (self.testJumpClock or 0.0) + dt
+        if (self.testJumpClock >= GcTest.jumpEvery) then autoJump, self.testJumpClock = true, 0.0 end
+    end
     if (self.testDive ~= nil and self.height > 0.0 and not self.diving and self.bouncePress == nil and self.fallTime >= self.testDive) then
         autoJump, self.testDive = true, nil
         if (self.testBounces > 0) then self.testBounces, self.testDive = self.testBounces - 1, self.testDiveAt end
