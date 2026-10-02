@@ -1704,11 +1704,11 @@ function SpecialStage:LoadSuper(budget)
     while (self.superNext <= #queue and (budget == nil or inFlight < budget)) do
         local q = queue[self.superNext]
         self.superNext = self.superNext + 1
-        if (budget ~= nil and AsyncLoadAsset ~= nil) then
+        if (budget ~= nil and AsyncLoadAsset ~= nil and SuperFramesHeld == nil) then
             q.asked, q.wait = AsyncLoadAsset(q.name), 0
             inFlight = inFlight + 1
         else
-            Take(q)
+            Take(q)             -- (read behind the loading screen, SuperFramesHeld: in already)
         end
     end
     if (self.superNext <= #queue or inFlight > 0) then return false end
@@ -1734,6 +1734,7 @@ function SpecialStage:LoadSuper(budget)
             #queue, free, self.runClock or -1))
     end
     self.superQueue, self.superReady = nil, true
+    SuperFramesHeld = nil       -- the loading screen's hold on them (GameCube Screens.lua): ours now
     -- HIS FRAMES TAKE THE HEADROOM LUA'S GARBAGE HAD. At Lua's own pace (pause 200) the heap runs
     -- to twice what is live before it is collected: 1.3 MB swung to 3 MB, and with his 1.8 MB of
     -- frames in, the top of a swing left a GameCube nothing -- sky frames failed, then the game died
