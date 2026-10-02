@@ -259,6 +259,8 @@ class Builder:
                     self.show_step(rest[0])
                 elif kind == 'progress':
                     self.show_progress(*rest)
+                elif kind == 'count':
+                    self.status.configure(text=f'{self.phase}: {self.step}, {rest[0]} files compiled')
                 elif kind == 'done':
                     self.finished(*rest)
         except queue.Empty:
@@ -333,14 +335,20 @@ class Builder:
         """Octave's Windows program (Standalone, Release|x64), with MSBuild: 2 projects at a time.
         Octave's packaging builds it too, through Visual Studio, which would use every core; built
         here first, that finds it up to date."""
-        total = program_sources(octave)
+        # 526: what a whole build of it compiles (measured), more than the projects list; when it's
+        # been built before, only what changed, so then just counted
+        objects = octave / 'Engine' / 'Intermediate' / 'Windows' / 'x64' / 'Release'
+        total = 0 if objects.is_dir() and any(objects.rglob('*.obj')) else 526
         count = {'done': 0}
         self.lines.put(('step', "compiling Octave's Windows program"))
 
         def watch(text):
             if SOURCE_LINE.match(text):
                 count['done'] += 1
-                self.lines.put(('progress', min(count['done'], total), max(total, count['done'])))
+                if total:
+                    self.lines.put(('progress', min(count['done'], total), max(total, count['done'])))
+                else:
+                    self.lines.put(('count', count['done']))
                 return False
             return bool(IMPORTANT.search(text)) and 'warning' not in text.lower()
         return self.run([str(self.msbuild), 'Octave.sln', '/t:Standalone', '/p:Configuration=Release',
