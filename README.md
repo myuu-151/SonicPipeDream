@@ -30,6 +30,24 @@
 - **Windows**: download the latest build from [Releases](https://github.com/myuu-151/SonicPipeDream/releases), unzip it and run `Sonic2Special3D.exe`.
 - **GameCube**, as a disc image: [Sonic Pipe Dream (GameCube)](https://github.com/myuu-151/SonicPipeDream-GC).
 
+## Building it yourself
+
+Everything the game needs is in this repo. You need:
+- **[Octave-libogc](https://github.com/myuu-151/Octave-libogc)**: a clone of its source, with its
+  editor (`Octave.exe`) at the root, as the v2.2 release has it.
+- **Visual Studio** with "Desktop development with C++".
+- **The [Vulkan SDK](https://vulkan.lunarg.com)**: it compiles the shaders.
+- **Python 3**, for the builder.
+
+Double-click **`Build Sonic Pipe Dream.bat`**. The builder window checks each of those and says
+how to fix anything missing. One button then compiles Octave's Windows program (two projects at a
+time, at low priority), packages the game with Octave and, if ticked, zips it to share. Each step
+shows how far it is; nothing opens a window of its own. The first build takes about ten minutes,
+later ones about three. The game is `proj/Packaged/Windows/Sonic2Special3D.exe`, and the zip
+`proj/Packaged/SonicPipeDream-Windows.zip`.
+
+![The builder](docs/builder.png)
+
 ## More
 
 How it is made -- the stage and track generators, the ring and bomb patterns, the skies -- is in

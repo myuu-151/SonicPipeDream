@@ -17,3 +17,6 @@ preview_diamonds/
 
 # Per-module renders from native/gen_ring_modules.py; the sheet made from them is kept
 external/ring/preview/
+
+# The builder's chosen folder (native/builder.py)
+native/.builder.json
