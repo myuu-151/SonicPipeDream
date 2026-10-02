@@ -120,6 +120,17 @@ end
 
 -- The Super Sonic prompt, at the right of the screen: his head small over the Z button, shown
 -- while he can transform (SpecialStage.lua's CanSuper).
+-- The lives' head: Super Sonic's (gold, the same 70 x 68 shape) while he is Super.
+function SpecialStageUI:SetSuperLives(on)
+    on = on and true or false
+    if (on == (self.superLives or false)) then return end
+    self.superLives = on
+    if (self.livesIcon == nil) then return end
+    if (on and self.texSuperHead == nil) then self.texSuperHead = LoadAsset("T_UI_Super") end
+    local tex = (on and self.texSuperHead) or self.texLives
+    if (tex ~= nil) then self.livesIcon:SetTexture(tex) end
+end
+
 function SpecialStageUI:SetSuperPrompt(on)
     on = on and true or false
     if (on == self.superPrompt) then return end
@@ -240,7 +251,9 @@ function SpecialStageUI:Build()
     self.ringsNumber = MakeText(self, tostring(self.rings), WHITE)
     self.totalBox    = MakeQuad(self, LoadAsset("T_UI_Total"), WHITE)           -- the frame, word and all
     self.totalNumber = MakeText(self, tostring(self.total), WHITE)
-    self.livesIcon   = MakeQuad(self, LoadAsset("T_UI_Lives"), WHITE)
+    self.texLives    = LoadAsset("T_UI_Lives")
+    self.livesIcon   = MakeQuad(self, self.texLives, WHITE)
+    self.superLives  = false
     self.timeBox     = MakeQuad(self, LoadAsset("T_UI_Time") or LoadAsset("T_UI_Total"), WHITE)
     self.clockText   = MakeText(self, self.clock or "", WHITE)
     local timed = (self.clock ~= nil)

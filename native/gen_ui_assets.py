@@ -229,7 +229,11 @@ def main():
     super7 = os.path.join(ART, "T_UI_Super7.png")      # the owner's gradient on the big head, outlined, 70 x 68
     super2 = os.path.join(ART, "T_UI_Super2.png")
     if os.path.exists(super7):
-        save(Image.open(super7).convert("RGBA"), 15, "T_UI_Super", scale=1)
+        # on black, opaque, as the blue head shows on the console (its gradient blocks up compressed)
+        head = Image.open(super7).convert("RGBA")
+        boxed = Image.new("RGBA", head.size, (0, 0, 0, 255))
+        boxed.alpha_composite(head)
+        save(boxed, 15, "T_UI_Super", scale=1, force_hq=True)
     elif os.path.exists(super2):
         save(outlined(Image.open(super2).convert("RGBA")), 15, "T_UI_Super", scale=1)
     else:

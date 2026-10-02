@@ -76,6 +76,8 @@ def check_numbers(stage, secs):
     return out
 
 
+SUPER_BALL = (0.97, 0.78, 0.10)         # Super Sonic's ball: his fur's gold
+
 args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 STAGE = int(args[0]) if args and args[0].isdigit() else 1
 # `-- marathon <seed>`: a marathon gen_stage.py made ahead of time (Marathon_seed<seed>.json), written
@@ -707,6 +709,8 @@ def main():
                    material="M_StageMetal")
     write_mesh("SM_PlayerBall", 221, simple("Ball", lambda bm: bmesh.ops.create_icosphere(bm, subdivisions=3, radius=1.7)),
                lambda k: (0.12, 0.30, 0.95))
+    write_mesh("SM_PlayerBallSuper", 223, simple("Ball", lambda bm: bmesh.ops.create_icosphere(bm, subdivisions=3, radius=1.7)),
+               lambda k: SUPER_BALL)              # Super Sonic's, gold
     write_mesh("SM_Emerald", 222, simple("Emerald", octahedron), lambda k: (0.10, 0.85, 0.95))
     write_shadow()
 

@@ -53,6 +53,7 @@ local PAGES = {
                            { label = "DROP DASH", info = "A IN THE AIR" },
                            { label = "SPIN DASH", info = "HOLD R, A TO REV" },
                            { label = "SUPER SONIC", info = "Z, 50 RINGS" },
+                           { label = "SUPER GLIDE", info = "HOLD A" },
                            { label = "PAUSE", info = "START" },
                            { label = "BACK", info = "B" } } },
     audio = { title = "AUDIO", back = "options",
@@ -229,6 +230,73 @@ local function Step(settings, setting, by)
     settings[setting] = values[(at - 1 + by) % #values + 1]
 end
 
+-- THE CODES, on the CONTROLS page, read off the pad itself. Each starts up, down, left, right, up,
+-- down, left, right on the d-pad; a ring sounds when one is in.
+--     ...then X, B, X, B, Y, Y, A           every emerald won (and saved, with a save)
+--     ...then A, A, B, B, X, X, Y, Y        every stage starts with 50 rings (until the power is off)
+local DPAD = { "Up", "Down", "Left", "Right", "Up", "Down", "Left", "Right" }
+local function Code(...)
+    local c = {}
+    for _, b in ipairs(DPAD) do c[#c + 1] = b end
+    for _, b in ipairs({ ... }) do c[#c + 1] = b end
+    return c
+end
+local CODE_BUTTONS = { "Up", "Down", "Left", "Right", "X", "Y", "A", "B" }
+local CODES                         -- (filled in below, once what they do is defined)
+
+local function UnlockEmeralds()
+    local select = TheStageSelect
+    if (select ~= nil) then
+        if (select.won == nil) then select:LoadWon() end
+        for i = 1, #select.won do select.won[i] = true end
+        select:SaveWon()
+        if (select.built) then select:Refresh() end
+    end
+    AllEmeraldsWon = true
+    if (TheMenu ~= nil) then TheMenu:SetUnlocked("marathon", true) end
+end
+
+CODES = {
+    { keys = Code("X", "B", "X", "B", "Y", "Y", "A"), go = UnlockEmeralds },
+    { keys = Code("A", "A", "B", "B", "X", "X", "Y", "Y"), go = function() StartWithRings = 50 end },
+}
+
+-- The buttons pressed so far (the last few): true when this tick's press is part of a code under way
+-- (so B, then, is the code's and not BACK).
+function OptionsPrompt:TickCode()
+    if (Input.IsGamepadButtonJustDown == nil) then return false end
+    local pressed = nil
+    for _, b in ipairs(CODE_BUTTONS) do
+        if (Input.IsGamepadButtonJustDown(Gamepad[b])) then pressed = b end
+    end
+    if (pressed == nil) then return false end
+    local keys = self.codeKeys or {}
+    keys[#keys + 1] = pressed
+    if (#keys > 24) then table.remove(keys, 1) end
+    self.codeKeys = keys
+    -- the longest run at the end of what was pressed that some code begins with
+    local under = 0
+    for _, code in ipairs(CODES) do
+        for n = math.min(#keys, #code.keys), 1, -1 do
+            local match = true
+            for i = 1, n do
+                if (keys[#keys - n + i] ~= code.keys[i]) then match = false; break end
+            end
+            if (match) then
+                if (n == #code.keys) then
+                    code.go()
+                    Sound("Ring")
+                    self.codeKeys = {}
+                    return true
+                end
+                under = math.max(under, n)
+                break
+            end
+        end
+    end
+    return under > 1
+end
+
 function OptionsPrompt:Tick(deltaTime)
     if (not self.built) then self:Build() end
     if (not self.shown) then return end
@@ -245,6 +313,12 @@ function OptionsPrompt:Tick(deltaTime)
     local yes = Input.IsKeyJustDown(Key.Enter) or Input.IsKeyJustDown(Key.Space)
     local no = Input.IsKeyJustDown(Key.Backspace) or Input.IsKeyJustDown(Key.Escape)
     local line = page.lines[self.index]
+    if (self.page == "controls") then
+        -- (B is the code's when it is the code's next button: it does not go back then)
+        if (self:TickCode()) then no = false end            -- (B in a code is not BACK)
+    else
+        self.codeKeys = nil
+    end
 
     if (no) then
         Sound("MenuBack")

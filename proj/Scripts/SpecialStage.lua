@@ -164,6 +164,8 @@ end
 -- as the camera sees them (and more solid there), as an energy trail -- a flat blue read as dull.
 local TRACE_CORE = { 0.04, 0.20, 0.95 }
 local TRACE_RIM = { 0.22, 0.58, 1.0 }       -- (still a strong blue: lighter than this washed it out)
+local TRACE_CORE_SUPER = { 1.0, 0.72, 0.0 }     -- ...and gold, Super Sonic's
+local TRACE_RIM_SUPER = { 1.0, 0.92, 0.45 }
 local TRACE_ALPHA = 0.9         -- at the ball, at its edges...
 local TRACE_CLEAR = 0.55        -- ...and through its middle, as a share of that
 local DASH_FX = 1.15            -- the puffs and the streak while he is going faster than this
@@ -194,7 +196,7 @@ local SONIC_FPS = 42.0          -- his animations were made at 24 frames a secon
 local SONIC_FRAMES = 16         -- in a run cycle
 -- SUPER SONIC, with all seven emeralds won (StageSelect: AllEmeraldsWon): Z with SUPER_RINGS rings
 -- transforms him, as in Sonic 2 -- the curl and the burst (anim_transform.py: the blue frames, then
--- the flash and the gold ones), gold and blue sparkles round him, his sound and his aura -- and as
+-- the flash and the gold ones), gold and blue sparkles round him, his sound -- and as
 -- Super he flies the pipe (the Fly loop, anim_super_fly.py), faster, bombs cannot hurt him, and his
 -- rings drain SUPER_DRAIN a second; at none he is himself again. The meshes are a frame each
 -- (export_sonic_to_octave.py, SONIC_WHO=Super), loaded only when he can transform.
@@ -202,10 +204,16 @@ local SUPER_RINGS = 50
 local SUPER_DRAIN = 1.0             -- rings a second
 local SUPER_SPEED = 1.25            -- of his own
 local SUPER_HOVER = 1.2             -- units off the pipe, flying
+local TRANSFORM_LIFT = 1.0          -- ...and transforming (the pose curls his feet up under him)
+local SUPER_DESCEND = 8.0           -- units a second he sinks after transforming in the air
+local SUPER_GLIDE_GRAVITY = 0.6     -- of the pull once his jump turns down: up as the ball at the full
+                                    -- pull (the ceiling as ever), down gliding in his flying pose
+                                    -- (with the jump held, he sinks at SUPER_DESCEND, as after
+                                    -- transforming in the air)
 local SUPER_FLY_FRAMES, SUPER_FLY_FPS = 24, 12.0
 local TRANSFORM_BLUE, TRANSFORM_GOLD, TRANSFORM_FPS = 6, 13, 12.0     -- frames: his, then Super's
 local SUPER_SPARKLE_RATE = 16.0     -- a second, round him, while he transforms
-local SUPER_HOLD_SPARKLE_RATE = 3.0 -- ...and while he flies
+local SUPER_HOLD_SPARKLE_RATE = 12.0  -- ...flying, this many left behind him as a trail    -- ...and while he flies, left behind him as a trail
 local THUMBS_TIME = 2.8         -- seconds of thumbs-up running after a check is passed. The ring
                                 -- check leaves 44 empty frames past the arch: 2.9 s at this speed.
 -- THE MARATHON (StageDataMarathon, made ahead of time by gen_stage.py and written by
@@ -483,6 +491,7 @@ function SpecialStage:Build()
     world:SetAmbientLightColor(Vec(0.62, 0.62, 0.66, 1.0))
 
     self.meshBall = LoadAsset("SM_PlayerBall")
+    self.meshBallSuper = LoadAsset("SM_PlayerBallSuper")
     self.meshSparkle, self.meshBoom = LoadAsset("SM_FxQuad"), LoadAsset("SM_FxQuadBoom")
     self.meshFx = { sparkle = self.meshSparkle, boom = self.meshBoom, razor = LoadAsset("SM_FxQuadRazor"),
                     puff = LoadAsset("SM_FxQuadPuff"), lostring = self.meshRing,
@@ -1058,6 +1067,7 @@ function SpecialStage:Restart()
         self.testBounces = tonumber(os.getenv("S2_AUTOBOUNCES") or "") or 0
         self.testHold = os.getenv("S2_AUTOHOLD") ~= nil           -- as if jump were held down
     end
+    if (StartWithRings ~= nil) then self.rings = StartWithRings end     -- the 50-ring code (OptionsPrompt.lua)
     if (os ~= nil and os.getenv ~= nil and os.getenv("S2_TEST_RINGS") ~= nil) then
         self.rings = tonumber(os.getenv("S2_TEST_RINGS")) or 0
     end
@@ -1286,6 +1296,8 @@ function SpecialStage:TraceMesh(trace)
         local lift = math.max(0.0, ringR - BALL_RADIUS * 0.97)
         cx, cy, cz = cx + ux * lift, cy + uy * lift, cz + uz * lift
         local alpha = TRACE_ALPHA * (1.0 - u) ^ TRAIL_FADE
+        local core = (self.super ~= nil) and TRACE_CORE_SUPER or TRACE_CORE
+        local rimc = (self.super ~= nil) and TRACE_RIM_SUPER or TRACE_RIM
         for k = 0, TRACE_SIDES do
             local cs = TRACE_ROUND[k]
             -- the way this vertex faces, and how edge-on the camera sees it (1 at the edge)
@@ -1295,9 +1307,9 @@ function SpecialStage:TraceMesh(trace)
             local rim = 1.0 - math.abs(nx * lx + ny * ly + nz * lz)
             rim = rim * rim
             xyz[vi + 1], xyz[vi + 2], xyz[vi + 3] = cx + nx * ringR, cy + ny * ringR, cz + nz * ringR
-            rgba[ci + 1] = TRACE_CORE[1] + (TRACE_RIM[1] - TRACE_CORE[1]) * rim
-            rgba[ci + 2] = TRACE_CORE[2] + (TRACE_RIM[2] - TRACE_CORE[2]) * rim
-            rgba[ci + 3] = TRACE_CORE[3] + (TRACE_RIM[3] - TRACE_CORE[3]) * rim
+            rgba[ci + 1] = core[1] + (rimc[1] - core[1]) * rim
+            rgba[ci + 2] = core[2] + (rimc[2] - core[2]) * rim
+            rgba[ci + 3] = core[3] + (rimc[3] - core[3]) * rim
             rgba[ci + 4] = alpha * (TRACE_CLEAR + (1.0 - TRACE_CLEAR) * rim)
             vi, ci = vi + 3, ci + 4
         end
@@ -1602,19 +1614,34 @@ end
 -- He can transform now: all seven emeralds, the rings for it, on the pipe, himself, the run on.
 function SpecialStage:CanSuper()
     return AllEmeraldsWon == true and self.super == nil and self.rings >= SUPER_RINGS
-        and self.height <= 0.0 and self.spinDash == nil and self.stun <= 0.0
+        and self.spinDash == nil and self.stun <= 0.0           -- (in the air too)
         and self.hold <= 0.0 and self.over < 0.0 and not self.failed
 end
 
--- His frames, the first time they are wanted (only with the emeralds: 2 MB a GameCube need not hold).
+-- His frames, the first time they are wanted (only with the emeralds: 2 MB a GameCube need not
+-- hold; loaded with the stage, the stage no longer fitted and never finished loading). After long
+-- play the heap is cut up and his sheet may find no room: he came out white or black. So the sheet
+-- goes first (the one big block), and without it there is no Super Sonic -- not a white one.
 function SpecialStage:LoadSuper()
     if (self.superFly ~= nil) then return self.superFly[0] ~= nil end
+    self.superSheet = self.superSheet or LoadAsset("T_SuperSonic")
+    self.superLook = self.superLook or LoadAsset("M_SuperSonic")
+    if (self.superSheet == nil or self.superLook == nil) then
+        Log.Warning("Super Sonic: his sheet did not load")
+        return false
+    end
+    -- his sound next, small, before the frames fill the heap
+    self.sounds = self.sounds or {}
+    self.sounds.SuperSonic = self.sounds.SuperSonic or LoadAsset("SW_SuperSonic")
     self.superFly, self.superTransform, self.sonicTransform = {}, {}, {}
     for i = 0, SUPER_FLY_FRAMES - 1 do self.superFly[i] = LoadAsset(string.format("SM_Super_Fly_%02d", i)) end
     for i = 0, TRANSFORM_GOLD - 1 do self.superTransform[i] = LoadAsset(string.format("SM_Super_Transform_%02d", i)) end
     for i = 0, TRANSFORM_BLUE - 1 do self.sonicTransform[i] = LoadAsset(string.format("SM_Sonic_Transform_%02d", i)) end
     return self.superFly[0] ~= nil
 end
+
+-- (MIX and PRIORITY, the sound tables, are filled in below; declared here so these see them)
+local MIX, PRIORITY
 
 function SpecialStage:BeginSuper()
     if (not self:LoadSuper()) then
@@ -1623,39 +1650,37 @@ function SpecialStage:BeginSuper()
     end
     self.super, self.superClock, self.superSparkle = "transform", 0.0, 0.0
     self:Sound("SuperSonic")
-    self.aura = self.aura or {}
-    self.aura.intro = self.aura.intro or LoadAsset("SW_SuperAuraIntro")
-    self.aura.loop = self.aura.loop or LoadAsset("SW_SuperAuraLoop")
-    if (self.aura.intro ~= nil) then
-        self.aura.left = self.aura.intro:GetDuration()
-        Audio.PlaySound2D(self.aura.intro, MIX.SuperAura, 1.0, 0.0, false, PRIORITY.SuperAura)
-    else
-        self.aura.left = 0.0
-    end
-    self.aura.looping = false
 end
 
 function SpecialStage:EndSuper()
-    if (self.aura ~= nil) then
-        if (self.aura.intro ~= nil) then Audio.StopSounds(self.aura.intro) end
-        if (self.aura.loop ~= nil) then Audio.StopSounds(self.aura.loop) end
-        self.aura.looping = false
-    end
-    self.super = nil
+    self.super, self.superHang = nil, nil
 end
 
--- Sparkles round him, gold and blue (Sonic 2's), `n` of them this tick.
-function SpecialStage:SpawnSuperSparkles(n)
+-- Sparkles round him, gold and blue (Sonic 2's), `n` of them this tick. Transforming they burst
+-- out round him and move with him; flying (`trail`) each is left where he was, drifting a little,
+-- so they stream out behind him.
+function SpecialStage:SpawnSuperSparkles(n, trail)
     for i = 1, n do
         local kind = (math.random() < 0.5) and "sparkleGold" or "sparkleBlue"
         local node = self:FxNode(kind)
         if (node == nil) then return end
         local a = math.random() * TWO_PI
         local push = 0.5 + math.random() * 1.0
-        self.fx[#self.fx + 1] = { kind = kind, node = node, age = 0.0, life = SPARKLE_LIFE * 1.3,
-                                  ahead = 0.0, angle = self.angle, height = self.data.hover + 1.5,
-                                  dAngle = math.cos(a) * push * 16.0, dHeight = math.sin(a) * push * 3.0,
-                                  size = SPARKLE_SIZE * (1.0 + math.random() * 0.8) }
+        if (trail) then
+            self.fx[#self.fx + 1] = { kind = kind, node = node, age = 0.0, life = SPARKLE_LIFE * 1.6,
+                                      at = self.frame - 0.15, ahead = 0.0,
+                                      angle = self.angle + (math.random() - 0.5) * 10.0,
+                                      height = self.data.hover + SUPER_HOVER + 0.6 + (math.random() - 0.5) * 1.2,
+                                      dAngle = math.cos(a) * push * 5.0, dHeight = math.sin(a) * push * 1.2,
+                                      size = SPARKLE_SIZE * (1.2 + math.random() * 0.8) }
+        else
+            self.fx[#self.fx + 1] = { kind = kind, node = node, age = 0.0, life = SPARKLE_LIFE * 1.3,
+                                      ahead = 0.0, angle = self.angle,
+                                      -- (about his middle: lifted as he is, on the pipe or in the air)
+                                      height = self.data.hover + 1.5 + ((self.height > 0.0) and self.height or TRANSFORM_LIFT),
+                                      dAngle = math.cos(a) * push * 16.0, dHeight = math.sin(a) * push * 3.0,
+                                      size = SPARKLE_SIZE * (1.0 + math.random() * 0.8) }
+        end
     end
 end
 
@@ -1678,15 +1703,6 @@ function SpecialStage:TickSuper(dt)
         return
     end
     self.superClock = self.superClock + dt
-    -- the aura: its intro once, then its loop (on the clock, as the music is)
-    local aura = self.aura
-    if (aura ~= nil and not aura.looping) then
-        aura.left = aura.left - dt
-        if (aura.left <= dt * 0.5) then
-            aura.looping = true
-            if (aura.loop ~= nil) then Audio.PlaySound2D(aura.loop, MIX.SuperAura, 1.0, 0.0, true, PRIORITY.SuperAura) end
-        end
-    end
     if (self.super == "transform") then
         self.superSparkle = self.superSparkle + SUPER_SPARKLE_RATE * dt
         if (self.superClock * TRANSFORM_FPS >= TRANSFORM_BLUE + TRANSFORM_GOLD) then
@@ -1705,7 +1721,7 @@ function SpecialStage:TickSuper(dt)
     local n = math.floor(self.superSparkle)
     if (n > 0) then
         self.superSparkle = self.superSparkle - n
-        self:SpawnSuperSparkles(n)
+        self:SpawnSuperSparkles(n, self.super == "on")       -- the trail flying; about him transforming
     end
 end
 
@@ -1815,6 +1831,7 @@ function SpecialStage:UpdateUI()
     local section = self.data.sections[math.min(self.section, #self.data.sections)]
     TheSpecialStageUI:SetRings(self.rings)
     if (TheSpecialStageUI.SetSuperPrompt ~= nil) then TheSpecialStageUI:SetSuperPrompt(self:CanSuper()) end
+    if (TheSpecialStageUI.SetSuperLives ~= nil) then TheSpecialStageUI:SetSuperLives(self.super ~= nil) end
     if (self.data.timeAttack) then
         TheSpecialStageUI:SetClock(FormatClock(self.timeLeft))            -- the time, where TOTAL was
     else
@@ -1833,9 +1850,9 @@ end
 -- music (rms 0.34 against 0.16) and it is the one sound that plays in bursts, several a second,
 -- each on top of the last. So every effect has its own level here, set against the music at 1.0:
 -- the ring well under it, the one-off fanfares about level with it.
-local MIX = { Ring = 0.22, LoseRings = 0.55, Jump = 0.40, Checkpoint = 0.65, GetEmerald = 1.0,
+MIX = { Ring = 0.22, LoseRings = 0.55, Jump = 0.40, Checkpoint = 0.65, GetEmerald = 1.0,
               Explosion = 0.60, Fail = 0.70, ExitStage = 0.60, SpinRev = 0.45, SpinRelease = 0.70, Hurt = 0.80,
-              SuperSonic = 0.9, SuperAura = 0.5 }
+              SuperSonic = 1.0 }
 -- A sound played from another's asset (none now).
 local SOUND_ASSET = {}
 
@@ -1846,9 +1863,9 @@ local SOUND_ASSET = {}
 -- higher; the music is the highest of all, SpecialStageMusic.lua); and the jump and the spin rev
 -- play ONE AT A TIME, each cutting the last off (the engine's Max Instances, 1). Rings ring over each
 -- other: the lowest priority of all, a burst of them gives way to anything that matters.
-local PRIORITY = { Ring = 10, SpinRev = 15, Jump = 20, LoseRings = 30, Explosion = 30, SpinRelease = 40,
+PRIORITY = { Ring = 10, SpinRev = 15, Jump = 20, LoseRings = 30, Explosion = 30, SpinRelease = 40,
                    Checkpoint = 60, GetEmerald = 60, Fail = 60, Hurt = 60, ExitStage = 60, MenuWarp = 60,
-                   SuperSonic = 60, SuperAura = 50 }
+                   SuperSonic = 60 }
 local ONE_AT_A_TIME = { SpinRev = true, Jump = true }
 
 function SpecialStage:Sound(name, pitch)
@@ -2156,14 +2173,27 @@ function SpecialStage:Tick(deltaTime)
             end
         end
         -- and the flight itself: the rest of the push builds over the first moments, then gravity
-        if (not self.diving) then
+        if (self.super == "transform") then
+            self.vx, self.vy, self.superHang = 0.0, 0.0, true     -- hangs there till he is Super...
+        elseif (self.superHang) then
+            self.vx, self.vy = 0.0, -SUPER_DESCEND                 -- ...then is let down slowly
+            self.superGlide = true                                  -- (flying, not the ball)
+        elseif (not self.diving) then
             if (self.ramp < JUMP_RAMP and self.push > 0.0) then
                 local step = math.min(dt, JUMP_RAMP - self.ramp) / JUMP_RAMP
                 self.vx = self.vx + self.nx * self.push * step
                 self.vy = self.vy + self.ny * self.push * step
                 self.ramp = self.ramp + dt
             end
-            self.vy = self.vy - self.gravity * dt
+            -- (Super Sonic: up as the ball; once he is coming DOWN the screen -- the way the pull
+            -- goes -- he uncurls and glides down in his flying pose, a little gentler; with the jump
+            -- held, at a steady SUPER_DESCEND. Not in a bounce: that is the ball's, as ever.)
+            self.superGlide = (self.super == "on" and not self.falling and self.bounceClock == nil
+                               and (self.ramp >= JUMP_RAMP or self.push <= 0.0) and self.vy < 0.0)
+            self.vy = self.vy - self.gravity * (self.superGlide and SUPER_GLIDE_GRAVITY or 1.0) * dt
+            if (self.superGlide and Input.IsKeyDown(Key.Space) and self.vy < -SUPER_DESCEND) then
+                self.vy = self.vy + (-SUPER_DESCEND - self.vy) * math.min(1.0, 8.0 * dt)   -- eased to it
+            end
         end
         self.cx = self.cx + self.vx * dt
         self.cy = self.cy + self.vy * dt
@@ -2179,6 +2209,7 @@ function SpecialStage:Tick(deltaTime)
                                 radius - r, self.angle, self.cx, self.cy, self.vx, self.vy, self.diving and " DIVE" or ""))
         end
         if (r >= radius) then
+            self.superHang = nil
             -- LANDED. His run round the pipe goes on at the speed he came in with along the
             -- surface: a throw across carries its momentum onto the other side. But never faster
             -- than he left it, or than plain steering -- the wind-up past STEER is earned by
@@ -2194,7 +2225,7 @@ function SpecialStage:Tick(deltaTime)
             self.steer = math.max(-STEER_MAX, math.min(STEER_MAX, self.steer))
             if (self.testLog) then print(string.format("LAND angle %.1f steer %.1f", self.angle, self.steer)) end
             local bounce = self.diving and BOUNCE and not locked
-            self.height, self.diving, self.falling = 0.0, false, false
+            self.height, self.diving, self.falling, self.superGlide = 0.0, false, false, false
             self.bounceClock = nil
             self.bounces = bounce and (self.bounces or 0) + 1 or 0      -- in a row; a plain landing ends it
             local timed = self.firstPressToTop ~= nil and self.firstPressToTop <= PEAK_WINDOW
@@ -2260,6 +2291,8 @@ function SpecialStage:Tick(deltaTime)
     self.thumbs = math.max(0.0, self.thumbs - dt)
     self:TickSuper(dt)
     local airborne = (self.height > 0.0)
+    local glide = airborne and self.superGlide and self.super == "on" and not self.diving
+    local ballAir = airborne and not self.falling and not glide     -- in the air as the ball
     local curled = not airborne and (self.spinDash ~= nil or self.boost > DASH_BALL)
     local mesh
     if (self.super == "transform") then
@@ -2270,11 +2303,10 @@ function SpecialStage:Tick(deltaTime)
             mesh = self.superTransform[math.min(k - TRANSFORM_BLUE, TRANSFORM_GOLD - 1)]
         end
         curled = false
+    elseif (ballAir or curled) then
+        mesh = (self.super ~= nil) and self.meshBallSuper or self.meshBall   -- (Super too, gold)
     elseif (self.super == "on") then
         mesh = self.superFly[math.floor(self.superClock * SUPER_FLY_FPS) % SUPER_FLY_FRAMES]
-        curled = false
-    elseif ((airborne and not self.falling) or curled) then
-        mesh = self.meshBall
     else
         -- (at the start he is already running, up the lead-in, while START is up)
         local k = math.floor(self.runClock * SONIC_FPS) % SONIC_FRAMES
@@ -2320,7 +2352,7 @@ function SpecialStage:Tick(deltaTime)
         local t = self.dashClock
         long = 1.0 + DASH_LONG * math.exp(-6.0 * t) * math.cos(TWO_PI * 2.0 * t)
     end
-    if (airborne and not self.falling) then
+    if (ballAir) then
         if (self.diving) then
             tall = 1.0 + DROP_STRETCH * math.min(1.0, (self.diveClock or 0.0) / 0.08)
         elseif (self.bounceClock ~= nil and self.bounceClock < SQUASH_TIME) then
@@ -2333,10 +2365,13 @@ function SpecialStage:Tick(deltaTime)
         if (not curled) then _, _, upHere = self:TrackAt(self.frame) end
         place = Add(place, Scale(upHere, BALL_RADIUS * (tall - 1.0)))
     end
-    if (self.super == "on" and not airborne) then
-        -- flying: a little off the surface, and a slow bob
+    if (self.super == "on" and not airborne and not curled) then
+        -- flying (not the ball): a little off the surface, and a slow bob
         local _, _, upHere = self:TrackAt(self.frame)
         place = Add(place, Scale(upHere, SUPER_HOVER + 0.25 * math.sin(self.superClock * 2.5)))
+    elseif (self.super == "transform" and not airborne) then
+        local _, _, upHere = self:TrackAt(self.frame)
+        place = Add(place, Scale(upHere, TRANSFORM_LIFT))
     end
     self.player:SetWorldPosition(ToVec(place))
     if (tall ~= 1.0 or long ~= 1.0) then
@@ -2364,7 +2399,10 @@ function SpecialStage:Tick(deltaTime)
             return Add(Add(Scale(v, c), Scale(Cross(side, v), sn)), Scale(side, Dot(side, v) * (1.0 - c)))
         end
         self.player:SetWorldRotationQuat(FacingQuat(Turn(fwd), Turn(inward)))
-    elseif (airborne and not self.falling) then
+    elseif (glide) then
+        -- gliding down: his flying pose, feet toward the surface he comes down on
+        self.player:SetWorldRotationQuat(FacingQuat(fwd, inward))
+    elseif (ballAir) then
         -- The ball rolls THE WAY IT IS GOING: about the line square to its flight (on along the
         -- track, and across and up or down the pipe's section) and to the track's up. It used to
         -- roll forward only, whichever way he flew, so a throw across the pipe looked like a spin

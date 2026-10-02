@@ -72,12 +72,10 @@ EFFECTS = [
     ("Charge.ogg", "SW_SpinRev", 0x51C0FFEE00300021),           # ...and revved, a press of A
     ("Hurt.ogg", "SW_Hurt", 0x51C0FFEE00300022),                # GAME OVER (a time attack)
     ("super-sonic.mp3", "SW_SuperSonic", 0x51C0FFEE00300027),   # the transformation
-    ("super_aura_intro.wav", "SW_SuperAuraIntro", 0x51C0FFEE00300028),   # his aura: this once,
-    ("super_aura_loop.wav", "SW_SuperAuraLoop", 0x51C0FFEE00300029),     # then this while he is Super
 ]
 
 
-NORMALISE = {"SW_GetEmerald": 0.97}     # asset -> the peak to bring it up to (the file peaks at 0.51)
+NORMALISE = {"SW_GetEmerald": 0.97, "SW_SuperSonic": 0.95}     # asset -> the peak to bring it up to (the file peaks at 0.51)
 
 
 def write(asset, uuid, channels, width, rate, frames, pcm):
