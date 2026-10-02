@@ -1640,6 +1640,12 @@ function SpecialStage:LoadSuper()
     for i = 0, SUPER_FLY_FRAMES - 1 do self.superFly[i] = LoadAsset(string.format("SM_Super_Fly_%02d", i)) end
     for i = 0, TRANSFORM_GOLD - 1 do self.superTransform[i] = LoadAsset(string.format("SM_Super_Transform_%02d", i)) end
     for i = 0, TRANSFORM_BLUE - 1 do self.sonicTransform[i] = LoadAsset(string.format("SM_Sonic_Transform_%02d", i)) end
+    if (GcTest ~= nil and GcTest.memLog ~= nil) then
+        local function Count(t, n) local c = 0; for i = 0, n - 1 do if (t[i] ~= nil) then c = c + 1 end end; return c end
+        Log.Warning(string.format("SUPER LOAD fly %d/%d gold %d/%d blue %d/%d", Count(self.superFly, SUPER_FLY_FRAMES),
+            SUPER_FLY_FRAMES, Count(self.superTransform, TRANSFORM_GOLD), TRANSFORM_GOLD,
+            Count(self.sonicTransform, TRANSFORM_BLUE), TRANSFORM_BLUE))
+    end
     -- HIS FRAMES TAKE THE HEADROOM LUA'S GARBAGE HAD. At Lua's own pace (pause 200) the heap runs
     -- to twice what is live before it is collected: 1.3 MB swung to 3 MB, and with his 1.8 MB of
     -- frames in, the top of a swing left a GameCube nothing -- sky frames failed, then the game died
@@ -1663,7 +1669,7 @@ function SpecialStage:BeginSuper()
 end
 
 function SpecialStage:EndSuper()
-    self.super, self.superHang = nil, nil
+    self.super, self.superHang, self.superOff = nil, nil, nil
 end
 
 -- Sparkles round him, gold and blue (Sonic 2's), `n` of them this tick. Transforming they burst
@@ -1727,6 +1733,10 @@ function SpecialStage:TickSuper(dt)
             self.rings = math.max(0, self.rings - 1)
         end
         if (self.rings <= 0 or self.over >= 0.0) then self:EndSuper() end
+        -- Z again: himself, by choice -- on the pipe at once; in the air when he lands (turned back
+        -- up there he would drop as the blue ball)
+        if (self.super == "on" and SuperPressed()) then self.superOff = true end
+        if (self.super == "on" and self.superOff and self.height <= 0.0) then self:EndSuper() end
     end
     local n = math.floor(self.superSparkle)
     if (n > 0) then
@@ -1840,7 +1850,9 @@ function SpecialStage:UpdateUI()
     end
     local section = self.data.sections[math.min(self.section, #self.data.sections)]
     TheSpecialStageUI:SetRings(self.rings)
-    if (TheSpecialStageUI.SetSuperPrompt ~= nil) then TheSpecialStageUI:SetSuperPrompt(self:CanSuper()) end
+    if (TheSpecialStageUI.SetSuperPrompt ~= nil) then
+        TheSpecialStageUI:SetSuperPrompt((self.super == "on" and "normal") or (self:CanSuper() and "super") or nil)
+    end
     if (TheSpecialStageUI.SetSuperLives ~= nil) then TheSpecialStageUI:SetSuperLives(self.super ~= nil) end
     if (self.data.timeAttack) then
         TheSpecialStageUI:SetClock(FormatClock(self.timeLeft))            -- the time, where TOTAL was
@@ -2218,9 +2230,12 @@ function SpecialStage:Tick(deltaTime)
             -- held, at a steady SUPER_DESCEND. Not in a bounce: that is the ball's, as ever.)
             self.superGlide = (self.super == "on" and not self.falling and self.bounceClock == nil
                                and (self.ramp >= JUMP_RAMP or self.push <= 0.0) and self.vy < 0.0)
-            self.vy = self.vy - self.gravity * (self.superGlide and SUPER_GLIDE_GRAVITY or 1.0) * dt
-            if (self.superGlide and Input.IsKeyDown(Key.Space) and self.vy < -SUPER_DESCEND) then
-                self.vy = self.vy + (-SUPER_DESCEND - self.vy) * math.min(1.0, 8.0 * dt)   -- eased to it
+            if (self.superGlide and Input.IsKeyDown(Key.Space) and self.vy <= -SUPER_DESCEND) then
+                -- held, at the glide's speed: no more pull (eased down to it if he came in faster). It
+                -- was pulled AND eased back, and the two met at twice SUPER_DESCEND.
+                self.vy = self.vy + (-SUPER_DESCEND - self.vy) * math.min(1.0, 10.0 * dt)
+            else
+                self.vy = self.vy - self.gravity * (self.superGlide and SUPER_GLIDE_GRAVITY or 1.0) * dt
             end
         end
         self.cx = self.cx + self.vx * dt

@@ -34,7 +34,7 @@
 SpecialStageUI = {}
 
 local SCREEN_W, SCREEN_H = 320.0, 224.0
-local SUPER_ICON_W, SUPER_ICON_H = 91.0, 66.0     -- T_UI_SuperSmall's size (gen_ui_assets.py)
+local SUPER_ICON_W, SUPER_ICON_H = 70.0, 68.0     -- the heads' size, T_UI_Super's and T_UI_Lives' (gen_ui_assets.py)
 -- The share of the window kept clear all round. 0 on a monitor, which shows every pixel; a TV
 -- hides its edges (overscan), so a console build sets this to a few percent.
 local SAFE_MARGIN = 0.0
@@ -131,14 +131,22 @@ function SpecialStageUI:SetSuperLives(on)
     if (tex ~= nil) then self.livesIcon:SetTexture(tex) end
 end
 
-function SpecialStageUI:SetSuperPrompt(on)
-    on = on and true or false
-    if (on == self.superPrompt) then return end
-    self.superPrompt = on
-    if (self.built) then
-        self.superHead:SetVisible(on)
-        self.superButton:SetVisible(on)
-    end
+-- The Z prompt, with the head of who Z makes him: "super" (Super Sonic's, when he can transform),
+-- "normal" (Sonic's, while he is Super: Z turns him back), or nil (hidden).
+function SpecialStageUI:SetSuperPrompt(who)
+    if (who == true) then who = "super" end
+    if (who == false) then who = nil end
+    if (who == self.superPrompt) then return end
+    self.superPrompt = who
+    if (self.built) then self:ShowSuperPrompt() end
+end
+
+function SpecialStageUI:ShowSuperPrompt()
+    local who = self.superPrompt
+    local tex = (who == "normal") and self.texPromptSonic or self.texPromptSuper
+    if (tex ~= nil) then self.superHead:SetTexture(tex) end
+    self.superHead:SetVisible(who ~= nil and tex ~= nil)
+    self.superButton:SetVisible(who ~= nil)
 end
 
 -- A time attack's clock ("1:23"), in the TIME box (T_UI_Time: the TOTAL box's frame with TIME in
@@ -262,10 +270,11 @@ function SpecialStageUI:Build()
     self.totalBox:SetVisible(not timed)
     self.totalNumber:SetVisible(not timed)
     self.livesNumber = MakeText(self, "", WHITE)
-    self.superHead   = MakeQuad(self, LoadAsset("T_UI_SuperSmall"), WHITE)
+    -- (the prompt's heads on nothing, only their outlines: not the lives icon's black box)
+    self.texPromptSonic, self.texPromptSuper = LoadAsset("T_UI_SonicHead"), LoadAsset("T_UI_SuperHead")
+    self.superHead   = MakeQuad(self, nil, WHITE)
     self.superButton = MakeQuad(self, LoadAsset("T_UI_ButtonZ"), WHITE)
-    self.superHead:SetVisible(self.superPrompt == true)
-    self.superButton:SetVisible(self.superPrompt == true)
+    self:ShowSuperPrompt()
     self.livesIcon:SetVisible(self.lives ~= nil)
     self.livesNumber:SetVisible(self.lives ~= nil)
     if (self.lives ~= nil) then self.livesNumber:SetText("X " .. self.lives) end
@@ -348,8 +357,8 @@ function SpecialStageUI:Layout()
     self.livesNumber:SetTextSize(14.0 * self.k)
     self:Place(self.livesNumber, 31.0, 46.0)
 
-    -- the Super Sonic prompt, top right beside TOTAL: the Z button (49 x 24 art) with the emerald
-    -- (T_UI_SuperSmall, SUPER_ICON_W x SUPER_ICON_H) under it
+    -- the Super Sonic prompt, top right beside TOTAL: the Z button (49 x 24 art) with a head
+    -- (SUPER_ICON_W x SUPER_ICON_H) under it
     local px, zw = 250.0, 30.0
     local zh = zw * 24.0 / 49.0
     self:Place(self.superButton, px, 8.0, zw, zh)

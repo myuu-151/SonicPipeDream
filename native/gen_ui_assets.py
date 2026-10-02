@@ -246,6 +246,12 @@ def main():
     save(art("button_z2"), 16, "T_UI_ButtonZ", scale=1, force_hq=True)       # the owner's, keyed off its background (49 x 24)
     # ...with the emerald beside the Z (the owner's green one, outlined: external/ui/T_UI_SuperEmerald.png)
     save(art("T_UI_SuperEmerald"), 17, "T_UI_SuperSmall", scale=1, force_hq=True)
+    # ...and the heads the Z prompt shows now (who Z makes him): the lives icon's two, on NOTHING --
+    # only their outlines -- and uncompressed, or the cook boxes them in black as it does the lives icon
+    save(lives_icon(os.path.join(ART, "lives_sonic_eris1521987.png"), height=64), 18, "T_UI_SonicHead",
+         scale=1, force_hq=True)
+    if os.path.exists(super7):
+        save(Image.open(super7).convert("RGBA"), 19, "T_UI_SuperHead", scale=1, force_hq=True)
     save(art("total_remade"), 4, "T_UI_Total", scale=2)       # drawn by gen_ui_total.py
     save(art("time_remade"), 14, "T_UI_Time", scale=2)        # ...and its TIME, for a time attack
     start = art("startnew2")

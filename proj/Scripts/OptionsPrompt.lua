@@ -39,7 +39,7 @@ local EDGE = Vec(0.45, 0.78, 1.0, 1.0)
 local REF_H = 480.0
 local BOX_W = 560.0
 local FIRST_LINE, LINE_GAP = 66.0, 30.0
-local MAX_LINES = 7
+local MAX_LINES = 10              -- (the CONTROLS page has 9)
 
 -- The pages. A line opens another page, is an on/off setting (GameOptions[option]), a setting with
 -- a list of values (GameOptions[page.of][setting], GameOptions.CHOICES), or START.
@@ -53,6 +53,7 @@ local PAGES = {
                            { label = "DROP DASH", info = "A IN THE AIR" },
                            { label = "SPIN DASH", info = "HOLD R, A TO REV" },
                            { label = "SUPER SONIC", info = "Z, 50 RINGS" },
+                           { label = "BACK TO SONIC", info = "Z AGAIN" },
                            { label = "SUPER GLIDE", info = "HOLD A" },
                            { label = "PAUSE", info = "START" },
                            { label = "BACK", info = "B" } } },
